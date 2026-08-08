@@ -1832,5 +1832,7 @@
  "%d 分钟": "%d phút",
  "%.1f 小时": "%.1f giờ",
  "停止调用模型 (%s): %v": "dừng gọi model (%s): %v",
- "## 当前任务\n": "## Nhiệm vụ hiện tại\n"
+ "## 当前任务\n": "## Nhiệm vụ hiện tại\n",
+ "写作阶段禁止使用 %s 全量覆盖大纲。请使用 revise_outline 修订未发生章节、expand_arc 展开骨架弧，或 append_volume 追加新卷: %w": "Đang ở giai đoạn viết thì không được dùng %s để ghi đè toàn bộ dàn ý. Hãy dùng revise_outline để sửa các chương chưa viết, expand_arc để mở hồi khung, hoặc append_volume để thêm tập mới: %w",
+ "全书已完结，禁止使用 %s 全量覆盖大纲。请先重开作品，再使用受保护的大纲修订或续写操作: %w": "Truyện đã hoàn thành, không được dùng %s để ghi đè toàn bộ dàn ý. Hãy mở lại truyện trước, rồi dùng các thao tác sửa dàn ý hoặc viết tiếp có bảo vệ: %w"
 }

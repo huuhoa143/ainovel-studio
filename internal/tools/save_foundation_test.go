@@ -101,6 +101,97 @@ func TestSaveFoundationPremiseSetsNovelName(t *testing.T) {
 	}
 }
 
+func TestSaveFoundationCanRevisePremiseAfterOutline(t *testing.T) {
+	dir := t.TempDir()
+	st := store.NewStore(dir)
+	if err := st.Init(); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	if err := st.Progress.Init("旧书名", 0); err != nil {
+		t.Fatalf("Init progress: %v", err)
+	}
+	if err := st.Progress.UpdatePhase(domain.PhaseOutline); err != nil {
+		t.Fatalf("UpdatePhase outline: %v", err)
+	}
+
+	args, _ := json.Marshal(map[string]any{
+		"type":    "premise",
+		"content": "# 新书名\n\n修订后的故事前提。",
+	})
+	if _, err := NewSaveFoundationTool(st).Execute(context.Background(), args); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	p, err := st.Progress.Load()
+	if err != nil {
+		t.Fatalf("Load progress: %v", err)
+	}
+	if p.Phase != domain.PhaseOutline {
+		t.Fatalf("phase = %s, want outline", p.Phase)
+	}
+	if p.NovelName != "新书名" {
+		t.Fatalf("novel name = %q, want 新书名", p.NovelName)
+	}
+	if cp := st.Checkpoints.LatestByStep(domain.GlobalScope(), "premise"); cp == nil {
+		t.Fatal("修订后的 premise 应生成 checkpoint")
+	}
+}
+
+func TestSaveFoundationRejectsFullOutlineAfterComplete(t *testing.T) {
+	tests := []struct {
+		name    string
+		typeArg string
+		content any
+	}{
+		{
+			name: "flat", typeArg: "outline",
+			content: []map[string]any{{"chapter": 1, "title": "覆盖后", "core_event": "变化", "hook": "继续", "scenes": []string{}}},
+		},
+		{
+			name: "layered", typeArg: "layered_outline",
+			content: []map[string]any{{
+				"index": 1, "title": "覆盖卷", "theme": "变化",
+				"arcs": []map[string]any{{
+					"index": 1, "title": "覆盖弧", "goal": "变化",
+					"chapters": []map[string]any{{"title": "覆盖后", "core_event": "变化", "hook": "继续", "scenes": []string{}}},
+				}},
+			}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := store.NewStore(t.TempDir())
+			if err := s.Init(); err != nil {
+				t.Fatal(err)
+			}
+			if err := s.Progress.Init("test", 1); err != nil {
+				t.Fatal(err)
+			}
+			if err := s.Outline.SaveOutline([]domain.OutlineEntry{{Chapter: 1, Title: "原始标题"}}); err != nil {
+				t.Fatal(err)
+			}
+			if err := s.Progress.MarkComplete(); err != nil {
+				t.Fatal(err)
+			}
+
+			args, _ := json.Marshal(map[string]any{"type": tt.typeArg, "content": tt.content})
+			if _, err := NewSaveFoundationTool(s).Execute(context.Background(), args); err == nil || !strings.Contains(err.Error(), "已完结") {
+				t.Fatalf("完结后全量覆盖必须被拒绝，err=%v", err)
+			}
+			outline, err := s.Outline.LoadOutline()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(outline) != 1 || outline[0].Title != "原始标题" {
+				t.Fatalf("被拒调用修改了 outline: %+v", outline)
+			}
+			if _, err := os.Stat(filepath.Join(s.Dir(), "layered_outline.json")); tt.typeArg == "layered_outline" && !os.IsNotExist(err) {
+				t.Fatalf("被拒调用写入了 layered_outline.json: %v", err)
+			}
+		})
+	}
+}
+
 func TestSaveFoundationOutlineClearsLayeredStateWhenDowngrading(t *testing.T) {
 	dir := t.TempDir()
 	store := store.NewStore(dir)

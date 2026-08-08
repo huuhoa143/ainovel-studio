@@ -106,6 +106,28 @@ func (s *ProgressStore) UpdatePhase(phase domain.Phase) error {
 	})
 }
 
+// AdvancePhase 将创作阶段至少推进到 phase；已经到达更后阶段时保持不变。
+// 适用于可重复保存的阶段工件，避免修订旧工件被误判为阶段回退。
+func (s *ProgressStore) AdvancePhase(phase domain.Phase) error {
+	return s.io.WithWriteLock(func() error {
+		p, err := s.loadUnlocked()
+		if err != nil {
+			return err
+		}
+		if p == nil {
+			p = &domain.Progress{}
+		}
+		if domain.CanTransitionPhase(phase, p.Phase) {
+			return nil
+		}
+		if err := domain.ValidatePhaseTransition(p.Phase, phase); err != nil {
+			return err
+		}
+		p.Phase = phase
+		return s.saveUnlocked(p)
+	})
+}
+
 // StartChapter 标记某章进入写作中状态。它不能承担阶段迁移职责；调用方必须先由
 // foundation/import 流程把 Progress 明确推进到 writing，避免错误派单绕过规划阶段。
 func (s *ProgressStore) StartChapter(chapter int) error {

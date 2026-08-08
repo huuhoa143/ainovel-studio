@@ -550,7 +550,10 @@ func (e *engine) failureFacts(kind string, inst *flow.Instruction, workerErr err
 	f := arbiter.FailureFacts{Kind: kind, Agent: inst.Agent, Task: inst.Task, Repeats: e.repeats}
 	if workerErr != nil {
 		f.Error = workerErr.Error()
-		f.ErrorKind = agentcore.ErrorKind(workerErr)
+		f.ErrorKind = errorKind(workerErr, f.Error)
+		if f.ErrorKind == "" {
+			f.ErrorKind = "unknown"
+		}
 	}
 	missing, err := e.store.FoundationMissing()
 	if err != nil {

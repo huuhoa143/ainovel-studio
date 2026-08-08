@@ -87,8 +87,8 @@ func (o *observer) handleToolUpdate(ev agentcore.Event) {
 	case agentcore.ProgressThinking:
 		o.handleThinkingProgress(ev)
 	case agentcore.ProgressRetry:
-		// Arbiter 在 Meta 里保留实际 Retry-After；旧 Worker relay 尚未携带 Delay，
-		// 对它按 agentcore 的标准指数退避还原展示值。
+		// 只展示上游明确报告的实际等待时间。旧 Worker relay 尚未携带 Delay，
+		// 此时省略倒计时，避免用本地猜测误报真实重试节奏。
 		// Summary 不嵌静态延时——UI 依 RetryAt 逐秒倒计时；Detail/日志保留发出时的延时快照。
 		delay := retryProgressDelay(ev.Progress)
 		retryEv := Event{
@@ -161,18 +161,7 @@ func retryProgressDelay(p *agentcore.ProgressPayload) time.Duration {
 			return time.Duration(meta.DelayMS) * time.Millisecond
 		}
 	}
-	attempt := p.Attempt
-	if attempt <= 0 {
-		return 0
-	}
-	delay := time.Second
-	for i := 1; i < attempt && delay < 60*time.Second; i++ {
-		delay *= 2
-	}
-	if delay > 60*time.Second {
-		return 60 * time.Second
-	}
-	return delay
+	return 0
 }
 
 func dispatchSummary(agent, task string) string {
