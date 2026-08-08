@@ -2,6 +2,8 @@
 
 [English](README.en.md) · **Tiếng Việt**
 
+**Demo trực tiếp: [ainovel.lingoreup.com](https://ainovel.lingoreup.com)** — web studio mở sẵn trên một lượt chạy thật, không cần cài gì. Bản demo là **chỉ đọc**; xem [Bản demo công khai](#bản-demo-công-khai) để biết đọc được những gì và vì sao không ghi được.
+
 Engine viết tiểu thuyết dài bằng AI, toàn tự động. Engine tất định chạy trọn một cuốn sách, model chỉ được gọi đúng những chỗ cần phán đoán: Engine định tuyến theo sự thật để điều phối ba tác tử sáng tác tự chủ Architect / Writer / Editor, và đánh thức Arbiter khi cần phán quyết ngữ nghĩa. Từ một câu yêu cầu tới một cuốn tiểu thuyết hoàn chỉnh, không cần người can thiệp.
 
 > Đây là **bản fork tiếng Việt** của [voocel/ainovel-cli](https://github.com/voocel/ainovel-cli). Giao diện, prompt và tài liệu đã việt hóa nên AI sinh truyện tiếng Việt; xem [Ghi công](#ghi-công) ở cuối.
@@ -385,6 +387,25 @@ Hai hàng rào đi kèm:
 - **Đường ghi chỉ bật trên loopback.** Từ khi studio giữ khóa API và khởi động được engine, một yêu cầu từ người lạ không chỉ đọc được bản thảo mà còn tiêu được tiền. Nên `--addr` không phải loopback thì cả nhóm route ghi KHÔNG được mắc — studio lui về đúng hành vi chỉ-đọc cũ. Thêm một hàng rào chống CSRF sang localhost (header riêng + kiểm `Origin`/`Host`), vì mọi trang web đang mở đều gọi được tới `127.0.0.1`.
 
 Khóa API đi **một chiều**: đặt được qua giao diện, nhưng API không bao giờ trả nó về — chỗ nào cần hiện thì chỉ hiện dạng che (`sk-4…802`).
+
+#### Bản demo công khai
+
+**[ainovel.lingoreup.com](https://ainovel.lingoreup.com)** — studio chạy sẵn trên một tác phẩm mẫu, không cần cài gì, không cần khóa API.
+
+Đây chính là **chế độ chỉ-đọc** mô tả ở trên, chứ không phải một bản rút gọn riêng: container lắng nghe ngoài loopback, nên cả nhóm route ghi không được mắc vào mux. Đó là điều kiện để một bản demo công khai tồn tại được — nếu người lạ ghi được thì họ khởi động được engine và tiêu tiền API thật.
+
+Đọc được, với dữ liệu thật của một lượt chạy:
+
+- **Dòng sản xuất** — trục tập/cung/chương theo tỉ lệ thật, đủ bốn trạng thái khối
+- **Bản thảo** — chương đã nghiệm thu, đặt cạnh khế ước chương
+- **Kiểm định** — bản duyệt bảy chiều của Editor, mỗi chiều kèm dẫn nguyên văn
+- **Nhật ký phán quyết** của Arbiter, **Chi phí** bổ theo vai và theo model, **Nhân vật** · **Luật thế giới** · **Phục bút** · **Dàn ý phân tầng**
+
+Không có: tạo tác phẩm, chạy engine, can thiệp, nghiệm thu, đặt khóa, nhập/xuất. Ô can thiệp ở đáy màn sản xuất tự nói rõ nó vô hiệu và vì sao.
+
+> **Còn một cạnh thô đã biết.** Nhóm nút *Tác phẩm mới* · *Cùng dựng* · *Xóa* ở màn Quản lý và ở rail vẫn hiện và vẫn bấm được, vì chúng chưa được gán theo `may.choGhi` như ô can thiệp. Bấm tới cùng thì server từ chối (`404`) và giao diện chỉ hiện đúng mã lỗi đó — không mất gì và không tạo gì, nhưng thông báo chưa nói được "bản này chỉ đọc". Hàng rào an toàn nằm ở server nên nó không phụ thuộc vào việc giao diện có ẩn nút hay không.
+
+Tác phẩm mẫu sinh bằng `go run ./cmd/seed-demo <thư-mục>` — cùng công cụ dùng khi phát triển, nên demo không cần một lượt chạy thật nào.
 
 ### Quản lý nhiều tiểu thuyết
 
