@@ -1,4 +1,4 @@
-# ainovel-cli
+# ainovel-studio
 
 **English** · [Tiếng Việt](README.md)
 
@@ -126,33 +126,31 @@ autonomous LLM loops (Workers).
 ## Quick start
 
 ```bash
-# One-line install (macOS / Linux, no Go required)
-curl -fsSL https://raw.githubusercontent.com/voocel/ainovel-cli/main/scripts/install.sh | sh
-
-# Or via Go
-go install github.com/voocel/ainovel-cli/cmd/ainovel-cli@latest
+# Install this fork (requires Go 1.25+; works on macOS, Linux and Windows)
+go install github.com/huuhoa143/ainovel-studio/cmd/ainovel-cli@latest
 
 # First run walks you through provider → API key → base URL → model
 ainovel-cli
 ```
 
-> ### ⚠️ The commands above install UPSTREAM, not this fork
+> ### `go install` gives you the CLI — the web studio needs one more step
 >
-> `install.sh` hardcodes `REPO="voocel/ainovel-cli"`, and `go install
-> github.com/voocel/ainovel-cli/...` resolves through `go.mod` to upstream as well. Both give
-> you the **original**, which has neither the Vietnamese localisation nor the web studio.
+> This is not an oversight, it follows from a design choice: the binary does **not** embed the
+> interface, it reads a built directory from disk on every request (`--web`). `go install`
+> compiles Go only, so it gives you the TUI and the headless engine but no studio assets.
 >
-> To run *this* fork, build from source:
+> For the studio, build from source:
 >
 > ```bash
-> git clone https://github.com/huuhoa143/ainovel-cli && cd ainovel-cli
+> git clone https://github.com/huuhoa143/ainovel-studio && cd ainovel-studio
 > go build -o ainovel-cli ./cmd/ainovel-cli
-> cd web && npm ci && npm run build && cd ..   # only if you want the web studio
+> cd web && npm ci && npm run build && cd ..
 > ./ainovel-cli serve --web web/out
 > ```
 >
-> This is a known open item rather than a documentation slip: fixing it means either changing
-> the module path or publishing fork-specific releases — a call that has not been made yet.
+> `scripts/install.sh` still hardcodes `REPO="voocel/ainovel-cli"` and installs **upstream** —
+> this fork publishes no release binaries, so use `go install` or build from source. Windows is
+> covered by `go install`; the shell installer never supported it anyway.
 
 The first run generates `~/.ainovel/config.json`. Inside the TUI, `/config` adds or edits
 providers and per-model context windows; `/model` switches between saved models. A reference

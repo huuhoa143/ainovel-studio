@@ -1,4 +1,4 @@
-# ainovel-cli
+# ainovel-studio
 
 [English](README.en.md) · **Tiếng Việt**
 
@@ -221,42 +221,38 @@ ToolResultMicrocompact → LightTrim → StoreSummaryCompact → FullSummary
 ## Bắt đầu nhanh
 
 ```bash
-# Cài một phát (macOS / Linux, không cần Go)
-curl -fsSL https://raw.githubusercontent.com/voocel/ainovel-cli/main/scripts/install.sh | sh
+# Cài bản fork này (cần Go 1.25+; chạy trên macOS, Linux và Windows)
+go install github.com/huuhoa143/ainovel-studio/cmd/ainovel-cli@latest
 
-# Cài phiên bản chỉ định
-curl -fsSL https://raw.githubusercontent.com/voocel/ainovel-cli/main/scripts/install.sh | sh -s -- v1.2.3
-
-# Hoặc cài qua Go
-go install github.com/voocel/ainovel-cli/cmd/ainovel-cli@latest
-
-# Xem phiên bản / cập nhật lên bản mới nhất
+# Xem phiên bản
 ainovel-cli --version
-ainovel-cli update
 
 # Chạy lần đầu sẽ tự vào luồng dẫn dắt (chọn Provider → nhập API Key → Base URL → tên model)
 ainovel-cli
 ```
 
-> ### ⚠️ Lệnh cài ở trên lấy bản UPSTREAM, không phải bản fork này
+> ### `go install` cho bạn CLI — web studio cần thêm một bước
 >
-> `install.sh` chốt cứng `REPO="voocel/ainovel-cli"` và `go install
-> github.com/voocel/ainovel-cli/...` phân giải theo `go.mod` — cũng là upstream. Cả hai đều
-> cài **bản gốc**, tức bản KHÔNG có việt hóa và KHÔNG có web studio.
+> Không phải sơ suất, nó là hệ quả của một quyết định thiết kế: nhị phân **không nhúng** giao
+> diện, nó đọc thư mục đã dựng từ đĩa ở **từng lượt yêu cầu** (`--web`). `go install` chỉ biên
+> dịch phần Go, nên bạn có TUI và engine headless nhưng chưa có tệp giao diện nào.
 >
-> Muốn chạy bản fork này thì dựng từ nguồn:
+> Muốn web studio thì dựng từ nguồn:
 >
 > ```bash
-> git clone https://github.com/huuhoa143/ainovel-cli && cd ainovel-cli
+> git clone https://github.com/huuhoa143/ainovel-studio && cd ainovel-studio
 > go build -o ainovel-cli ./cmd/ainovel-cli
-> cd web && npm ci && npm run build && cd ..   # nếu cần web studio
+> cd web && npm ci && npm run build && cd ..
 > ./ainovel-cli serve --web web/out
 > ```
 >
-> Đây là việc còn tồn đã biết, không phải sơ suất của tài liệu: sửa nó là đổi đường dẫn
-> module hoặc phát hành release riêng cho fork — một quyết định chưa chốt.
-
-> Windows hoặc cài tay: vào [Releases](https://github.com/voocel/ainovel-cli/releases/latest) tải gói đúng nền tảng.
+> `scripts/install.sh` vẫn chốt cứng `REPO="voocel/ainovel-cli"` nên nó cài **upstream**, không
+> phải bản này — fork không phát hành nhị phân release. Dùng `go install` hoặc dựng từ nguồn.
+> Windows giờ đã được `go install` phủ; bộ cài shell chưa bao giờ hỗ trợ Windows.
+>
+> **Cập nhật** là chạy lại đúng lệnh `go install …@latest` ở trên. `ainovel-cli update` giờ báo
+> không tìm thấy bản mới, và đó là cố ý: trước đây nó tải nhị phân của **upstream** rồi ghi đè
+> lên bản fork, tức người dùng gõ một lệnh cập nhật rồi mất bản việt hóa mà không biết vì sao.
 
 ### Docker
 
