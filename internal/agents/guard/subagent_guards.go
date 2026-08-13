@@ -7,8 +7,8 @@ import (
 	"sync/atomic"
 
 	"github.com/voocel/agentcore"
-	"github.com/voocel/ainovel-cli/internal/i18n"
-	"github.com/voocel/ainovel-cli/internal/store"
+	"github.com/huuhoa143/ainovel-studio/internal/i18n"
+	"github.com/huuhoa143/ainovel-studio/internal/store"
 )
 
 // subagentMaxConsecutiveBlocks 连续阻拦 N 次后升级为终止，避免弱模型死循环。

@@ -8,8 +8,8 @@ import (
 	"strings"
 
 	"github.com/voocel/agentcore"
-	"github.com/voocel/ainovel-cli/internal/i18n"
-	"github.com/voocel/ainovel-cli/internal/llmretry"
+	"github.com/huuhoa143/ainovel-studio/internal/i18n"
+	"github.com/huuhoa143/ainovel-studio/internal/llmretry"
 )
 
 // FailureKind 区分不可由同一次结构化反馈修复的失败边界。

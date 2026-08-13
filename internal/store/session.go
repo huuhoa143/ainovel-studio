@@ -10,8 +10,8 @@ import (
 	"sync"
 
 	"github.com/voocel/agentcore"
-	"github.com/voocel/ainovel-cli/internal/domain"
-	"github.com/voocel/ainovel-cli/internal/i18n"
+	"github.com/huuhoa143/ainovel-studio/internal/domain"
+	"github.com/huuhoa143/ainovel-studio/internal/i18n"
 )
 
 // SessionStore 追加式记录 LLM 对话历史到 JSONL 文件。

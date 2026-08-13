@@ -1496,7 +1496,7 @@ func TestLuat2CoRang(t *testing.T) {
 import (
 	"fmt"
 
-	"github.com/voocel/ainovel-cli/internal/i18n"
+	"github.com/huuhoa143/ainovel-studio/internal/i18n"
 )
 
 func decodeSource(text string, ratio float64) error {
@@ -1512,7 +1512,7 @@ func decodeSource(text string, ratio float64) error {
 import (
 	"fmt"
 
-	"github.com/voocel/ainovel-cli/internal/i18n"
+	"github.com/huuhoa143/ainovel-studio/internal/i18n"
 )
 
 func decodeSource(text string, ratio float64) error {
@@ -1560,7 +1560,7 @@ func decodeSource(text string, ratio float64) error {
 func TestLuat1CoRang(t *testing.T) {
 	src := `package p
 
-import "github.com/voocel/ainovel-cli/internal/i18n"
+import "github.com/huuhoa143/ainovel-studio/internal/i18n"
 
 // (a) chưa bọc — phải ĐỎ
 func loi() string { return "章节已提交" }
@@ -1690,7 +1690,7 @@ func TestMienTruTruongCoRang(t *testing.T) {
 func TestLuat3CoRang(t *testing.T) {
 	ghim := `package host
 
-import "github.com/voocel/ainovel-cli/internal/i18n"
+import "github.com/huuhoa143/ainovel-studio/internal/i18n"
 
 func init() { _ = i18n.SetLocale(i18n.Chinese) }
 `
@@ -1699,7 +1699,7 @@ func init() { _ = i18n.SetLocale(i18n.Chinese) }
 import (
 	"testing"
 
-	"github.com/voocel/ainovel-cli/internal/i18n"
+	"github.com/huuhoa143/ainovel-studio/internal/i18n"
 )
 
 // (a) trả về DefaultLocale trong gói ghim zh — PHÁ GHIM
@@ -1795,7 +1795,7 @@ func TestLuat4CoRang(t *testing.T) {
 	// (a) Tệp CÓ gọi i18n.F/T → hằng chữ Hán là msgid được neo.
 	neo := `package guard
 
-import "github.com/voocel/ainovel-cli/internal/i18n"
+import "github.com/huuhoa143/ainovel-studio/internal/i18n"
 
 const (
 	msgConTrongCatalog = "生成第 %d 卷卷摘要（save_volume_summary）"
@@ -1844,7 +1844,7 @@ func dung() int { return dem(vanTrungSach) }
 	// Hình thức thứ hai: msgid NHÚNG THẲNG vào i18n.F. Đây là chỗ hở đã bịt —
 	// lỗi prune catalog thật thuộc đúng họ này, chỉ khác cách khai báo.
 	nhung := "package guard\n\n" +
-		"import \"github.com/voocel/ainovel-cli/internal/i18n\"\n\n" +
+		"import \"github.com/huuhoa143/ainovel-studio/internal/i18n\"\n\n" +
 		"func conTrongCatalog() string { return i18n.F(\"生成第 %d 卷卷摘要（save_volume_summary）\") }\n\n" +
 		"func daTroi() string { return i18n.F(\"生成第 %d 卷卷摘要（câu gốc đã đổi）\") }\n"
 

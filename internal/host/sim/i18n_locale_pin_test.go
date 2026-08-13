@@ -1,6 +1,6 @@
 package sim
 
-import "github.com/voocel/ainovel-cli/internal/i18n"
+import "github.com/huuhoa143/ainovel-studio/internal/i18n"
 
 // Test trong package này chốt assert trên chuỗi tiếng Trung của upstream. Ghim
 // locale về zh để chúng vẫn so đúng cái upstream sinh ra, nhờ vậy diff của fork

@@ -5,7 +5,7 @@ import (
 	"testing"
 	"unicode/utf8"
 
-	"github.com/voocel/ainovel-cli/internal/i18n"
+	"github.com/huuhoa143/ainovel-studio/internal/i18n"
 )
 
 // withLocale đổi ngôn ngữ trong phạm vi một test rồi phục hồi. Locale là biến

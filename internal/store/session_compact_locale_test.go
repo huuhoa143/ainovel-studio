@@ -8,8 +8,8 @@ import (
 	"unicode"
 
 	"github.com/voocel/agentcore"
-	"github.com/voocel/ainovel-cli/internal/domain"
-	"github.com/voocel/ainovel-cli/internal/i18n"
+	"github.com/huuhoa143/ainovel-studio/internal/domain"
+	"github.com/huuhoa143/ainovel-studio/internal/i18n"
 )
 
 // Nhóm test này giữ BẤT BIẾN quan trọng nhất của lớp nén log phiên: phần chữ

@@ -12,8 +12,8 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/voocel/ainovel-cli/internal/domain"
-	"github.com/voocel/ainovel-cli/internal/i18n"
+	"github.com/huuhoa143/ainovel-studio/internal/domain"
+	"github.com/huuhoa143/ainovel-studio/internal/i18n"
 )
 
 // minChapters 少于此章数不出统计——样本太小，频率没有意义。

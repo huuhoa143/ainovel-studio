@@ -11,9 +11,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/voocel/ainovel-cli/internal/host/exp"
-	"github.com/voocel/ainovel-cli/internal/host/imp"
-	"github.com/voocel/ainovel-cli/internal/host/sim"
+	"github.com/huuhoa143/ainovel-studio/internal/host/exp"
+	"github.com/huuhoa143/ainovel-studio/internal/host/imp"
+	"github.com/huuhoa143/ainovel-studio/internal/host/sim"
 )
 
 // Ba luồng cần tệp: nhập truyện ngoài, mô phỏng văn phong, xuất bản.

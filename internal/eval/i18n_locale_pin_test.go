@@ -1,6 +1,6 @@
 package eval
 
-import "github.com/voocel/ainovel-cli/internal/i18n"
+import "github.com/huuhoa143/ainovel-studio/internal/i18n"
 
 // Test trong package này chốt assert trên chuỗi tiếng Trung của upstream: chúng
 // dò cụm trong văn bản báo cáo đánh giá ("缺终稿", "stylestat warning", "回归")

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/voocel/ainovel-cli/internal/i18n"
+	"github.com/huuhoa143/ainovel-studio/internal/i18n"
 )
 
 // Bộ kiểm cơ học so khớp CHUỖI CON LITERAL, mà bảng ở snapshot.go toàn chữ thường.

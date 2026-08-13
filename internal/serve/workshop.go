@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"sort"
 
-	"github.com/voocel/ainovel-cli/internal/store"
+	"github.com/huuhoa143/ainovel-studio/internal/store"
 )
 
 // scanWorkshop quét thư mục gốc để tìm mọi tác phẩm.

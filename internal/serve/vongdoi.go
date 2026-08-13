@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/voocel/ainovel-cli/internal/domain"
+	"github.com/huuhoa143/ainovel-studio/internal/domain"
 )
 
 // Vòng đời sáng tác: chế độ đi tiếp, cấp phép chương, mở lại sách đã hoàn thành.

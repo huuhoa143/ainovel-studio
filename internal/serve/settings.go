@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/voocel/ainovel-cli/internal/store"
+	"github.com/huuhoa143/ainovel-studio/internal/store"
 )
 
 // buildSettings dựng bề mặt Cài đặt từ meta/run.json.

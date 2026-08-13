@@ -7,7 +7,7 @@ import (
 
 	"github.com/voocel/agentcore"
 
-	"github.com/voocel/ainovel-cli/internal/bootstrap"
+	"github.com/huuhoa143/ainovel-studio/internal/bootstrap"
 )
 
 /*

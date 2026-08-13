@@ -3,7 +3,7 @@ package host
 import (
 	"time"
 
-	"github.com/voocel/ainovel-cli/internal/domain"
+	"github.com/huuhoa143/ainovel-studio/internal/domain"
 )
 
 // Event 是 TUI 消费的结构化事件。

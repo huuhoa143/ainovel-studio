@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/voocel/ainovel-cli/internal/domain"
-	"github.com/voocel/ainovel-cli/internal/i18n"
+	"github.com/huuhoa143/ainovel-studio/internal/domain"
+	"github.com/huuhoa143/ainovel-studio/internal/i18n"
 )
 
 // StaleForeshadow 检测长期未推进的伏笔。

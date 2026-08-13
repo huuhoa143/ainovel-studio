@@ -4,7 +4,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/voocel/ainovel-cli/internal/host"
+	"github.com/huuhoa143/ainovel-studio/internal/host"
 )
 
 // Dòng VĂN SỐNG — chữ model đang sinh ra, đường từ engine tới trình duyệt.

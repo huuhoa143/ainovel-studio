@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/voocel/ainovel-cli/internal/host"
+	"github.com/huuhoa143/ainovel-studio/internal/host"
 )
 
 // TestDongVanRanhGioiLuotDungThuTu canh lớp lỗi "xử lý lệnh xóa NGOÀI hàng".

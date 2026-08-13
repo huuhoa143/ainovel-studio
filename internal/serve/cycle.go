@@ -4,7 +4,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/voocel/ainovel-cli/internal/domain"
+	"github.com/huuhoa143/ainovel-studio/internal/domain"
 )
 
 // Thời lượng sản xuất một chương được suy ra từ checkpoint, không phải từ một

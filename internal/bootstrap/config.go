@@ -9,11 +9,11 @@ import (
 	"time"
 
 	"github.com/voocel/agentcore/llm"
-	"github.com/voocel/ainovel-cli/internal/errs"
-	"github.com/voocel/ainovel-cli/internal/i18n"
-	"github.com/voocel/ainovel-cli/internal/models"
-	"github.com/voocel/ainovel-cli/internal/notify"
-	"github.com/voocel/ainovel-cli/internal/utils"
+	"github.com/huuhoa143/ainovel-studio/internal/errs"
+	"github.com/huuhoa143/ainovel-studio/internal/i18n"
+	"github.com/huuhoa143/ainovel-studio/internal/models"
+	"github.com/huuhoa143/ainovel-studio/internal/notify"
+	"github.com/huuhoa143/ainovel-studio/internal/utils"
 )
 
 // DefaultContextWindow 模型未在 registry 登记时的兜底窗口大小。

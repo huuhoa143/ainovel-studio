@@ -3,7 +3,7 @@ package serve
 import (
 	"testing"
 
-	"github.com/voocel/ainovel-cli/internal/domain"
+	"github.com/huuhoa143/ainovel-studio/internal/domain"
 )
 
 // TestTransportCoVaiKhongPhuThuocSSE chốt bản sửa một trường ĐƯỢC KHAI mà không ai gán.

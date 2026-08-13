@@ -1,4 +1,4 @@
-module github.com/voocel/ainovel-cli
+module github.com/huuhoa143/ainovel-studio
 
 go 1.25.5
 

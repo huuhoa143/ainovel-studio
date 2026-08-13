@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/voocel/ainovel-cli/internal/i18n"
+	"github.com/huuhoa143/ainovel-studio/internal/i18n"
 )
 
 // Nhãn "can thiệp gốc" do interventionDispatchTask sinh ra là HỢP ĐỒNG giữa code

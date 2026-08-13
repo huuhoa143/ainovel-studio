@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/voocel/ainovel-cli/internal/host"
+	"github.com/huuhoa143/ainovel-studio/internal/host"
 )
 
 // Cùng dựng — đối thoại nhiều lượt trước khi engine bắt đầu, hoặc giữa hai giai đoạn.

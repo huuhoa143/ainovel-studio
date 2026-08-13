@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/voocel/ainovel-cli/internal/i18n"
+	"github.com/huuhoa143/ainovel-studio/internal/i18n"
 )
 
 // Package này CỐ Ý chạy ở locale mặc định (tiếng Việt), khác với các package tầng

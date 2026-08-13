@@ -5,7 +5,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/voocel/ainovel-cli/internal/host"
+	"github.com/huuhoa143/ainovel-studio/internal/host"
 )
 
 const resetForeground = "\x1b[39m"

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/voocel/ainovel-cli/internal/tools"
+	"github.com/huuhoa143/ainovel-studio/internal/tools"
 )
 
 // Cầu nối `ask_user` — engine hỏi, trình duyệt trả lời.

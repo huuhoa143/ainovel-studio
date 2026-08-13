@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/voocel/ainovel-cli/internal/domain"
-	"github.com/voocel/ainovel-cli/internal/store"
+	"github.com/huuhoa143/ainovel-studio/internal/domain"
+	"github.com/huuhoa143/ainovel-studio/internal/store"
 )
 
 // newBook dựng một tác phẩm thật trên đĩa để test đi qua đúng đường store, không

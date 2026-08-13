@@ -4,8 +4,8 @@ import (
 	"fmt"
 
 	"errors"
-	"github.com/voocel/ainovel-cli/internal/domain"
-	"github.com/voocel/ainovel-cli/internal/i18n"
+	"github.com/huuhoa143/ainovel-studio/internal/domain"
+	"github.com/huuhoa143/ainovel-studio/internal/i18n"
 )
 
 // StartsForwardChapter 判断一条指令是否会开始尚未完成的正向新章。

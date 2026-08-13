@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/voocel/ainovel-cli/internal/domain"
-	"github.com/voocel/ainovel-cli/internal/store"
+	"github.com/huuhoa143/ainovel-studio/internal/domain"
+	"github.com/huuhoa143/ainovel-studio/internal/store"
 )
 
 // TestCaiDat_KhongCoTepKhongPhaiLoi: thư mục đã có meta/progress.json mà chưa có

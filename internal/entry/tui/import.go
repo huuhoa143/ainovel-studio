@@ -11,9 +11,9 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"errors"
-	"github.com/voocel/ainovel-cli/internal/host"
-	"github.com/voocel/ainovel-cli/internal/host/imp"
-	"github.com/voocel/ainovel-cli/internal/i18n"
+	"github.com/huuhoa143/ainovel-studio/internal/host"
+	"github.com/huuhoa143/ainovel-studio/internal/host/imp"
+	"github.com/huuhoa143/ainovel-studio/internal/i18n"
 )
 
 // importState 是 /import 命令运行期间的模态状态。

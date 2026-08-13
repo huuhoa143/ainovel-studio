@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	storepkg "github.com/voocel/ainovel-cli/internal/store"
+	storepkg "github.com/huuhoa143/ainovel-studio/internal/store"
 )
 
 // TestChuongDaChotVanDocDuocToanVan chốt bản sửa lỗi "chương đã nghiệm thu hiện

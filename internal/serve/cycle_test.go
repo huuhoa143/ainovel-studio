@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/voocel/ainovel-cli/internal/domain"
+	"github.com/huuhoa143/ainovel-studio/internal/domain"
 )
 
 func cp(seq int64, chapter int, step string, at time.Time) domain.Checkpoint {

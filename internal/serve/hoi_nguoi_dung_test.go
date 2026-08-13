@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/voocel/ainovel-cli/internal/tools"
+	"github.com/huuhoa143/ainovel-studio/internal/tools"
 )
 
 var cauHoiMau = []tools.Question{{

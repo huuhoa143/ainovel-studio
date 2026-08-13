@@ -3,7 +3,7 @@ package tools
 import (
 	"testing"
 
-	"github.com/voocel/ainovel-cli/internal/domain"
+	"github.com/huuhoa143/ainovel-studio/internal/domain"
 )
 
 // TestParsePremiseSections chốt rằng tiêu đề tiếng Trung (sách cũ) vẫn được

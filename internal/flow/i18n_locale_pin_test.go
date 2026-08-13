@@ -1,6 +1,6 @@
 package flow
 
-import "github.com/voocel/ainovel-cli/internal/i18n"
+import "github.com/huuhoa143/ainovel-studio/internal/i18n"
 
 // Test trong package này khẳng định trên chuỗi tiếng Trung của upstream (ví dụ
 // stub writer trong engine_test bóc số chương bằng regex "写第 (\\d+) 章", hay

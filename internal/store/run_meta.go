@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"errors"
-	"github.com/voocel/ainovel-cli/internal/domain"
-	"github.com/voocel/ainovel-cli/internal/i18n"
+	"github.com/huuhoa143/ainovel-studio/internal/domain"
+	"github.com/huuhoa143/ainovel-studio/internal/i18n"
 )
 
 // RunMetaStore 管理运行元信息（模型、干预历史、规划级别等）。

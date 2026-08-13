@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/voocel/ainovel-cli/internal/host"
+	"github.com/huuhoa143/ainovel-studio/internal/host"
 )
 
 // TestAnhXaVaiKhopTUI canh lớp lỗi tệ nhất của việc ánh xạ: web và TUI nói KHÁC NHAU về

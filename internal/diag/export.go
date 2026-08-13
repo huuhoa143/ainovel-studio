@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/voocel/ainovel-cli/internal/i18n"
-	"github.com/voocel/ainovel-cli/internal/store"
+	"github.com/huuhoa143/ainovel-studio/internal/i18n"
+	"github.com/huuhoa143/ainovel-studio/internal/store"
 )
 
 // ExportRelPath 是脱敏诊断文件相对 output 目录的固定位置（覆盖式一份）。

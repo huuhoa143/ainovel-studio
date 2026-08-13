@@ -8,8 +8,8 @@ import (
 	"errors"
 	"github.com/voocel/agentcore"
 	"github.com/voocel/agentcore/schema"
-	"github.com/voocel/ainovel-cli/internal/i18n"
-	"github.com/voocel/ainovel-cli/internal/llmcontract"
+	"github.com/huuhoa143/ainovel-studio/internal/i18n"
+	"github.com/huuhoa143/ainovel-studio/internal/llmcontract"
 )
 
 // FailureFacts 是 worker_failure / deadlock 两个场景共用的事实包:

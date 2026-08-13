@@ -6,8 +6,8 @@ import (
 	"os"
 	"sort"
 
-	"github.com/voocel/ainovel-cli/assets"
-	"github.com/voocel/ainovel-cli/internal/bootstrap"
+	"github.com/huuhoa143/ainovel-studio/assets"
+	"github.com/huuhoa143/ainovel-studio/internal/bootstrap"
 )
 
 // Cấu hình đọc/ghi cho web — mảnh làm người dùng không phải mở terminal lần nào.

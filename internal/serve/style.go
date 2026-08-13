@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/voocel/ainovel-cli/internal/rules"
-	"github.com/voocel/ainovel-cli/internal/store"
+	"github.com/huuhoa143/ainovel-studio/internal/rules"
+	"github.com/huuhoa143/ainovel-studio/internal/store"
 )
 
 // buildStyle dựng bề mặt Văn phong từ hai nguồn độc lập trong store.

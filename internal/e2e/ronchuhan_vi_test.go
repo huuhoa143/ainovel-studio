@@ -31,11 +31,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/voocel/ainovel-cli/assets"
-	"github.com/voocel/ainovel-cli/internal/i18n"
-	"github.com/voocel/ainovel-cli/internal/rules"
-	storepkg "github.com/voocel/ainovel-cli/internal/store"
-	"github.com/voocel/ainovel-cli/internal/tools"
+	"github.com/huuhoa143/ainovel-studio/assets"
+	"github.com/huuhoa143/ainovel-studio/internal/i18n"
+	"github.com/huuhoa143/ainovel-studio/internal/rules"
+	storepkg "github.com/huuhoa143/ainovel-studio/internal/store"
+	"github.com/huuhoa143/ainovel-studio/internal/tools"
 )
 
 // roVanRoChuHan là văn kể tiếng Việt bị rò đúng hai cụm chữ Hán — đúng hình dạng

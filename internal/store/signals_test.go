@@ -3,7 +3,7 @@ package store
 import (
 	"testing"
 
-	"github.com/voocel/ainovel-cli/internal/domain"
+	"github.com/huuhoa143/ainovel-studio/internal/domain"
 )
 
 func TestPendingCommitLifecycle(t *testing.T) {

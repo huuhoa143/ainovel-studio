@@ -5,8 +5,8 @@ import (
 	"os"
 
 	"errors"
-	"github.com/voocel/ainovel-cli/internal/i18n"
-	"github.com/voocel/ainovel-cli/internal/store"
+	"github.com/huuhoa143/ainovel-studio/internal/i18n"
+	"github.com/huuhoa143/ainovel-studio/internal/store"
 )
 
 // Action 是 NextAction 从工作区事实推导出的下一步确定性动作。

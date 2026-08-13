@@ -9,10 +9,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/voocel/ainovel-cli/assets"
-	"github.com/voocel/ainovel-cli/internal/bootstrap"
-	"github.com/voocel/ainovel-cli/internal/entry/startup"
-	"github.com/voocel/ainovel-cli/internal/host"
+	"github.com/huuhoa143/ainovel-studio/assets"
+	"github.com/huuhoa143/ainovel-studio/internal/bootstrap"
+	"github.com/huuhoa143/ainovel-studio/internal/entry/startup"
+	"github.com/huuhoa143/ainovel-studio/internal/host"
 )
 
 // Bộ giám sát engine — phần cho phép studio GHI, không chỉ đọc.

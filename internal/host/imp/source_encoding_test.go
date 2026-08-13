@@ -8,7 +8,7 @@ import (
 
 	"golang.org/x/text/encoding/simplifiedchinese"
 
-	"github.com/voocel/ainovel-cli/internal/i18n"
+	"github.com/huuhoa143/ainovel-studio/internal/i18n"
 )
 
 const zhSourceSample = "第三章 风起青云\n\n他不是愤怒，而是恐惧。沉默了几息，她眼中闪过慌乱，心头一紧。" +

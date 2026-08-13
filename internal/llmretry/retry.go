@@ -56,7 +56,7 @@ import (
 	"time"
 
 	"github.com/voocel/agentcore"
-	"github.com/voocel/ainovel-cli/internal/i18n"
+	"github.com/huuhoa143/ainovel-studio/internal/i18n"
 )
 
 // ChinhSach là luật bỏ cuộc. Giá trị 0 ở bất kỳ trường nào lấy mặc định của `chuan()`.

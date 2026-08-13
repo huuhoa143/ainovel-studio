@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/voocel/ainovel-cli/internal/domain"
+	"github.com/huuhoa143/ainovel-studio/internal/domain"
 )
 
 // TestWordCountAnomalyUsesMedianNotMean chốt lý do đổi mốc so sánh sang trung vị.

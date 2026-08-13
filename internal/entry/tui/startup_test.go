@@ -2,7 +2,7 @@ package tui
 
 import (
 	"errors"
-	"github.com/voocel/ainovel-cli/internal/i18n"
+	"github.com/huuhoa143/ainovel-studio/internal/i18n"
 	"strings"
 	"testing"
 )

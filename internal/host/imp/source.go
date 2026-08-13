@@ -10,8 +10,8 @@ import (
 	"unicode/utf8"
 
 	"errors"
-	"github.com/voocel/ainovel-cli/internal/i18n"
-	"github.com/voocel/ainovel-cli/internal/utils"
+	"github.com/huuhoa143/ainovel-studio/internal/i18n"
+	"github.com/huuhoa143/ainovel-studio/internal/utils"
 	"golang.org/x/text/encoding/simplifiedchinese"
 )
 

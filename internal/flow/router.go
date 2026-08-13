@@ -13,9 +13,9 @@ package flow
 import (
 	"fmt"
 
-	"github.com/voocel/ainovel-cli/internal/domain"
-	"github.com/voocel/ainovel-cli/internal/i18n"
-	storepkg "github.com/voocel/ainovel-cli/internal/store"
+	"github.com/huuhoa143/ainovel-studio/internal/domain"
+	"github.com/huuhoa143/ainovel-studio/internal/i18n"
+	storepkg "github.com/huuhoa143/ainovel-studio/internal/store"
 )
 
 // plannerForTier 从已落盘的规划级别推导规划师身份:short 归短篇规划师,

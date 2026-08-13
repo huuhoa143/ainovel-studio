@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/voocel/ainovel-cli/internal/domain"
-	"github.com/voocel/ainovel-cli/internal/store"
+	"github.com/huuhoa143/ainovel-studio/internal/domain"
+	"github.com/huuhoa143/ainovel-studio/internal/store"
 )
 
 // pollInterval là nhịp hỏi lại runtime queue.

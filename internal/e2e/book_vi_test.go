@@ -14,13 +14,13 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/voocel/ainovel-cli/assets"
-	"github.com/voocel/ainovel-cli/internal/bootstrap"
-	"github.com/voocel/ainovel-cli/internal/domain"
-	"github.com/voocel/ainovel-cli/internal/host"
-	"github.com/voocel/ainovel-cli/internal/host/exp"
-	"github.com/voocel/ainovel-cli/internal/i18n"
-	storepkg "github.com/voocel/ainovel-cli/internal/store"
+	"github.com/huuhoa143/ainovel-studio/assets"
+	"github.com/huuhoa143/ainovel-studio/internal/bootstrap"
+	"github.com/huuhoa143/ainovel-studio/internal/domain"
+	"github.com/huuhoa143/ainovel-studio/internal/host"
+	"github.com/huuhoa143/ainovel-studio/internal/host/exp"
+	"github.com/huuhoa143/ainovel-studio/internal/i18n"
+	storepkg "github.com/huuhoa143/ainovel-studio/internal/store"
 )
 
 // soChuong = 6: xem chú thích của chuongSach về lý do không phải 3 và không phải 5.

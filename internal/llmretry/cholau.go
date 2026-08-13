@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/voocel/agentcore"
-	"github.com/voocel/ainovel-cli/internal/i18n"
+	"github.com/huuhoa143/ainovel-studio/internal/i18n"
 )
 
 // Chặn "cửa còn đóng lâu" ở tầng MODEL, để vòng lặp thử lại của agentcore cũng nghe được.

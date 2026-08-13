@@ -12,10 +12,10 @@ import (
 
 	"github.com/voocel/agentcore"
 	"github.com/voocel/agentcore/llm"
-	"github.com/voocel/ainovel-cli/internal/domain"
-	"github.com/voocel/ainovel-cli/internal/llmcontract"
-	"github.com/voocel/ainovel-cli/internal/llmretry"
-	storepkg "github.com/voocel/ainovel-cli/internal/store"
+	"github.com/huuhoa143/ainovel-studio/internal/domain"
+	"github.com/huuhoa143/ainovel-studio/internal/llmcontract"
+	"github.com/huuhoa143/ainovel-studio/internal/llmretry"
+	storepkg "github.com/huuhoa143/ainovel-studio/internal/store"
 )
 
 // scriptedModel 按调用序号返回预设文本。

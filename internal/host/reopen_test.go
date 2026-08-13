@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/voocel/ainovel-cli/internal/domain"
-	storepkg "github.com/voocel/ainovel-cli/internal/store"
+	"github.com/huuhoa143/ainovel-studio/internal/domain"
+	storepkg "github.com/huuhoa143/ainovel-studio/internal/store"
 )
 
 // TestHostReopen 守护 /reopen 的用户级重开出口：完本是重决策，重开只能由用户显式

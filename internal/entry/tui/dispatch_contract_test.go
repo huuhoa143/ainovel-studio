@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/voocel/ainovel-cli/internal/host"
+	"github.com/huuhoa143/ainovel-studio/internal/host"
 )
 
 // Summary của sự kiện DISPATCH là HỢP ĐỒNG hai đầu: internal/host sinh ra

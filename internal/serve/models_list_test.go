@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/voocel/ainovel-cli/internal/bootstrap"
+	"github.com/huuhoa143/ainovel-studio/internal/bootstrap"
 )
 
 /*

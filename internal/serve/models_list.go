@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/voocel/ainovel-cli/internal/bootstrap"
+	"github.com/huuhoa143/ainovel-studio/internal/bootstrap"
 )
 
 // handleLietKeModel — GET /api/models?provider=<tên>

@@ -6,7 +6,7 @@ import (
 	"testing"
 	"unicode"
 
-	"github.com/voocel/ainovel-cli/internal/i18n"
+	"github.com/huuhoa143/ainovel-studio/internal/i18n"
 )
 
 // Nhóm test này giữ đường tiếng Việt của lớp nén ngữ cảnh, thứ mà

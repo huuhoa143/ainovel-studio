@@ -3,7 +3,7 @@ package serve
 import (
 	"net/http"
 
-	"github.com/voocel/ainovel-cli/internal/diag"
+	"github.com/huuhoa143/ainovel-studio/internal/diag"
 )
 
 // Chẩn đoán — bản web của `/diag`.

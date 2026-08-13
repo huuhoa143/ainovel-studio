@@ -4,7 +4,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/voocel/ainovel-cli/internal/i18n"
+	"github.com/huuhoa143/ainovel-studio/internal/i18n"
 )
 
 // Lint 内置产品底线检查：扫描正文中的机制残留，与用户规则无关，commit 时始终执行。

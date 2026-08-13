@@ -9,7 +9,7 @@ import (
 
 	"errors"
 	"github.com/voocel/agentcore/schema"
-	"github.com/voocel/ainovel-cli/internal/i18n"
+	"github.com/huuhoa143/ainovel-studio/internal/i18n"
 )
 
 // AskUserResponse 用户回答结果。

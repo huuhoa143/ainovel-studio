@@ -266,7 +266,7 @@ func findTranslation(n ast.Node, i18nName string, funcs map[string]*ast.FuncDecl
 func i18nLocalName(f *ast.File) (string, bool) {
 	for _, imp := range f.Imports {
 		path := strings.Trim(imp.Path.Value, `"`)
-		if path != "github.com/voocel/ainovel-cli/internal/i18n" {
+		if path != "github.com/huuhoa143/ainovel-studio/internal/i18n" {
 			continue
 		}
 		if imp.Name != nil {

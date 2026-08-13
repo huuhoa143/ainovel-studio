@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/voocel/ainovel-cli/internal/domain"
-	storepkg "github.com/voocel/ainovel-cli/internal/store"
+	"github.com/huuhoa143/ainovel-studio/internal/domain"
+	storepkg "github.com/huuhoa143/ainovel-studio/internal/store"
 )
 
 // TestThongBaoHoanThanhKhongLapTenSach chốt bản sửa một lỗi CỦA UPSTREAM.

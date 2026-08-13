@@ -3,7 +3,7 @@ package serve
 import (
 	"net/http"
 
-	"github.com/voocel/ainovel-cli/internal/store"
+	"github.com/huuhoa143/ainovel-studio/internal/store"
 )
 
 // Tổng của CẢ xưởng: GET /api/workshop/cost.

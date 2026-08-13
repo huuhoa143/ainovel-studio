@@ -11,8 +11,8 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"fmt"
-	"github.com/voocel/ainovel-cli/internal/host/imp"
-	"github.com/voocel/ainovel-cli/internal/i18n"
+	"github.com/huuhoa143/ainovel-studio/internal/host/imp"
+	"github.com/huuhoa143/ainovel-studio/internal/i18n"
 )
 
 // TestImportHistoryCoalescesRetryLines 守护重试行原地更新：同 Key 连续事件只占一行

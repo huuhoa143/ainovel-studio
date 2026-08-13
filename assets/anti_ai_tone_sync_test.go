@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/voocel/ainovel-cli/internal/i18n"
-	"github.com/voocel/ainovel-cli/internal/stylestat"
+	"github.com/huuhoa143/ainovel-studio/internal/i18n"
+	"github.com/huuhoa143/ainovel-studio/internal/stylestat"
 )
 
 // TestAntiAIToneCoversEveryCountedPattern giữ hai lớp chống giọng AI khớp nhau.

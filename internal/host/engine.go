@@ -13,14 +13,14 @@ import (
 	"github.com/voocel/agentcore"
 	"github.com/voocel/agentcore/subagent"
 
-	"github.com/voocel/ainovel-cli/internal/arbiter"
-	"github.com/voocel/ainovel-cli/internal/domain"
-	"github.com/voocel/ainovel-cli/internal/errs"
-	"github.com/voocel/ainovel-cli/internal/flow"
-	"github.com/voocel/ainovel-cli/internal/i18n"
-	"github.com/voocel/ainovel-cli/internal/notify"
-	storepkg "github.com/voocel/ainovel-cli/internal/store"
-	"github.com/voocel/ainovel-cli/internal/tools"
+	"github.com/huuhoa143/ainovel-studio/internal/arbiter"
+	"github.com/huuhoa143/ainovel-studio/internal/domain"
+	"github.com/huuhoa143/ainovel-studio/internal/errs"
+	"github.com/huuhoa143/ainovel-studio/internal/flow"
+	"github.com/huuhoa143/ainovel-studio/internal/i18n"
+	"github.com/huuhoa143/ainovel-studio/internal/notify"
+	storepkg "github.com/huuhoa143/ainovel-studio/internal/store"
+	"github.com/huuhoa143/ainovel-studio/internal/tools"
 )
 
 // engine 是确定性执行引擎:读事实 → Route → 前置校验 → 直接运行 Worker →

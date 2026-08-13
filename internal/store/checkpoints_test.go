@@ -6,7 +6,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/voocel/ainovel-cli/internal/domain"
+	"github.com/huuhoa143/ainovel-studio/internal/domain"
 )
 
 func newTestCheckpointStore(t *testing.T) (*CheckpointStore, string) {

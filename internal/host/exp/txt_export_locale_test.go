@@ -6,7 +6,7 @@ import (
 	"testing"
 	"unicode"
 
-	"github.com/voocel/ainovel-cli/internal/i18n"
+	"github.com/huuhoa143/ainovel-studio/internal/i18n"
 )
 
 // Nhóm test này giữ vòng khứ hồi của bản .txt xuất ra: dòng tiêu đề mà renderTXT

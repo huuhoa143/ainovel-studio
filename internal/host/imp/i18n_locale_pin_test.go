@@ -1,6 +1,6 @@
 package imp
 
-import "github.com/voocel/ainovel-cli/internal/i18n"
+import "github.com/huuhoa143/ainovel-studio/internal/i18n"
 
 // Test trong package này khẳng định trên chuỗi tiếng Trung của upstream: các
 // assert Contains trên Notes của bộ cắt chương ("重复边界应记入 Notes"), trên văn

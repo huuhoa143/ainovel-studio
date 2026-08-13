@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/voocel/ainovel-cli/internal/domain"
-	"github.com/voocel/ainovel-cli/internal/rules"
-	"github.com/voocel/ainovel-cli/internal/store"
+	"github.com/huuhoa143/ainovel-studio/internal/domain"
+	"github.com/huuhoa143/ainovel-studio/internal/rules"
+	"github.com/huuhoa143/ainovel-studio/internal/store"
 )
 
 // Bộ kiểm bề mặt Cài đặt + các luật CHUNG cho cả ba bề mặt mới.

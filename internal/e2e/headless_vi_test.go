@@ -16,9 +16,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/voocel/ainovel-cli/assets"
-	"github.com/voocel/ainovel-cli/internal/entry/headless"
-	"github.com/voocel/ainovel-cli/internal/i18n"
+	"github.com/huuhoa143/ainovel-studio/assets"
+	"github.com/huuhoa143/ainovel-studio/internal/entry/headless"
+	"github.com/huuhoa143/ainovel-studio/internal/i18n"
 )
 
 // TestHeadlessBaoLoiKhoaSaiBangTiengViet: khóa API sai (401 từ provider) phải

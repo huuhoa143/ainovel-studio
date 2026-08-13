@@ -1,6 +1,6 @@
 package userrules
 
-import "github.com/voocel/ainovel-cli/internal/i18n"
+import "github.com/huuhoa143/ainovel-studio/internal/i18n"
 
 // Test trong package này chốt assert trên chuỗi tiếng Trung của upstream (chúng
 // dò cụm như "截断" / "拒答" / "契约违约" trong văn bản lỗi để phân loại). Ghim
