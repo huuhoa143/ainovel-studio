@@ -125,31 +125,41 @@ autonomous LLM loops (Workers).
 ## Quick start
 
 ```bash
-# Install this fork (requires Go 1.25+; works on macOS, Linux and Windows)
-go install github.com/huuhoa143/ainovel-studio/cmd/ainovel-cli@latest
+# Requires Go 1.25+. Works on macOS, Linux and Windows.
+git clone https://github.com/huuhoa143/ainovel-studio && cd ainovel-studio
+go build -o ainovel-cli ./cmd/ainovel-cli
 
 # First run walks you through provider → API key → base URL → model
-ainovel-cli
+./ainovel-cli
+
+# For the web studio, build the interface once
+cd web && npm ci && npm run build && cd ..
+./ainovel-cli serve --web web/out
 ```
 
-> ### `go install` gives you the CLI — the web studio needs one more step
+> ### Why building from source is the ONLY path
 >
-> This is not an oversight, it follows from a design choice: the binary does **not** embed the
-> interface, it reads a built directory from disk on every request (`--web`). `go install`
-> compiles Go only, so it gives you the TUI and the headless engine but no studio assets.
+> There is no `go install`, and that is a real constraint rather than an unfinished chore. Go
+> refuses `go install pkg@version` for any module carrying a `replace` directive, and this
+> `go.mod` has one: `github.com/voocel/litellm` is wired to a **patched** copy in `third_party/`.
 >
-> For the studio, build from source:
+> That patch cannot be dropped. Many OpenAI-compatible gateways emit a full terminal chunk —
+> `finish_reason` and `usage` included — then close the connection without the `data: [DONE]`
+> sentinel. Upstream litellm reads that as a truncated stream, so the engine discards a
+> **complete** generation and retries seven times, resending the whole prompt each time. Measured
+> against a real gateway: no novel got past its first chapter, and every Run press spent money
+> without producing one. See [third_party/README.md](third_party/README.md).
 >
-> ```bash
-> git clone https://github.com/huuhoa143/ainovel-studio && cd ainovel-studio
-> go build -o ainovel-cli ./cmd/ainovel-cli
-> cd web && npm ci && npm run build && cd ..
-> ./ainovel-cli serve --web web/out
-> ```
+> The way out, if `go install` ever matters: publish the patched litellm as a real versioned
+> module and drop the `replace`. Better still, upstream the patch — that deletes `third_party/`
+> entirely.
 >
-> `scripts/install.sh` still hardcodes `REPO="voocel/ainovel-cli"` and installs **upstream** —
-> this fork publishes no release binaries, so use `go install` or build from source. Windows is
-> covered by `go install`; the shell installer never supported it anyway.
+> Two notes that come with this: the binary does **not** embed the interface (it reads a built
+> directory from disk on every request), so a TUI-only user skips the `npm` step. And
+> `scripts/install.sh` still hardcodes `REPO="voocel/ainovel-cli"`, so it installs **upstream**,
+> not this fork.
+>
+> **Updating** is `git pull` and rebuild.
 
 The first run generates `~/.ainovel/config.json`. Inside the TUI, `/config` adds or edits
 providers and per-model context windows; `/model` switches between saved models. A reference

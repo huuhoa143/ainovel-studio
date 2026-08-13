@@ -359,10 +359,10 @@ p { margin: 0; text-wrap: pretty; }
 
     <div class="lenh">
       <div class="lenh-hop">
-        <code id="lenh-cai"><span class="nhac">$</span> go install github.com/huuhoa143/ainovel-studio/cmd/ainovel-cli@latest</code>
-        <button class="sao" type="button" data-lenh="go install github.com/huuhoa143/ainovel-studio/cmd/ainovel-cli@latest">Sao chép</button>
+        <code id="lenh-cai"><span class="nhac">$</span> git clone https://github.com/huuhoa143/ainovel-studio &amp;&amp; cd ainovel-studio &amp;&amp; go build -o ainovel-cli ./cmd/ainovel-cli</code>
+        <button class="sao" type="button" data-lenh="git clone https://github.com/huuhoa143/ainovel-studio && cd ainovel-studio && go build -o ainovel-cli ./cmd/ainovel-cli">Sao chép</button>
       </div>
-      <p class="duoi">Cần <code>Go 1.25+</code>. Chạy trên macOS, Linux và Windows. Web studio cần thêm một bước; xem <a href="#cach-lay">mục 5</a>.</p>
+      <p class="duoi">Cần <code>Go 1.25+</code>. Chạy trên macOS, Linux và Windows. Dựng từ nguồn là đường duy nhất, và <a href="#cach-lay">mục 5</a> nói vì sao <code>go install</code> không dùng được ở đây.</p>
     </div>
   </section>
 
@@ -495,9 +495,9 @@ p { margin: 0; text-wrap: pretty; }
     <h2><i>5</i> Cách lấy</h2>
 
     <p class="dan">
-      Hai đường, khác nhau ở một điểm: nhị phân <strong>không nhúng</strong> giao diện: nó đọc
-      thư mục đã dựng từ đĩa ở từng lượt yêu cầu. Nên <code>go install</code> chỉ biên dịch
-      phần Go, và web studio cần thêm bước dựng giao diện.
+      Dựng từ nguồn là đường duy nhất, và đó là một ràng buộc thật chứ không phải việc còn tồn.
+      Hai bước, khác nhau ở chỗ nhị phân <strong>không nhúng</strong> giao diện: nó đọc thư mục
+      đã dựng từ đĩa ở từng lượt yêu cầu. Ai chỉ cần TUI thì bỏ bước <code>npm</code>.
     </p>
 
     <div class="lay">
@@ -505,28 +505,42 @@ p { margin: 0; text-wrap: pretty; }
         <h3>CLI, TUI và headless</h3>
         <p class="cai-gi">Engine đầy đủ trong terminal. Không có tệp giao diện web.</p>
 <pre><span class="nhac"># cần Go 1.25+</span>
-go install github.com/huuhoa143/ainovel-studio/cmd/ainovel-cli@latest
+git clone https://github.com/huuhoa143/ainovel-studio
+cd ainovel-studio
+go build -o ainovel-cli ./cmd/ainovel-cli
 
 <span class="nhac"># lần chạy đầu tự dẫn: provider → API key → base URL → model</span>
-ainovel-cli</pre>
+./ainovel-cli</pre>
       </section>
 
       <section>
         <h3>Kèm web studio</h3>
-        <p class="cai-gi">Dựng từ nguồn, vì cần bước <code>npm run build</code> cho giao diện.</p>
-<pre>git clone https://github.com/huuhoa143/ainovel-studio
-cd ainovel-studio
-go build -o ainovel-cli ./cmd/ainovel-cli
-cd web &amp;&amp; npm ci &amp;&amp; npm run build &amp;&amp; cd ..
+        <p class="cai-gi">Thêm bước <code>npm run build</code> để có tệp giao diện.</p>
+<pre>cd web &amp;&amp; npm ci &amp;&amp; npm run build &amp;&amp; cd ..
 
-./ainovel-cli serve --web web/out</pre>
+./ainovel-cli serve --web web/out
+<span class="nhac"># mở http://127.0.0.1:8420</span></pre>
       </section>
     </div>
 
-    <p class="dan" style="margin-top:20px">
-      Cập nhật là chạy lại đúng lệnh <code>go install</code> ở trên. <code>scripts/install.sh</code>
-      trong repo vẫn trỏ về upstream nên nó cài bản gốc, không phải bản này. Fork không phát
-      hành nhị phân release.
+    <p class="dan" style="margin-top:22px">
+      <strong>Vì sao không có <code>go install</code>.</strong> Go từ chối
+      <code>go install pkg@version</code> với mọi module mang chỉ thị <code>replace</code>, và
+      module này có một: <code>github.com/voocel/litellm</code> được nối vào bản đã vá nằm trong
+      <code>third_party/</code>.
+    </p>
+    <p class="dan">
+      Bản vá đó không bỏ được. Nhiều gateway tương thích OpenAI phát đủ chunk kết thúc, gồm cả
+      <code>finish_reason</code> và <code>usage</code>, rồi đóng kết nối mà không gửi sentinel
+      <code>data: [DONE]</code>. litellm bản gốc coi đó là stream bị cắt, nên engine bỏ một lượt
+      sinh <em>hoàn chỉnh</em> rồi thử lại bảy lần, mỗi lần gửi lại toàn bộ prompt. Đo trên một
+      gateway thật: không cuốn nào viết nổi chương đầu, và mỗi lần bấm Chạy đều tiêu tiền mà
+      không ra chương. Đánh đổi chuyện đó lấy sự tiện của một lệnh cài là không xứng.
+    </p>
+    <p class="dan">
+      <code>scripts/install.sh</code> trong repo vẫn trỏ về upstream nên nó cài bản gốc, không
+      phải bản này. Fork không phát hành nhị phân release, nên cập nhật là <code>git pull</code>
+      rồi dựng lại.
     </p>
   </section>
 

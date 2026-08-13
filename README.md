@@ -221,38 +221,42 @@ ToolResultMicrocompact → LightTrim → StoreSummaryCompact → FullSummary
 ## Bắt đầu nhanh
 
 ```bash
-# Cài bản fork này (cần Go 1.25+; chạy trên macOS, Linux và Windows)
-go install github.com/huuhoa143/ainovel-studio/cmd/ainovel-cli@latest
-
-# Xem phiên bản
-ainovel-cli --version
+# Cần Go 1.25+. Chạy trên macOS, Linux và Windows.
+git clone https://github.com/huuhoa143/ainovel-studio && cd ainovel-studio
+go build -o ainovel-cli ./cmd/ainovel-cli
 
 # Chạy lần đầu sẽ tự vào luồng dẫn dắt (chọn Provider → nhập API Key → Base URL → tên model)
-ainovel-cli
+./ainovel-cli
+
+# Muốn web studio thì dựng thêm giao diện, một lần
+cd web && npm ci && npm run build && cd ..
+./ainovel-cli serve --web web/out
 ```
 
-> ### `go install` cho bạn CLI — web studio cần thêm một bước
+> ### Vì sao dựng từ nguồn là đường DUY NHẤT
 >
-> Không phải sơ suất, nó là hệ quả của một quyết định thiết kế: nhị phân **không nhúng** giao
-> diện, nó đọc thư mục đã dựng từ đĩa ở **từng lượt yêu cầu** (`--web`). `go install` chỉ biên
-> dịch phần Go, nên bạn có TUI và engine headless nhưng chưa có tệp giao diện nào.
+> Không có `go install`, và đây là ràng buộc thật chứ không phải việc còn tồn. Go từ chối
+> `go install pkg@version` với mọi module mang chỉ thị `replace`, và `go.mod` có một:
+> `github.com/voocel/litellm` được nối vào bản **đã vá** trong `third_party/`.
 >
-> Muốn web studio thì dựng từ nguồn:
+> Bản vá đó không bỏ được. Nhiều gateway tương thích OpenAI phát đủ chunk kết thúc — cả
+> `finish_reason` lẫn `usage` — rồi đóng kết nối mà không gửi sentinel `data: [DONE]`. litellm
+> bản gốc coi đó là stream bị cắt, nên engine bỏ một lượt sinh **hoàn chỉnh** rồi thử lại bảy
+> lần, mỗi lần gửi lại toàn bộ prompt. Đo trên một gateway thật: không cuốn nào viết nổi chương
+> đầu, và mỗi lần bấm Chạy đều tiêu tiền mà không ra chương. Xem
+> [third_party/README.md](third_party/README.md).
 >
-> ```bash
-> git clone https://github.com/huuhoa143/ainovel-studio && cd ainovel-studio
-> go build -o ainovel-cli ./cmd/ainovel-cli
-> cd web && npm ci && npm run build && cd ..
-> ./ainovel-cli serve --web web/out
-> ```
+> Đường thoát nếu sau này cần `go install`: đưa bản litellm đã vá lên một module thật có số
+> phiên bản, rồi bỏ `replace`. Tốt nhất là gửi bản vá ngược lên upstream — nó xoá được cả
+> `third_party/`.
 >
-> `scripts/install.sh` vẫn chốt cứng `REPO="voocel/ainovel-cli"` nên nó cài **upstream**, không
-> phải bản này — fork không phát hành nhị phân release. Dùng `go install` hoặc dựng từ nguồn.
-> Windows giờ đã được `go install` phủ; bộ cài shell chưa bao giờ hỗ trợ Windows.
+> Hai điều kèm theo: nhị phân **không nhúng** giao diện (nó đọc thư mục đã dựng từ đĩa ở từng
+> lượt yêu cầu), nên ai chỉ dùng TUI thì bỏ bước `npm`. Và `scripts/install.sh` vẫn chốt cứng
+> `REPO="voocel/ainovel-cli"` nên nó cài **upstream**, không phải bản này.
 >
-> **Cập nhật** là chạy lại đúng lệnh `go install …@latest` ở trên. `ainovel-cli update` giờ báo
-> không tìm thấy bản mới, và đó là cố ý: trước đây nó tải nhị phân của **upstream** rồi ghi đè
-> lên bản fork, tức người dùng gõ một lệnh cập nhật rồi mất bản việt hóa mà không biết vì sao.
+> **Cập nhật** là `git pull` rồi dựng lại. `ainovel-cli update` giờ báo không tìm thấy bản mới,
+> và đó là cố ý: trước đây nó tải nhị phân của **upstream** rồi ghi đè lên bản fork, tức người
+> dùng gõ một lệnh cập nhật rồi mất bản việt hóa mà không biết vì sao.
 
 ### Docker
 
