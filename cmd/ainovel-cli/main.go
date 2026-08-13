@@ -8,15 +8,15 @@ import (
 	"strings"
 
 	"errors"
-	"github.com/voocel/ainovel-cli/assets"
-	"github.com/voocel/ainovel-cli/internal/bootstrap"
-	"github.com/voocel/ainovel-cli/internal/entry/headless"
-	"github.com/voocel/ainovel-cli/internal/entry/tui"
-	"github.com/voocel/ainovel-cli/internal/eval"
-	"github.com/voocel/ainovel-cli/internal/i18n"
-	"github.com/voocel/ainovel-cli/internal/rules"
-	"github.com/voocel/ainovel-cli/internal/serve"
-	buildversion "github.com/voocel/ainovel-cli/internal/version"
+	"github.com/huuhoa143/ainovel-studio/assets"
+	"github.com/huuhoa143/ainovel-studio/internal/bootstrap"
+	"github.com/huuhoa143/ainovel-studio/internal/entry/headless"
+	"github.com/huuhoa143/ainovel-studio/internal/entry/tui"
+	"github.com/huuhoa143/ainovel-studio/internal/eval"
+	"github.com/huuhoa143/ainovel-studio/internal/i18n"
+	"github.com/huuhoa143/ainovel-studio/internal/rules"
+	"github.com/huuhoa143/ainovel-studio/internal/serve"
+	buildversion "github.com/huuhoa143/ainovel-studio/internal/version"
 )
 
 var (
@@ -212,7 +212,16 @@ func versionInfo() buildversion.Info {
 func runSelfUpdate(target string) error {
 	info := versionInfo()
 	result, err := buildversion.Update(context.Background(), buildversion.UpdateOptions{
-		Repo:           "voocel/ainovel-cli",
+		// Repo của FORK, không phải upstream.
+		//
+		// Trỏ vào `voocel/ainovel-cli` là để `update` tải nhị phân UPSTREAM rồi ghi đè lên
+		// bản đang chạy: người dùng gõ một lệnh cập nhật và mất bản việt hóa cùng web studio,
+		// không có gì trên màn hình nói vì sao. Đó là hỏng âm thầm, hạng nặng nhất.
+		//
+		// Fork chưa phát hành release nào, nên lệnh này giờ báo không tìm thấy bản mới. Thất
+		// bại rõ ràng tốt hơn thành công sai. Đường cập nhật thật là
+		// `go install github.com/huuhoa143/ainovel-studio/cmd/ainovel-cli@latest` — xem README.
+		Repo:           "huuhoa143/ainovel-studio",
 		BinaryName:     "ainovel-cli",
 		TargetVersion:  target,
 		CurrentVersion: info.Version,
