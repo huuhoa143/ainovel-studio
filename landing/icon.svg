@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <!--
+    Dấu hiệu ainovel: ba lane của trục sản xuất Tập → Cung → Chương.
+    teal = đã nghiệm thu · gold = đang chạy (màu tín hiệu duy nhất) · xám = chưa tới.
+
+    ĐỪNG SỬA TAY TỆP NÀY MỘT MÌNH. Hình học và màu là bản sao của `web/lib/dauHieu.ts`, và
+    `web/lib/dauHieu.test.ts` đọc tệp này trên đĩa rồi đối chiếu từng con số — sửa một bên
+    thì bài kiểm đỏ.
+
+    Có tệp này thì Next phát <link rel="icon"> và trình duyệt không đòi /favicon.ico nữa —
+    bản build tĩnh phục vụ bằng http.FileServer không có tệp đó nên mỗi lần tải trang đều
+    sinh một lỗi 404 trong console.
+
+    Màu ghi thẳng dạng hex vì trình duyệt tải tệp này như một ẢNH RIÊNG, không thấy :root
+    của globals.css. Giá trị lấy từ chính trình duyệt (tô biến token lên canvas 1×1 rồi đọc
+    pixel), KHÔNG phải tự chuyển OKLCH bằng tay — bản trước tự chuyển và sai cả ba màu: nó
+    ghi #221d17 / #4f9d8b / #e0a53a trong khi token thật là #0e0c09 / #71c1ad / #eab656.
+
+    ĐỪNG viết hai dấu gạch nối liền nhau ở bất cứ đâu trong khối chú thích này. XML cấm
+    chuỗi đó bên trong comment, và SVG được phân tích như XML NGHIÊM NGẶT: một lần lỡ viết
+    tên biến CSS đầy đủ ở đây đã làm cả tệp thành XML sai định dạng, `new Image()` bắn
+    onerror và favicon không rasterise được. Trình duyệt không báo gì cả — nó chỉ im lặng
+    không vẽ. Bài kiểm ở lib/dauHieu.test.ts canh đúng chuyện này.
+
+    Bước lane 7px (y 7 → 14 → 21), không phải 6px: ở 16px — cỡ favicon thật trên tab — khe
+    2px co lại còn 1px và ba dải dính thành một khối xám.
+  -->
+  <rect width="32" height="32" rx="6" fill="#0e0c09" />
+  <rect x="6" y="7" width="20" height="4" rx="1.5" fill="#71c1ad" />
+  <rect x="6" y="14" width="14" height="4" rx="1.5" fill="#eab656" />
+  <rect x="6" y="21" width="9" height="4" rx="1.5" fill="#8b8780" />
+</svg>

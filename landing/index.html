@@ -1,0 +1,587 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ainovel studio — engine viết tiểu thuyết dài bằng AI</title>
+<meta name="description" content="Engine tất định chạy trọn một cuốn tiểu thuyết dài bằng tiếng Việt: ba tác tử tự chủ Architect / Writer / Editor, phán quyết ghi xuống đĩa và phát lại được, khôi phục ở mức step. Chạy trên máy bạn, bằng khóa API của bạn.">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<meta property="og:title" content="ainovel studio">
+<meta property="og:description" content="Engine tất định chạy trọn một cuốn tiểu thuyết dài bằng tiếng Việt. Chạy trên máy bạn.">
+<meta property="og:type" content="website">
+<link rel="stylesheet" href="chu.css">
+<style>
+/* ── token: bản sao của web/app/globals.css :root ─────────────────────────────
+   Landing page KHÔNG import globals.css của studio: đó là 5000 dòng cho một
+   khung ứng dụng cố định, và trang này là một tài liệu cuộn. Nhưng token màu
+   thì phải trùng từng giá trị, nếu không hai bề mặt thành hai sản phẩm. */
+:root {
+  --bg:      oklch(0.155 0.008 74);
+  --panel:   oklch(0.185 0.009 74);
+  --panel-2: oklch(0.215 0.010 74);
+  --raised:  oklch(0.245 0.011 74);
+  --line:    oklch(0.275 0.010 74);
+  --line-2:  oklch(0.225 0.009 74);
+
+  --ink:   oklch(0.945 0.010 82);
+  --ink-2: oklch(0.755 0.012 82);
+  --ink-3: oklch(0.625 0.011 82);
+
+  --gold:   oklch(0.805 0.128 80);
+  --teal:   oklch(0.755 0.085 176);
+  --amber:  oklch(0.785 0.125 62);
+  --violet: oklch(0.745 0.095 300);
+
+  --ui: 'Inter', system-ui, sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, monospace;
+  --serif: 'Noto Serif', Georgia, serif;
+
+  /* Cột nhãn 200px, không 150px: luật tiếng Việt của DESIGN.md — nhãn dài hơn
+     tiếng Anh 20–30%. "Nhà cung cấp model" ngắt hai dòng ở 150px. */
+  --cot-nhan: 200px;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 400 15px/1.72 var(--ui);   /* 1.72: sàn cứng cho dấu tiếng Việt hai tầng */
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+a { color: var(--ink); text-decoration-color: color-mix(in oklch, var(--gold) 55%, transparent); text-underline-offset: 3px; }
+a:hover { text-decoration-color: var(--gold); }
+
+:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; border-radius: 2px; }
+
+h1, h2, h3 { margin: 0; font-weight: 600; text-wrap: balance; }
+p { margin: 0; text-wrap: pretty; }
+
+/* ── ổ khoá trên ─────────────────────────────────────────────────────────── */
+.thanh {
+  position: sticky; top: 0; z-index: 10;
+  display: flex; align-items: center; gap: 20px;
+  padding: 0 clamp(16px, 4vw, 40px);
+  height: 52px;
+  background: color-mix(in oklch, var(--panel) 88%, transparent);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--line);
+}
+.dau-hieu { display: flex; align-items: center; gap: 10px; flex: none; text-decoration: none; }
+.dau-hieu svg { display: block; flex: none; }
+.dau-hieu b { font-weight: 600; font-size: 14.5px; letter-spacing: -0.01em; }
+.dau-hieu span { color: var(--ink-2); font-weight: 400; }
+
+.thanh nav { margin-left: auto; display: flex; gap: clamp(14px, 3vw, 26px); font-size: 13.5px; }
+.thanh nav a { color: var(--ink-2); text-decoration: none; }
+.thanh nav a:hover { color: var(--ink); }
+
+/* ── khung tài liệu ──────────────────────────────────────────────────────── */
+.giay {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 0 clamp(16px, 4vw, 40px) 96px;
+}
+
+/* ── khối định danh ──────────────────────────────────────────────────────── */
+.dinh-danh { padding: clamp(48px, 9vw, 96px) 0 clamp(32px, 5vw, 52px); }
+
+.dinh-danh h1 {
+  font-size: clamp(30px, 5.2vw, 46px);
+  line-height: 1.12;                 /* chữ hoa có dấu cần chỗ phía trên */
+  letter-spacing: -0.025em;
+}
+.dinh-danh h1 em { font-style: normal; color: var(--ink-2); font-weight: 400; }
+
+.dinh-danh .cot {
+  margin-top: 20px;
+  max-width: 64ch;                   /* khổ đọc 65–75ch */
+  font-size: 16.5px;
+  line-height: 1.7;
+  color: var(--ink-2);
+}
+.dinh-danh .cot strong { color: var(--ink); font-weight: 500; }
+
+/* hàng định danh: loại · phiên bản · giấy phép — grammar của datasheet */
+.chi-muc {
+  margin-top: 28px;
+  display: flex; flex-wrap: wrap; gap: 6px 28px;
+  font: 400 12.5px/1.5 var(--mono);
+  color: var(--ink-3);
+}
+.chi-muc b { color: var(--ink-2); font-weight: 400; }
+
+/* ── lệnh cài: hành động chính ───────────────────────────────────────────── */
+.lenh { margin-top: 32px; max-width: 720px; }
+.lenh-hop {
+  display: flex; align-items: stretch;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.lenh-hop code {
+  flex: 1 1 auto; min-width: 0;
+  padding: 13px 15px;
+  font: 400 13px/1.5 var(--mono);
+  color: var(--ink);
+  overflow-x: auto;
+  white-space: nowrap;
+  scrollbar-width: thin;
+}
+.lenh-hop code .nhac { color: var(--ink-3); }
+.sao {
+  flex: none;
+  padding: 0 16px;
+  border: 0; border-left: 1px solid var(--line);
+  background: var(--raised);
+  color: var(--ink-2);
+  font: 500 12.5px/1 var(--ui);
+  cursor: pointer;
+}
+.sao:hover { background: color-mix(in oklch, var(--raised) 70%, var(--gold) 12%); color: var(--ink); }
+.sao[data-xong='1'] { color: var(--teal); }
+.lenh .duoi { margin-top: 10px; font-size: 13px; color: var(--ink-3); }
+.lenh .duoi code { font: 400 12.5px var(--mono); color: var(--ink-2); }
+
+/* ── mục ─────────────────────────────────────────────────────────────────── */
+.muc { padding-top: clamp(44px, 6vw, 68px); }
+.muc > h2 {
+  display: flex; align-items: baseline; gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+  font-size: 15px;
+}
+/* Số mục là grammar của phiếu kỹ thuật, không phải trang trí: nó là thứ người
+   ta trích khi hỏi nhau "mục 4 nói gì". */
+.muc > h2 i { font: 400 12.5px var(--mono); font-style: normal; color: var(--gold); flex: none; }
+.muc > h2 span { color: var(--ink-3); font-weight: 400; font-size: 13px; margin-left: auto; text-align: right; }
+
+.dan { margin-top: 22px; max-width: 66ch; color: var(--ink-2); }
+.dan + .dan { margin-top: 14px; }
+.dan strong { color: var(--ink); font-weight: 500; }
+.dan code { font: 400 13px var(--mono); color: var(--ink); }
+
+/* ── bảng đặc tả ─────────────────────────────────────────────────────────── */
+.dac-ta { margin-top: 8px; }
+.dac-ta dl { margin: 0; display: grid; grid-template-columns: var(--cot-nhan) 1fr; }
+.dac-ta dt, .dac-ta dd {
+  margin: 0;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--line-2);
+}
+.dac-ta dt { font-size: 13.5px; color: var(--ink-3); padding-right: 20px; }
+.dac-ta dd { font-size: 14px; color: var(--ink); }
+.dac-ta dd.so { font-family: var(--mono); font-size: 13px; }
+.dac-ta dd .phu { color: var(--ink-3); }
+
+/* ── hình ────────────────────────────────────────────────────────────────── */
+.hinh { margin: 26px 0 0; }
+.hinh img {
+  display: block; width: 100%; height: auto;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.hinh figcaption {
+  margin-top: 11px;
+  display: grid; grid-template-columns: auto 1fr; gap: 12px;
+  font-size: 13px; line-height: 1.65; color: var(--ink-3);
+  max-width: 76ch;
+}
+.hinh figcaption b { font: 400 12.5px var(--mono); color: var(--ink-2); white-space: nowrap; }
+
+/* ── điều kiện vận hành ──────────────────────────────────────────────────── */
+.dieu-kien { margin-top: 8px; }
+.dieu-kien div {
+  display: grid; grid-template-columns: var(--cot-nhan) 1fr;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line-2);
+}
+.dieu-kien dt, .dieu-kien h3 { margin: 0; font-size: 13.5px; font-weight: 400; color: var(--ink); padding-right: 20px; }
+.dieu-kien p { font-size: 13.5px; line-height: 1.68; color: var(--ink-2); max-width: 62ch; }
+.dieu-kien .dau { color: var(--amber); font-family: var(--mono); font-size: 12.5px; }
+
+/* ── trích đoạn: serif, vì đây LÀ văn của tác phẩm ───────────────────────── */
+.trich {
+  margin: 24px 0 0;
+  padding: 22px clamp(18px, 3vw, 30px);
+  background: var(--panel);
+  border: 1px solid var(--line-2);
+  border-radius: 6px;
+}
+.trich blockquote {
+  margin: 0;
+  font: 400 15px/1.78 var(--serif);   /* khổ đọc dài ≥ 1.78 */
+  color: var(--ink);
+  max-width: 68ch;
+}
+.trich figcaption { margin-top: 14px; font-size: 12.5px; color: var(--ink-3); }
+.trich figcaption b { font: 400 12.5px var(--mono); color: var(--ink-2); }
+
+/* ── cách lấy ────────────────────────────────────────────────────────────── */
+.lay { margin-top: 24px; display: grid; gap: 18px; grid-template-columns: 1fr 1fr; }
+.lay > section {
+  padding: 20px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.lay h3 { font-size: 14px; }
+.lay .cai-gi { margin-top: 7px; font-size: 13px; line-height: 1.65; color: var(--ink-3); min-height: 3.3em; }
+.lay pre {
+  margin: 14px 0 0;
+  padding: 13px 14px;
+  background: var(--bg);
+  border: 1px solid var(--line-2);
+  border-radius: 5px;
+  overflow-x: auto;
+  font: 400 12.5px/1.75 var(--mono);
+  color: var(--ink);
+  scrollbar-width: thin;
+}
+.lay pre .nhac { color: var(--ink-3); }
+
+/* ── chân trang ──────────────────────────────────────────────────────────── */
+.chan {
+  margin-top: clamp(56px, 8vw, 88px);
+  padding-top: 26px;
+  border-top: 1px solid var(--line);
+  display: grid; gap: 20px;
+  grid-template-columns: 1fr auto;
+  align-items: start;
+  font-size: 13px; color: var(--ink-3);
+}
+.chan p { max-width: 64ch; line-height: 1.7; }
+.chan p + p { margin-top: 10px; }
+.chan .meta { text-align: right; font: 400 12.5px/1.9 var(--mono); white-space: nowrap; }
+
+/* ── một khoảnh khắc chuyển động, duy nhất ───────────────────────────────────
+   Lane vàng của dấu hiệu là "đang chạy". Nó chạy MỘT lần lúc mở trang, từ 0 tới
+   đúng bề rộng thật, rồi nghỉ — không lặp, không nhấp nháy. Đó là thứ thiết bị
+   này làm trong đời thật, và nó là chỗ duy nhất trang này động. */
+@keyframes chay {
+  from { width: 0; }
+  to   { width: 14px; }
+}
+.thanh .lane-gold {
+  animation: chay 900ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Nội dung KHÔNG bị gán sau animation: mặc định là trạng thái cuối, animation
+   chỉ chạy khi máy cho phép. Tab ẩn hay trình render headless treo transition
+   thì vẫn thấy đủ hình. */
+@media (prefers-reduced-motion: reduce) {
+  .thanh .lane-gold { animation: none; }
+  * { transition: none !important; }
+}
+
+/* ── thu hẹp ─────────────────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .lay { grid-template-columns: 1fr; }
+}
+@media (max-width: 720px) {
+  :root { --cot-nhan: 1fr; }
+  .dac-ta dl { grid-template-columns: 1fr; }
+  .dac-ta dt { padding-bottom: 2px; border-bottom: 0; }
+  .dac-ta dd { padding-top: 0; }
+  .dieu-kien div { grid-template-columns: 1fr; gap: 6px; }
+  .dieu-kien dt, .dieu-kien h3 { padding-right: 0; }
+  .chan { grid-template-columns: 1fr; }
+  .chan .meta { text-align: left; white-space: normal; }
+  /* Dưới 700px phần CHỮ của ổ khoá ẩn, DẤU HIỆU ở lại — luật của DESIGN.md. */
+  .dau-hieu b { display: none; }
+  .hinh figcaption { grid-template-columns: 1fr; gap: 4px; }
+}
+</style>
+</head>
+<body>
+<!--
+  THESIS: Bề mặt này là PHIẾU KỸ THUẬT của một thiết bị, không phải trang bán hàng
+  của một SaaS. Nó từ chối cách xếp mặc định của hạng mục — hero một câu khẩu hiệu
+  cộng lưới card đều nhau — vì thương hiệu này nói giọng thiết bị công nghiệp:
+  báo cáo sự thật kèm số đo, không chúc mừng và không xin lỗi.
+  OWN-WORLD: token của studio, không lệch một giá trị — nền nâu-mực hạ chroma,
+  vàng là màu tín hiệu duy nhất dưới 10% diện tích, Inter cho giao diện, JetBrains
+  Mono cho MỌI số đo, Noto Serif CHỈ cho văn tiểu thuyết. Hàng nhãn–giá trị kẻ
+  hairline, cột nhãn rộng theo luật tiếng Việt. Dấu hiệu ba lane giảm dần.
+  STORY: khách hiểu đây là engine tất định chạy trọn một cuốn; tin vì trang nêu cả
+  GIỚI HẠN kèm số đo, không chỉ ưu điểm; và cài bằng một lệnh go install.
+  FIRST VIEWPORT: định danh trái, một câu cơ chế, hàng chỉ mục mono, rồi lệnh cài
+  kèm nút sao chép — hành động chính nằm ngay trong tầm mắt đầu tiên.
+  FORM: phiếu kỹ thuật; hạng 7 trên danh sách cấu trúc đã xếp; seed 703e3d35.
+  FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, and DESIGN.md
+-->
+
+<header class="thanh">
+  <a class="dau-hieu" href="#" aria-label="ainovel studio">
+    <!-- Hình học là bản sao của web/lib/dauHieu.ts: lane cao 4, bước 7px, bề rộng
+         GIẢM DẦN (20 → 14 → 9) vì Tập ⊃ Cung ⊃ Chương. Ba dải bằng nhau đọc
+         thành nút hamburger. -->
+    <svg width="26" height="26" viewBox="0 0 32 32" role="img" aria-hidden="true">
+      <rect x="6" y="7"  width="20" height="4" rx="1.5" fill="var(--teal)"/>
+      <rect class="lane-gold" x="6" y="14" width="14" height="4" rx="1.5" fill="var(--gold)"/>
+      <rect x="6" y="21" width="9"  height="4" rx="1.5" fill="var(--ink-3)"/>
+    </svg>
+    <b>ainovel <span>studio</span></b>
+  </a>
+  <nav>
+    <a href="#dac-ta">Đặc tả</a>
+    <a href="#van-hanh">Vận hành</a>
+    <a href="#cach-lay">Cách lấy</a>
+    <a href="https://github.com/huuhoa143/ainovel-studio">GitHub</a>
+  </nav>
+</header>
+
+<main class="giay">
+
+  <section class="dinh-danh">
+    <h1>Engine viết tiểu thuyết dài,<br><em>tất định và tự động.</em></h1>
+
+    <p class="cot">
+      Một engine tất định chạy trọn một cuốn sách và <strong>chỉ gọi model ở những chỗ cần
+      phán đoán</strong>: nó điều phối ba tác tử sáng tác tự chủ (Architect, Writer, Editor)
+      rồi đánh thức Arbiter khi cần một phán quyết ngữ nghĩa. Vòng lặp chính không tốn một
+      lời gọi LLM nào. Mọi phán quyết ghi xuống đĩa và phát lại được.
+    </p>
+
+    <div class="chi-muc">
+      <span><b>Loại</b> · engine + web studio</span>
+      <span><b>Chạy</b> · máy của bạn</span>
+      <span><b>Đầu ra</b> · tiếng Việt</span>
+      <span><b>Giấy phép</b> · Apache-2.0</span>
+    </div>
+
+    <div class="lenh">
+      <div class="lenh-hop">
+        <code id="lenh-cai"><span class="nhac">$</span> go install github.com/huuhoa143/ainovel-studio/cmd/ainovel-cli@latest</code>
+        <button class="sao" type="button" data-lenh="go install github.com/huuhoa143/ainovel-studio/cmd/ainovel-cli@latest">Sao chép</button>
+      </div>
+      <p class="duoi">Cần <code>Go 1.25+</code>. Chạy trên macOS, Linux và Windows. Web studio cần thêm một bước; xem <a href="#cach-lay">mục 5</a>.</p>
+    </div>
+  </section>
+
+  <section class="muc" id="dac-ta">
+    <h2><i>1</i> Đặc tả <span>số liệu đo trên bản đang phát hành</span></h2>
+    <div class="dac-ta">
+      <dl>
+        <dt>Kiến trúc</dt>
+        <dd>Một engine tất định · ba tác tử tự chủ · Arbiter gọi khi cần</dd>
+
+        <dt>Tác tử sáng tác</dt>
+        <dd class="so">Architect · Writer · Editor</dd>
+
+        <dt>Chiều kiểm định</dt>
+        <dd class="so">7 <span class="phu">(mỗi chiều buộc dẫn nguyên văn làm chứng)</span></dd>
+
+        <dt>Khôi phục</dt>
+        <dd class="so">checkpoint mức step <span class="phu">(plan · draft · check · commit)</span></dd>
+
+        <dt>Quy hoạch</dt>
+        <dd>Hai tầng tập–cung, mở dần theo tiến độ</dd>
+
+        <dt>Chiến lược ngữ cảnh</dt>
+        <dd>Toàn phần / cửa sổ trượt / tóm tắt phân tầng, tự chuyển</dd>
+
+        <dt>Sức chứa</dt>
+        <dd class="so">500+ chương</dd>
+
+        <dt>Engine đồng thời</dt>
+        <dd class="so">1 <span class="phu">cuốn mỗi lần</span></dd>
+
+        <dt>Nhà cung cấp model</dt>
+        <dd>OpenRouter · Anthropic · Gemini · OpenAI</dd>
+
+        <dt>Bề mặt vận hành</dt>
+        <dd>Web studio · TUI <span class="phu">(đóng băng)</span> · headless</dd>
+
+        <dt>Lưu trữ</dt>
+        <dd>Hệ tệp, một thư mục một tác phẩm</dd>
+
+        <dt>Khóa API</dt>
+        <dd>Của bạn, trên máy bạn</dd>
+      </dl>
+    </div>
+  </section>
+
+  <section class="muc" id="hinh">
+    <h2><i>2</i> Bề mặt <span>ảnh chụp từ một lượt chạy thật</span></h2>
+
+    <figure class="hinh">
+      <img src="anh/studio.gif" alt="Web studio đi qua năm bề mặt: Quản lý cả xưởng, Dòng sản xuất của một cuốn, Bản thảo, Chi phí toàn xưởng, Model theo vai." width="1600" height="1000" loading="lazy" decoding="async">
+      <figcaption><b>Hình 1</b><span>Năm bề mặt của studio, dữ liệu thật từ một lượt chạy: Quản lý cả xưởng → Dòng sản xuất của một cuốn → Bản thảo → Chi phí toàn xưởng → Model theo vai.</span></figcaption>
+    </figure>
+
+    <figure class="hinh">
+      <img src="anh/ban-thao.png" alt="Màn đọc bản thảo: chương đã nghiệm thu đặt cạnh khế ước chương và bản duyệt bảy chiều của Editor." width="1600" height="1000" loading="lazy" decoding="async">
+      <figcaption><b>Hình 2</b><span>Chương đã nghiệm thu, đặt cạnh khế ước chương và bản duyệt bảy chiều của Editor. Mỗi chiều buộc dẫn nguyên văn làm chứng, nên điểm số luôn truy được về câu chữ đã sinh ra nó.</span></figcaption>
+    </figure>
+
+    <figure class="hinh">
+      <img src="anh/chi-phi-xuong.png" alt="Màn chi phí toàn xưởng, bổ theo vai và theo model." width="1600" height="1000" loading="lazy" decoding="async">
+      <figcaption><b>Hình 3</b><span>Chi phí toàn xưởng, bổ theo vai và theo model. Khi có lượt model không trả số liệu dùng, studio nói thẳng là con số đang thiếu thay vì lặng lẽ cộng sai.</span></figcaption>
+    </figure>
+  </section>
+
+  <section class="muc" id="nguyen-ly">
+    <h2><i>3</i> Nguyên lý vận hành</h2>
+
+    <p class="dan">
+      Thiết kế cốt lõi: <strong>tầng sự thật thì tất định, tầng ngữ nghĩa thì tự chủ.</strong>
+      Những chuyển trạng thái liệt kê được thì do code tất định thực thi. Những phán đoán có
+      biên rõ ràng thì hỏi hàm LLM khi cần. Còn sáng tác mở thì giao cho vòng lặp LLM tự chủ.
+    </p>
+    <p class="dan">
+      Hệ quả là thứ hiếm ở một sản phẩm sinh văn bản: <strong>vòng lặp chính kiểm thử vét cạn
+      được</strong>, vì nó không gọi model. Và mỗi phán quyết của Arbiter (chọn kiến trúc sư,
+      phân loại can thiệp, đường ra khi bế tắc) được ghi xuống đĩa kèm sự thật mà nó dựa vào,
+      nên nó phát lại được. Studio phơi cái <em>vì sao</em> đó ra thành một nhật ký đọc được,
+      không trình bày quyết định của máy như hộp đen.
+    </p>
+    <p class="dan">
+      Mỗi tool chạy xong là ghi một checkpoint. Sập máy giữa chương 47 thì lượt chạy sau
+      khôi phục đúng vào bước <code>plan</code>, <code>draft</code>, <code>check</code> hay
+      <code>commit</code> mà nó đang dở. Nó không viết lại từ đầu chương, và không
+      mất tiền đã tiêu cho phần đã xong.
+    </p>
+
+    <figure class="trich">
+      <blockquote>
+        Sương chưa tan khỏi mặt cầu đá. Người gác cầu đặt chiếc đèn xuống bậc thứ ba từ dưới
+        lên — bậc ấy khô hơn những bậc khác, và ông đã quen với việc chọn nó mà không cần nghĩ.
+      </blockquote>
+      <figcaption><b>Chương 1 · Người Gác Cầu Đá</b>. Văn do engine sinh, ở một lượt chạy mẫu. Chữ serif trên bề mặt này luôn có nghĩa là văn của tác phẩm, không phải chữ của công cụ.</figcaption>
+    </figure>
+  </section>
+
+  <section class="muc" id="van-hanh">
+    <h2><i>4</i> Điều kiện vận hành <span>đọc trước khi chạy</span></h2>
+
+    <p class="dan">
+      Đây là công cụ chạy trên máy bạn, không phải dịch vụ. Những điều kiện dưới đây là ràng
+      buộc thật, ghi ra vì phát hiện sau khi đã chạy vài giờ thì đắt hơn nhiều.
+    </p>
+
+    <div class="dieu-kien">
+      <div>
+        <h3><span class="dau">!</span> Tiêu tiền thật</h3>
+        <p>Mỗi lượt chạy là những lời gọi model thật, bằng khóa API của bạn. Dây chuyền chạy liên tục tới khi bạn dừng. Giá thành hiện ngay trên thanh transport theo đô-la mỗi chương, không phải tổng số từ để tự khen.</p>
+      </div>
+      <div>
+        <h3>Chạy dài, không cần trực</h3>
+        <p>Engine chạy hàng giờ đến hàng ngày. Nó được thiết kế cho việc bạn đi vắng rồi quay lại theo chu kỳ, nên studio phải trả lời trong năm giây câu "dây chuyền khỏe hay bệnh".</p>
+      </div>
+      <div>
+        <h3>Một engine mỗi lần</h3>
+        <p>Studio mở đúng một cuốn mỗi lần. Hai cuốn cùng chạy là gấp đôi tiền và gấp đôi RAM, và đó là quyết định của người dùng, nên mã không tự ý thay bạn quyết.</p>
+      </div>
+      <div>
+        <h3>Đường ghi chỉ mở trên loopback</h3>
+        <p>Studio giữ khóa API và khởi động được engine, nên nó từ chối lệnh ghi đến từ mạng: lắng nghe ngoài loopback thì cả nhóm route ghi không được mắc. Vì vậy không có bản dùng thử trên web; bản hosted sẽ là một sản phẩm khác, với những hàng rào khác.</p>
+      </div>
+      <div>
+        <h3>Chưa có tiếng Anh</h3>
+        <p>Giao diện, prompt và tài liệu tham chiếu đều đã việt hóa nên AI sinh truyện tiếng Việt. Web studio chưa qua tầng i18n nào.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="muc" id="cach-lay">
+    <h2><i>5</i> Cách lấy</h2>
+
+    <p class="dan">
+      Hai đường, khác nhau ở một điểm: nhị phân <strong>không nhúng</strong> giao diện: nó đọc
+      thư mục đã dựng từ đĩa ở từng lượt yêu cầu. Nên <code>go install</code> chỉ biên dịch
+      phần Go, và web studio cần thêm bước dựng giao diện.
+    </p>
+
+    <div class="lay">
+      <section>
+        <h3>CLI, TUI và headless</h3>
+        <p class="cai-gi">Engine đầy đủ trong terminal. Không có tệp giao diện web.</p>
+<pre><span class="nhac"># cần Go 1.25+</span>
+go install github.com/huuhoa143/ainovel-studio/cmd/ainovel-cli@latest
+
+<span class="nhac"># lần chạy đầu tự dẫn: provider → API key → base URL → model</span>
+ainovel-cli</pre>
+      </section>
+
+      <section>
+        <h3>Kèm web studio</h3>
+        <p class="cai-gi">Dựng từ nguồn, vì cần bước <code>npm run build</code> cho giao diện.</p>
+<pre>git clone https://github.com/huuhoa143/ainovel-studio
+cd ainovel-studio
+go build -o ainovel-cli ./cmd/ainovel-cli
+cd web &amp;&amp; npm ci &amp;&amp; npm run build &amp;&amp; cd ..
+
+./ainovel-cli serve --web web/out</pre>
+      </section>
+    </div>
+
+    <p class="dan" style="margin-top:20px">
+      Cập nhật là chạy lại đúng lệnh <code>go install</code> ở trên. <code>scripts/install.sh</code>
+      trong repo vẫn trỏ về upstream nên nó cài bản gốc, không phải bản này. Fork không phát
+      hành nhị phân release.
+    </p>
+  </section>
+
+  <footer class="chan">
+    <div>
+      <p>
+        Đây là <strong>bản fork tiếng Việt</strong> của
+        <a href="https://github.com/voocel/ainovel-cli">voocel/ainovel-cli</a>. Toàn bộ engine,
+        kiến trúc và thiết kế gốc thuộc về dự án upstream; bản fork này không phải dự án gốc.
+        Phần thêm vào là việt hóa giao diện, prompt cùng tài liệu, và web studio.
+      </p>
+      <p>
+        Chữ trên trang: Inter, JetBrains&nbsp;Mono, Noto&nbsp;Serif, tự host, không gọi CDN
+        lúc chạy.
+      </p>
+    </div>
+    <div class="meta">
+      <a href="https://github.com/huuhoa143/ainovel-studio">github.com/huuhoa143/ainovel-studio</a><br>
+      Apache-2.0<br>
+      upstream · voocel/ainovel-cli
+    </div>
+  </footer>
+
+</main>
+
+<script>
+/* Nút sao chép. Trạng thái xong hiện bằng CHỮ và MÀU, không chỉ màu — luật
+   accessibility của PRODUCT.md: màu không bao giờ là kênh thông tin duy nhất. */
+document.querySelectorAll('.sao').forEach(function (nut) {
+  var chuGoc = nut.textContent;
+  var hen;
+  nut.addEventListener('click', function () {
+    var lenh = nut.getAttribute('data-lenh');
+    function xong() {
+      nut.textContent = 'Đã sao chép';
+      nut.dataset.xong = '1';
+      clearTimeout(hen);
+      hen = setTimeout(function () {
+        nut.textContent = chuGoc;
+        delete nut.dataset.xong;
+      }, 2000);
+    }
+    function truot() {
+      /* Không im lặng khi thất bại: nói người dùng phải làm gì thay vì giả vờ xong. */
+      nut.textContent = 'Hãy chọn và copy tay';
+      clearTimeout(hen);
+      hen = setTimeout(function () { nut.textContent = chuGoc; }, 2600);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(lenh).then(xong, truot);
+    } else {
+      truot();
+    }
+  });
+});
+</script>
+</body>
+</html>

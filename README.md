@@ -2,7 +2,7 @@
 
 [English](README.en.md) · **Tiếng Việt**
 
-**Demo trực tiếp: [ainovel.lingoreup.com](https://ainovel.lingoreup.com)** — web studio mở sẵn trên một lượt chạy thật, không cần cài gì. Bản demo là **chỉ đọc**; xem [Bản demo công khai](#bản-demo-công-khai) để biết đọc được những gì và vì sao không ghi được.
+**Trang giới thiệu: [ainovel.lingoreup.com](https://ainovel.lingoreup.com)** · cài trên máy bạn bằng một lệnh `go install` — xem [Bắt đầu nhanh](#bắt-đầu-nhanh).
 
 Engine viết tiểu thuyết dài bằng AI, toàn tự động. Engine tất định chạy trọn một cuốn sách, model chỉ được gọi đúng những chỗ cần phán đoán: Engine định tuyến theo sự thật để điều phối ba tác tử sáng tác tự chủ Architect / Writer / Editor, và đánh thức Arbiter khi cần phán quyết ngữ nghĩa. Từ một câu yêu cầu tới một cuốn tiểu thuyết hoàn chỉnh, không cần người can thiệp.
 
@@ -384,24 +384,15 @@ Hai hàng rào đi kèm:
 
 Khóa API đi **một chiều**: đặt được qua giao diện, nhưng API không bao giờ trả nó về — chỗ nào cần hiện thì chỉ hiện dạng che (`sk-4…802`).
 
-#### Bản demo công khai
+#### Vì sao không có bản dùng thử trên web
 
-**[ainovel.lingoreup.com](https://ainovel.lingoreup.com)** — studio chạy sẵn trên một tác phẩm mẫu, không cần cài gì, không cần khóa API.
+**[ainovel.lingoreup.com](https://ainovel.lingoreup.com)** là trang giới thiệu, không phải bản chạy thử. Đó là hệ quả trực tiếp của hàng rào ngay bên trên, không phải chuyện chưa làm tới.
 
-Đây chính là **chế độ chỉ-đọc** mô tả ở trên, chứ không phải một bản rút gọn riêng: container lắng nghe ngoài loopback, nên cả nhóm route ghi không được mắc vào mux. Đó là điều kiện để một bản demo công khai tồn tại được — nếu người lạ ghi được thì họ khởi động được engine và tiêu tiền API thật.
+Một bản dùng thử công khai đòi mở đường ghi cho người lạ, mà đường ghi là thứ giữ khóa API và khởi động được engine. Nên một trang cho người lạ bấm "Bắt đầu viết" là một trang cho người lạ tiêu tiền của người khác. Hai lựa chọn còn lại đều không hấp dẫn hơn: khách tự dán khóa của họ vào máy chủ của bạn (bạn thành người giữ secret của người khác), hoặc bạn trả tiền và phải xây hạn mức, chống lạm dụng, chống tạo nhiều tài khoản.
 
-Đọc được, với dữ liệu thật của một lượt chạy:
+Còn một ràng buộc kỹ thuật độc lập: `boMay.soToiDa == 1`, engine mở đúng một cuốn mỗi process. Nên "nhiều người dùng cùng lúc" không phải chuyện thêm một bảng vào database — nó là một process cho mỗi người, cộng một tầng điều phối vòng đời. Đó là một sản phẩm thứ hai, không phải một bước deploy.
 
-- **Dòng sản xuất** — trục tập/cung/chương theo tỉ lệ thật, đủ bốn trạng thái khối
-- **Bản thảo** — chương đã nghiệm thu, đặt cạnh khế ước chương
-- **Kiểm định** — bản duyệt bảy chiều của Editor, mỗi chiều kèm dẫn nguyên văn
-- **Nhật ký phán quyết** của Arbiter, **Chi phí** bổ theo vai và theo model, **Nhân vật** · **Luật thế giới** · **Phục bút** · **Dàn ý phân tầng**
-
-Không có: tạo tác phẩm, chạy engine, can thiệp, nghiệm thu, đặt khóa, nhập/xuất. Ô can thiệp ở đáy màn sản xuất tự nói rõ nó vô hiệu và vì sao.
-
-> **Còn một cạnh thô đã biết.** Nhóm nút *Tác phẩm mới* · *Cùng dựng* · *Xóa* ở màn Quản lý và ở rail vẫn hiện và vẫn bấm được, vì chúng chưa được gán theo `may.choGhi` như ô can thiệp. Bấm tới cùng thì server từ chối (`404`) và giao diện chỉ hiện đúng mã lỗi đó — không mất gì và không tạo gì, nhưng thông báo chưa nói được "bản này chỉ đọc". Hàng rào an toàn nằm ở server nên nó không phụ thuộc vào việc giao diện có ẩn nút hay không.
-
-Tác phẩm mẫu sinh bằng `go run ./cmd/seed-demo <thư-mục>` — cùng công cụ dùng khi phát triển, nên demo không cần một lượt chạy thật nào.
+Bản chạy trên máy bạn thì không có mâu thuẫn nào trong số đó: khóa của bạn, tiền của bạn, dữ liệu trên đĩa của bạn, và hàng rào loopback được thỏa tự nhiên. Xem [Bắt đầu nhanh](#bắt-đầu-nhanh).
 
 ### Quản lý nhiều tiểu thuyết
 
