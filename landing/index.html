@@ -4,12 +4,77 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ainovel studio — engine viết tiểu thuyết dài bằng AI</title>
-<meta name="description" content="Engine tất định chạy trọn một cuốn tiểu thuyết dài bằng tiếng Việt: ba tác tử tự chủ Architect / Writer / Editor, phán quyết ghi xuống đĩa và phát lại được, khôi phục ở mức step. Chạy trên máy bạn, bằng khóa API của bạn.">
+<meta name="description" content="Engine tất định chạy trọn một cuốn tiểu thuyết dài tiếng Việt: ba tác tử Architect, Writer, Editor cộng Arbiter. Mã nguồn mở, chạy trên máy bạn.">
+<link rel="canonical" href="https://ainovel.lingoreup.com/">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<meta property="og:title" content="ainovel studio">
-<meta property="og:description" content="Engine tất định chạy trọn một cuốn tiểu thuyết dài bằng tiếng Việt. Chạy trên máy bạn.">
+
 <meta property="og:type" content="website">
+<meta property="og:url" content="https://ainovel.lingoreup.com/">
+<meta property="og:site_name" content="ainovel studio">
+<meta property="og:locale" content="vi_VN">
+<meta property="og:title" content="ainovel studio — engine viết tiểu thuyết dài bằng AI">
+<meta property="og:description" content="Engine tất định chạy trọn một cuốn tiểu thuyết dài tiếng Việt: ba tác tử Architect, Writer, Editor cộng Arbiter. Mã nguồn mở, chạy trên máy bạn.">
+<meta property="og:image" content="https://ainovel.lingoreup.com/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="ainovel studio — trục sản xuất Tập, Cung, Chương với các khối trạng thái đã nghiệm thu, đang chạy và chưa tới.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="ainovel studio — engine viết tiểu thuyết dài bằng AI">
+<meta name="twitter:description" content="Engine tất định chạy trọn một cuốn tiểu thuyết dài tiếng Việt. Mã nguồn mở, chạy trên máy bạn.">
+<meta name="twitter:image" content="https://ainovel.lingoreup.com/og.png">
+
 <link rel="stylesheet" href="chu.css">
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "SoftwareApplication",
+      "@id": "https://ainovel.lingoreup.com/#app",
+      "name": "ainovel studio",
+      "url": "https://ainovel.lingoreup.com/",
+      "description": "Engine tất định chạy trọn một cuốn tiểu thuyết dài bằng tiếng Việt. Điều phối ba tác tử sáng tác tự chủ Architect, Writer và Editor, gọi Arbiter khi cần phán quyết ngữ nghĩa. Khôi phục ở mức step, kiểm định bảy chiều có dẫn chứng.",
+      "applicationCategory": "DeveloperApplication",
+      "applicationSubCategory": "Công cụ sáng tác bằng AI",
+      "operatingSystem": "macOS, Linux, Windows",
+      "softwareVersion": "0.8.1",
+      "inLanguage": "vi",
+      "license": "https://www.apache.org/licenses/LICENSE-2.0",
+      "isAccessibleForFree": true,
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+      "softwareRequirements": "Go 1.25 trở lên; khóa API của một nhà cung cấp LLM",
+      "featureList": [
+        "Engine tất định điều phối ba tác tử sáng tác tự chủ",
+        "Khôi phục từ checkpoint ở mức step",
+        "Kiểm định bảy chiều, mỗi chiều buộc dẫn nguyên văn làm chứng",
+        "Quy hoạch cuốn dần hai tầng tập và cung",
+        "Web studio ba màn đọc trực tiếp từ store"
+      ],
+      "screenshot": "https://ainovel.lingoreup.com/anh/studio.webp",
+      "codeRepository": "https://github.com/huuhoa143/ainovel-studio"
+    },
+    {
+      "@type": "SoftwareSourceCode",
+      "@id": "https://ainovel.lingoreup.com/#src",
+      "name": "ainovel-studio",
+      "codeRepository": "https://github.com/huuhoa143/ainovel-studio",
+      "programmingLanguage": ["Go", "TypeScript"],
+      "license": "https://www.apache.org/licenses/LICENSE-2.0",
+      "isBasedOn": "https://github.com/voocel/ainovel-cli",
+      "about": { "@id": "https://ainovel.lingoreup.com/#app" }
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://ainovel.lingoreup.com/#site",
+      "url": "https://ainovel.lingoreup.com/",
+      "name": "ainovel studio",
+      "inLanguage": "vi",
+      "about": { "@id": "https://ainovel.lingoreup.com/#app" }
+    }
+  ]
+}
+</script>
 <style>
 /* ── token: bản sao của web/app/globals.css :root ─────────────────────────────
    Landing page KHÔNG import globals.css của studio: đó là 5000 dòng cho một
@@ -89,12 +154,15 @@ p { margin: 0; text-wrap: pretty; }
 }
 
 /* ── khối định danh ──────────────────────────────────────────────────────── */
-.dinh-danh { padding: clamp(48px, 9vw, 96px) 0 clamp(32px, 5vw, 52px); }
+/* Không có padding đáy: trục sản xuất đã kết thúc khối định danh, và
+   `.muc` phía dưới tự mang khoảng cách của nó. Cộng cả hai thì sinh ra
+   một vùng trống chết ~120px ngay giữa trang. */
+.dinh-danh { padding: clamp(44px, 8vw, 88px) 0 0; }
 
 .dinh-danh h1 {
-  font-size: clamp(30px, 5.2vw, 46px);
-  line-height: 1.12;                 /* chữ hoa có dấu cần chỗ phía trên */
-  letter-spacing: -0.025em;
+  font-size: clamp(34px, 6.6vw, 68px);
+  line-height: 1.08;                 /* chữ hoa có dấu cần chỗ phía trên */
+  letter-spacing: -0.032em;
 }
 .dinh-danh h1 em { font-style: normal; color: var(--ink-2); font-weight: 400; }
 
@@ -116,29 +184,32 @@ p { margin: 0; text-wrap: pretty; }
 }
 .chi-muc b { color: var(--ink-2); font-weight: 400; }
 
-/* ── lệnh cài: hành động chính ───────────────────────────────────────────── */
-.lenh { margin-top: 32px; max-width: 720px; }
+/* ── lệnh cài: hành động chính ─────────────────────────────────────────────
+   Khối NHIỀU DÒNG chứ không phải một dòng cuộn ngang. Bản trước nhét cả lệnh
+   vào một dòng `nowrap`, nên ở 1440px nó đã bị nút Sao chép cắt cụt giữa
+   chừng — hành động chính của trang trông như hỏng. Lệnh thật vốn có hai
+   dòng, nên cứ hiện đúng hai dòng. */
+.lenh { margin-top: 30px; max-width: 760px; }
 .lenh-hop {
-  display: flex; align-items: stretch;
+  position: relative;
   background: var(--panel-2);
   border: 1px solid var(--line);
   border-radius: 6px;
-  overflow: hidden;
 }
-.lenh-hop code {
-  flex: 1 1 auto; min-width: 0;
-  padding: 13px 15px;
-  font: 400 13px/1.5 var(--mono);
+.lenh-hop pre {
+  margin: 0;
+  padding: 15px 108px 15px 16px;   /* chừa chỗ nút ở góc phải trên */
+  font: 400 13px/1.85 var(--mono);
   color: var(--ink);
   overflow-x: auto;
-  white-space: nowrap;
   scrollbar-width: thin;
 }
-.lenh-hop code .nhac { color: var(--ink-3); }
+.lenh-hop .nhac { color: var(--ink-3); }
 .sao {
-  flex: none;
-  padding: 0 16px;
-  border: 0; border-left: 1px solid var(--line);
+  position: absolute; top: 9px; right: 9px;
+  padding: 7px 13px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
   background: var(--raised);
   color: var(--ink-2);
   font: 500 12.5px/1 var(--ui);
@@ -148,6 +219,95 @@ p { margin: 0; text-wrap: pretty; }
 .sao[data-xong='1'] { color: var(--teal); }
 .lenh .duoi { margin-top: 10px; font-size: 13px; color: var(--ink-3); }
 .lenh .duoi code { font: 400 12.5px var(--mono); color: var(--ink-2); }
+
+/* ── TRỤC SẢN XUẤT ──────────────────────────────────────────────────────────
+   Khí cụ đặc trưng nhất của sản phẩm, dựng bằng DOM chứ không phải ảnh chụp.
+   Bản trước của trang này không có nó, và đó là lý do trang đọc ra phẳng: nó
+   bỏ qua đúng nước mạnh nhất của hệ thống rồi thay bằng chữ.
+
+   Tỉ lệ là THẬT, lấy từ lượt chạy mẫu: 47/300 chương đã mở, 5 chương nghiệm
+   thu, 1 chờ viết lại, 1 đang soạn. Không bịa số cho đẹp mắt. */
+/* `margin: 0` tường minh vì <figure> mang mặc định `1em 40px` của trình duyệt:
+   thiếu nó thì khối này thụt vào 40px so với H1 và cả trang lệch trục. */
+.truc {
+  margin: clamp(30px, 4.5vw, 44px) 0 0;
+  padding: clamp(18px, 3vw, 26px) clamp(18px, 3vw, 28px);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.truc-dau {
+  display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
+  padding-bottom: 14px; margin-bottom: 16px;
+  border-bottom: 1px solid var(--line-2);
+  font: 400 12.5px var(--mono); color: var(--ink-3);
+}
+.truc-dau b { color: var(--ink-2); font-weight: 400; }
+.truc-dau .xa { margin-left: auto; }
+
+/* `min-width: 0` ở cột thứ hai là bắt buộc, không phải phòng ngừa: mặc định
+   một ô grid/flex có `min-width: auto`, tức nó KHÔNG co nhỏ hơn nội dung tối
+   thiểu. Lưới 47 khối chương cần tối thiểu ~279px, còn chỗ trống ở 390px chỉ
+   246px — thiếu dòng này thì nó nong rộng cả tài liệu và mọi thứ trên trang
+   (kể cả H1 và thanh điều hướng) bị cắt mất 33px bên phải. */
+.lan { display: grid; grid-template-columns: 62px minmax(0, 1fr); align-items: center; gap: 0 14px; }
+.lan + .lan { margin-top: 9px; }
+.lan > span { font: 400 12px var(--mono); color: var(--ink-3); }
+.lan-day { display: flex; gap: 4px; height: 26px; min-width: 0; }
+.khoi { border-radius: 4px; min-width: 2px; }
+.khoi.xong    { background: var(--teal); }
+.khoi.chay    { background: var(--gold); }
+.khoi.sua     { background: var(--amber); }
+.khoi.chua    { border: 1px solid var(--line); background: transparent; }
+
+/* Lưới chương: 47 khối đều nhau, cùng bảng trạng thái. `overflow-x: auto` biến
+   nó thành vùng cuộn riêng, nên trên màn hẹp nó tự cuộn thay vì nong trang. */
+.luoi {
+  display: grid; grid-auto-flow: column; grid-auto-columns: minmax(2px, 1fr);
+  gap: 3px; height: 26px; min-width: 0; overflow-x: auto;
+  scrollbar-width: none;
+}
+.luoi::-webkit-scrollbar { display: none; }
+
+.truc-chu {
+  margin-top: 15px; padding-top: 13px; border-top: 1px solid var(--line-2);
+  display: flex; flex-wrap: wrap; gap: 7px 20px;
+  font: 400 12px var(--mono); color: var(--ink-3);
+}
+.truc-chu i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 6px; vertical-align: 0; }
+.truc-chu i.xong { background: var(--teal); }
+.truc-chu i.chay { background: var(--gold); }
+.truc-chu i.sua  { background: var(--amber); }
+.truc-chu i.chua { border: 1px solid var(--line); }
+
+/* ── THANH TRANSPORT ────────────────────────────────────────────────────────
+   Chrome dễ nhận nhất của studio: nó luôn nằm ở đáy và luôn nói máy đang làm
+   gì kèm giá thành. Ở đây nó mang số của lượt chạy mẫu và đường hành động.
+   Cố định ở desktop; dưới 860px thành khối tĩnh cuối trang để không che nội
+   dung trên màn nhỏ. */
+.trans {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
+  display: flex; align-items: center; gap: 0;
+  height: 40px; padding: 0 clamp(14px, 3vw, 24px);
+  background: color-mix(in oklch, var(--panel) 94%, transparent);
+  backdrop-filter: blur(14px);
+  border-top: 1px solid var(--line);
+  font: 400 11.5px var(--mono); color: var(--ink-3);
+  overflow-x: auto; scrollbar-width: none;
+}
+.trans::-webkit-scrollbar { display: none; }
+.trans .o { display: flex; align-items: center; gap: 7px; padding: 0 16px; white-space: nowrap; border-right: 1px solid var(--line-2); }
+.trans .o:first-child { padding-left: 0; }
+.trans .o b { color: var(--ink-2); font-weight: 400; }
+.trans .cham { width: 7px; height: 7px; border-radius: 50%; background: var(--gold); flex: none; }
+.trans .di { margin-left: auto; border-right: 0; padding-right: 0; }
+.trans .di a {
+  color: var(--bg); background: var(--gold);
+  text-decoration: none; font: 500 12px var(--ui);
+  padding: 6px 15px; border-radius: 5px; white-space: nowrap;
+}
+.trans .di a:hover { background: color-mix(in oklch, var(--gold) 88%, white); }
+body { padding-bottom: 40px; }   /* chừa chỗ cho transport cố định */
 
 /* ── mục ─────────────────────────────────────────────────────────────────── */
 .muc { padding-top: clamp(44px, 6vw, 68px); }
@@ -169,7 +329,7 @@ p { margin: 0; text-wrap: pretty; }
 
 /* ── bảng đặc tả ─────────────────────────────────────────────────────────── */
 .dac-ta { margin-top: 8px; }
-.dac-ta dl { margin: 0; display: grid; grid-template-columns: var(--cot-nhan) 1fr; }
+.dac-ta dl { margin: 0; display: grid; grid-template-columns: var(--cot-nhan) minmax(0, 1fr); }
 .dac-ta dt, .dac-ta dd {
   margin: 0;
   padding: 11px 0;
@@ -190,7 +350,7 @@ p { margin: 0; text-wrap: pretty; }
 }
 .hinh figcaption {
   margin-top: 11px;
-  display: grid; grid-template-columns: auto 1fr; gap: 12px;
+  display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px;
   font-size: 13px; line-height: 1.65; color: var(--ink-3);
   max-width: 76ch;
 }
@@ -199,7 +359,7 @@ p { margin: 0; text-wrap: pretty; }
 /* ── điều kiện vận hành ──────────────────────────────────────────────────── */
 .dieu-kien { margin-top: 8px; }
 .dieu-kien div {
-  display: grid; grid-template-columns: var(--cot-nhan) 1fr;
+  display: grid; grid-template-columns: var(--cot-nhan) minmax(0, 1fr);
   padding: 14px 0;
   border-bottom: 1px solid var(--line-2);
 }
@@ -225,7 +385,12 @@ p { margin: 0; text-wrap: pretty; }
 .trich figcaption b { font: 400 12.5px var(--mono); color: var(--ink-2); }
 
 /* ── cách lấy ────────────────────────────────────────────────────────────── */
-.lay { margin-top: 24px; display: grid; gap: 18px; grid-template-columns: 1fr 1fr; }
+/* `minmax(0, …)` chứ không `1fr`: ô grid mặc định mang `min-width: auto` nên nó
+   KHÔNG co nhỏ hơn nội dung tối thiểu, và <pre> bên trong không xuống dòng.
+   ĐO ĐƯỢC: ở khung hẹp, hai thẻ này rộng 522px trong một viewport 485px và
+   kéo cả tài liệu tràn 57px — H1 lẫn thanh điều hướng đều bị cắt bên phải. */
+.lay { margin-top: 24px; display: grid; gap: 18px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.lay > section { min-width: 0; }
 .lay > section {
   padding: 20px;
   background: var(--panel);
@@ -253,7 +418,7 @@ p { margin: 0; text-wrap: pretty; }
   padding-top: 26px;
   border-top: 1px solid var(--line);
   display: grid; gap: 20px;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: start;
   font-size: 13px; color: var(--ink-3);
 }
@@ -284,6 +449,16 @@ p { margin: 0; text-wrap: pretty; }
 /* ── thu hẹp ─────────────────────────────────────────────────────────────── */
 @media (max-width: 900px) {
   .lay { grid-template-columns: 1fr; }
+}
+
+/* Transport thôi cố định trên màn nhỏ: 40px chiếm quá nhiều chiều cao quý, và
+   một thanh dính đáy trên điện thoại che mất đúng phần chân trang. */
+@media (max-width: 860px) {
+  .trans { position: static; height: auto; flex-wrap: wrap; gap: 10px 0; padding: 12px clamp(16px, 4vw, 40px); border-top: 1px solid var(--line); }
+  .trans .o { padding: 0 12px 0 0; border-right: 0; }
+  .trans .di { margin-left: 0; width: 100%; }
+  .trans .di a { display: block; text-align: center; padding: 11px 15px; }
+  body { padding-bottom: 0; }
 }
 @media (max-width: 720px) {
   :root { --cot-nhan: 1fr; }
@@ -359,11 +534,74 @@ p { margin: 0; text-wrap: pretty; }
 
     <div class="lenh">
       <div class="lenh-hop">
-        <code id="lenh-cai"><span class="nhac">$</span> git clone https://github.com/huuhoa143/ainovel-studio &amp;&amp; cd ainovel-studio &amp;&amp; go build -o ainovel-cli ./cmd/ainovel-cli</code>
-        <button class="sao" type="button" data-lenh="git clone https://github.com/huuhoa143/ainovel-studio && cd ainovel-studio && go build -o ainovel-cli ./cmd/ainovel-cli">Sao chép</button>
+<pre><span class="nhac">$</span> git clone https://github.com/huuhoa143/ainovel-studio
+<span class="nhac">$</span> cd ainovel-studio &amp;&amp; go build -o ainovel-cli ./cmd/ainovel-cli</pre>
+        <button class="sao" type="button" data-lenh="git clone https://github.com/huuhoa143/ainovel-studio
+cd ainovel-studio && go build -o ainovel-cli ./cmd/ainovel-cli">Sao chép</button>
       </div>
       <p class="duoi">Cần <code>Go 1.25+</code>. Chạy trên macOS, Linux và Windows. Dựng từ nguồn là đường duy nhất, và <a href="#cach-lay">mục 5</a> nói vì sao <code>go install</code> không dùng được ở đây.</p>
     </div>
+
+    <!-- Trục sản xuất, dựng bằng DOM. Tỉ lệ và trạng thái lấy từ lượt chạy mẫu
+         thật (cmd/seed-demo): 47/300 chương đã mở, 5 nghiệm thu, 1 chờ viết
+         lại, 1 đang soạn. -->
+    <figure class="truc">
+      <figcaption class="truc-dau">
+        <b>Trục sản xuất</b>
+        <span>Trấn Yêu Ký</span>
+        <span>·</span>
+        <span>300 chương</span>
+        <span>·</span>
+        <span>4 tập</span>
+        <span class="xa">chương 1–47 đã mở · 253 ngoài cửa sổ</span>
+      </figcaption>
+
+      <div class="lan">
+        <span>Tập</span>
+        <div class="lan-day" role="img" aria-label="Bốn tập: tập 1 đã nghiệm thu, tập 2 đang chạy, tập 3 và 4 chưa tới.">
+          <div class="khoi xong" style="flex:3"></div>
+          <div class="khoi chay" style="flex:6"></div>
+          <div class="khoi chua" style="flex:5"></div>
+          <div class="khoi chua" style="flex:5"></div>
+        </div>
+      </div>
+
+      <div class="lan">
+        <span>Cung</span>
+        <div class="lan-day" role="img" aria-label="Ba cung của tập 2: cung 1 đã nghiệm thu, cung 2 đang chạy, cung 3 chưa mở.">
+          <div class="khoi xong" style="flex:4"></div>
+          <div class="khoi chay" style="flex:4"></div>
+          <div class="khoi sua" style="flex:2"></div>
+          <div class="khoi chua" style="flex:9"></div>
+        </div>
+      </div>
+
+      <div class="lan">
+        <span>Chương</span>
+        <div class="luoi" role="img" aria-label="47 chương đã mở: 5 chương đã nghiệm thu, 1 chương chờ viết lại, 1 chương đang soạn, 40 chương chưa tới.">
+          <div class="khoi xong"></div><div class="khoi xong"></div><div class="khoi xong"></div>
+          <div class="khoi sua"></div><div class="khoi xong"></div><div class="khoi chay"></div>
+          <div class="khoi chua"></div><div class="khoi chua"></div><div class="khoi chua"></div><div class="khoi chua"></div>
+          <div class="khoi chua"></div><div class="khoi chua"></div><div class="khoi chua"></div><div class="khoi chua"></div>
+          <div class="khoi chua"></div><div class="khoi chua"></div><div class="khoi chua"></div><div class="khoi chua"></div>
+          <div class="khoi chua"></div><div class="khoi chua"></div><div class="khoi chua"></div><div class="khoi chua"></div>
+          <div class="khoi chua"></div><div class="khoi chua"></div><div class="khoi chua"></div><div class="khoi chua"></div>
+          <div class="khoi chua"></div><div class="khoi chua"></div><div class="khoi chua"></div><div class="khoi chua"></div>
+          <div class="khoi chua"></div><div class="khoi chua"></div><div class="khoi chua"></div><div class="khoi chua"></div>
+          <div class="khoi chua"></div><div class="khoi chua"></div><div class="khoi chua"></div><div class="khoi chua"></div>
+          <div class="khoi chua"></div><div class="khoi chua"></div><div class="khoi chua"></div><div class="khoi chua"></div>
+          <div class="khoi chua"></div><div class="khoi chua"></div><div class="khoi chua"></div><div class="khoi chua"></div>
+          <div class="khoi chua"></div>
+        </div>
+      </div>
+
+      <div class="truc-chu">
+        <span><i class="xong"></i>đã nghiệm thu</span>
+        <span><i class="chay"></i>đang chạy</span>
+        <span><i class="sua"></i>chờ viết lại</span>
+        <span><i class="chua"></i>chưa tới</span>
+      </div>
+    </figure>
   </section>
 
   <section class="muc" id="dac-ta">
@@ -413,17 +651,17 @@ p { margin: 0; text-wrap: pretty; }
     <h2><i>2</i> Bề mặt <span>ảnh chụp từ một lượt chạy thật</span></h2>
 
     <figure class="hinh">
-      <img src="anh/studio.gif" alt="Web studio đi qua năm bề mặt: Quản lý cả xưởng, Dòng sản xuất của một cuốn, Bản thảo, Chi phí toàn xưởng, Model theo vai." width="1600" height="1000" loading="lazy" decoding="async">
+      <img src="anh/studio.webp" alt="Web studio đi qua năm bề mặt: Quản lý cả xưởng, Dòng sản xuất của một cuốn, Bản thảo, Chi phí toàn xưởng, Model theo vai." width="1600" height="1000" loading="lazy" decoding="async">
       <figcaption><b>Hình 1</b><span>Năm bề mặt của studio, dữ liệu thật từ một lượt chạy: Quản lý cả xưởng → Dòng sản xuất của một cuốn → Bản thảo → Chi phí toàn xưởng → Model theo vai.</span></figcaption>
     </figure>
 
     <figure class="hinh">
-      <img src="anh/ban-thao.png" alt="Màn đọc bản thảo: chương đã nghiệm thu đặt cạnh khế ước chương và bản duyệt bảy chiều của Editor." width="1600" height="1000" loading="lazy" decoding="async">
+      <img src="anh/ban-thao.webp" alt="Màn đọc bản thảo: chương đã nghiệm thu đặt cạnh khế ước chương và bản duyệt bảy chiều của Editor." width="1600" height="1000" loading="lazy" decoding="async">
       <figcaption><b>Hình 2</b><span>Chương đã nghiệm thu, đặt cạnh khế ước chương và bản duyệt bảy chiều của Editor. Mỗi chiều buộc dẫn nguyên văn làm chứng, nên điểm số luôn truy được về câu chữ đã sinh ra nó.</span></figcaption>
     </figure>
 
     <figure class="hinh">
-      <img src="anh/chi-phi-xuong.png" alt="Màn chi phí toàn xưởng, bổ theo vai và theo model." width="1600" height="1000" loading="lazy" decoding="async">
+      <img src="anh/chi-phi-xuong.webp" alt="Màn chi phí toàn xưởng, bổ theo vai và theo model." width="1600" height="1000" loading="lazy" decoding="async">
       <figcaption><b>Hình 3</b><span>Chi phí toàn xưởng, bổ theo vai và theo model. Khi có lượt model không trả số liệu dùng, studio nói thẳng là con số đang thiếu thay vì lặng lẽ cộng sai.</span></figcaption>
     </figure>
   </section>
@@ -565,6 +803,18 @@ go build -o ainovel-cli ./cmd/ainovel-cli
   </footer>
 
 </main>
+
+<!-- Thanh transport: chrome dễ nhận nhất của studio, luôn ở đáy và luôn nói máy
+     đang làm gì kèm giá thành. Số ở đây là của lượt chạy mẫu, không phải số
+     trực tiếp — trang tĩnh thì không có máy nào đang chạy để mà đo. -->
+<div class="trans">
+  <div class="o"><span class="cham" aria-hidden="true"></span><b>lượt chạy mẫu</b></div>
+  <div class="o">tổ <b>Writer</b></div>
+  <div class="o">model <b>gemini-2.5-pro</b></div>
+  <div class="o">giá thành <b>$1,475</b> / chương</div>
+  <div class="o">tổng <b>$7,37</b></div>
+  <div class="o di"><a href="#cach-lay">Cài trên máy bạn</a></div>
+</div>
 
 <script>
 /* Nút sao chép. Trạng thái xong hiện bằng CHỮ và MÀU, không chỉ màu — luật

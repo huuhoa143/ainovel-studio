@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://ainovel.lingoreup.com/sitemap.xml
