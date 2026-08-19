@@ -1837,5 +1837,9 @@
  "全书已完结，禁止使用 %s 全量覆盖大纲。请先重开作品，再使用受保护的大纲修订或续写操作: %w": "Truyện đã hoàn thành, không được dùng %s để ghi đè toàn bộ dàn ý. Hãy mở lại truyện trước, rồi dùng các thao tác sửa dàn ý hoặc viết tiếp có bảo vệ: %w",
  "长篇 Architect 可传 volume + arc 聚焦读取指定弧：已展开弧包含章节详情，骨架弧包含 title/goal/estimated_chapters。": "Kiến trúc sư truyện dài có thể truyền volume + arc để đọc khoanh vùng một hồi: hồi đã mở có chi tiết từng chương, hồi khung có title/goal/estimated_chapters.",
  "长篇 Architect 可选：聚焦读取的卷序号；已展开弧返回章节详情，骨架弧返回规划目标；必须与 arc 同时传入，不能与 chapter 同时使用": "Kiến trúc sư truyện dài, tùy chọn: số thứ tự tập cần đọc khoanh vùng; hồi đã mở trả chi tiết chương, hồi khung trả mục tiêu quy hoạch; phải truyền cùng arc, không dùng cùng chapter",
- "长篇 Architect 可选：聚焦读取的卷内弧序号；已展开弧返回章节详情，骨架弧返回规划目标；必须与 volume 同时传入，不能与 chapter 同时使用": "Kiến trúc sư truyện dài, tùy chọn: số thứ tự hồi trong tập cần đọc khoanh vùng; hồi đã mở trả chi tiết chương, hồi khung trả mục tiêu quy hoạch; phải truyền cùng volume, không dùng cùng chapter"
+ "长篇 Architect 可选：聚焦读取的卷内弧序号；已展开弧返回章节详情，骨架弧返回规划目标；必须与 volume 同时传入，不能与 chapter 同时使用": "Kiến trúc sư truyện dài, tùy chọn: số thứ tự hồi trong tập cần đọc khoanh vùng; hồi đã mở trả chi tiết chương, hồi khung trả mục tiêu quy hoạch; phải truyền cùng volume, không dùng cùng chapter",
+ "某章返工反复失败时引擎会自动将其移出队列并继续后续创作，无需人工清理。": "Khi một chương viết lại thất bại nhiều lần, engine tự đưa nó ra khỏi hàng đợi rồi viết tiếp các chương sau, không cần dọn tay.",
+ "；第 %d 章已移出返工队列(保留上一版终稿),继续创作将从后续章节推进": "; chương %d đã được đưa ra khỏi hàng đợi viết lại (giữ bản chốt trước đó), viết tiếp sẽ đi từ các chương sau",
+ "卡死返工章出队失败": "Không đưa được chương viết lại bị kẹt ra khỏi hàng đợi",
+ "foreshadow_updates[%d] 伏笔 %q 种植于第 %d 章，不能在第 %d 章推进或回收: %w": "foreshadow_updates[%d]: phục bút %q được gieo ở chương %d, không thể đẩy tới hay khép lại ở chương %d: %w"
 }
