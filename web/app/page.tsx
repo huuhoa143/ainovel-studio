@@ -23,14 +23,13 @@ import { NhanVat } from '@/components/NhanVat';
 import type { DongSuKien } from '@/components/NhatKy';
 import { Rail } from '@/components/Rail';
 import { LuatTheGioi, PhucBut } from '@/components/TheGioi';
-import { ThanhTren } from '@/components/ThanhTren';
 import { ToSanXuat } from '@/components/ToSanXuat';
 import { Transport } from '@/components/Transport';
 import { VanPhong } from '@/components/VanPhong';
 import { Xuong } from '@/components/Xuong';
 import { DangTai, KhongTaiDuoc, XuongTrong } from '@/components/XuongTrong';
 import { useVuaChot } from '@/lib/chotChuong';
-import { dungInspector, type Khu as KhuMa } from '@/lib/khu';
+import { dungInspector, laKhuMucMay, type Khu as KhuMa } from '@/lib/khu';
 import { manTheoTacPham } from '@/lib/man';
 import { coViecCanBan, useTongXuong, type TaiTongXuong } from '@/lib/tongXuong';
 import { trangThaiCua } from '@/lib/nghiemThu';
@@ -149,43 +148,6 @@ export default function Trang() {
         </div>
       ) : null}
 
-      <ThanhTren
-        workshop={s.workshop}
-        dangXem={sachDangXem}
-        ketNoi={s.ketNoi}
-        // Huy hiệu nghiệm thu nối ở ĐÂY, ngoài `Khu`, và đó là cả điểm của nó: một dây
-        // chuyền đang đứng chờ người dùng phải thấy được từ MỌI bề mặt, không riêng buồng
-        // lái — cùng lý lẽ đã ghi cho `HoiChan` ngay dưới.
-        //
-        // `undefined` khi chưa có snapshot, KHÔNG phải `trangThaiCua(null)`: hai ca đó cho
-        // cùng một hình (không huy hiệu) nhưng khác nguồn — "chưa tải xong" và "engine
-        // đóng" — và gộp chúng ở đây là dạy người sau rằng chúng là một.
-        cuaNghiemThu={s.snapshot ? trangThaiCua(s.snapshot.advance, s.snapshot.runtime) : undefined}
-        theoTacPham={theoTacPham}
-        onChon={s.chonTacPham}
-        onChonKhu={s.chonKhu}
-        // Đường vào "Tác phẩm mới" đặt ở thanh trên, cạnh bộ chọn tác phẩm.
-        //
-        // Nó VẪN còn trong rail, nhóm Máy — bỏ đi là bỏ một đường đi. Nhưng ở đó nó là mục
-        // thứ mười lăm trong mười sáu mục cùng sức nặng, và người dùng nói nguyên văn: "bắt
-        // đầu tác phẩm mới thì như thế nào và ở đâu". Thanh trên là chỗ trả lời câu đó:
-        // câu hỏi "cuốn nào" và câu hỏi "cuốn mới" là cùng một loại câu hỏi, nên chúng
-        // thuộc cùng một chỗ.
-        //
-        // Ba điều kiện, ba lý do khác nhau:
-        //  - `choGhi`: ngoài loopback thì `POST /books` bị từ chối, nên một nút dẫn tới
-        //    biểu mẫu chắc chắn thất bại là lời hứa hụt.
-        //  - `!canCaiDat`: chưa có khóa API thì bề mặt duy nhất được vẽ là Cấu hình máy,
-        //    nên bấm nút này sẽ KHÔNG đổi được gì — một nút không phản ứng.
-        //  - `!xuongTrong`: xưởng rỗng thì Tác phẩm mới đã là bề mặt đang mở sẵn.
-        onTaoTacPham={
-          may.choGhi && !may.canCaiDat && !xuongTrong
-            ? () => s.chonKhu('tac-pham-moi')
-            : undefined
-        }
-        dangOTaoTacPham={s.khu === 'tac-pham-moi'}
-        dauChot={dauDongThanh}
-      />
 
       {/* Chưa có tệp cấu hình thì dẫn THẲNG vào cài đặt, không hiện studio trống.
           Một studio không có khóa API không làm được gì cả, nên hiện nó ra rồi để người
@@ -200,10 +162,6 @@ export default function Trang() {
         <TacPhamMoi onXong={xongTaoSach} />
       ) : xuongTrong ? (
         <XuongTrong root={s.workshop?.root} />
-      ) : s.loi && !s.snapshot ? (
-        <KhongTaiDuoc loi={s.loi} onThuLai={s.taiLai} />
-      ) : !s.snapshot ? (
-        <DangTai />
       ) : (
         <>
           <Rail
@@ -216,7 +174,17 @@ export default function Trang() {
             canBan={canBan}
             tenCuonNgan={sachDangXem?.name || sachDangXem?.id}
             dauChot={dauDongThanh}
+            sach={s.workshop?.books ?? []}
+            tacPham={s.tacPham}
+            ketNoi={s.ketNoi}
+            choDuyet={
+              s.snapshot ? trangThaiCua(s.snapshot.advance, s.snapshot.runtime).dangCho : false
+            }
+            onMoTacPham={s.moTacPhamTai}
           />
+          {/* Màn chung (tủ truyện, cài đặt, viết mới) không cần dữ liệu của cuốn đang mở,
+              nên chúng hiện ngay thay vì chờ nạp toàn bộ một cuốn dài. */}
+          {s.snapshot || laKhuMucMay(s.khu) ? (
           <Khu
             khu={s.khu}
             onXoaXong={s.taiLai}
@@ -258,12 +226,16 @@ export default function Trang() {
             dangChay={mayDangChay(s.snapshot)}
             vuaChot={chot.vua}
           />
+          ) : s.loi ? (
+            <KhongTaiDuoc loi={s.loi} onThuLai={s.taiLai} />
+          ) : (
+            <DangTai />
+          )}
           {coInsp ? (
             <Inspector
               snapshot={s.snapshot}
               tacPham={s.tacPham}
               chuongChon={s.chuongChon}
-              onChonChuong={s.chonChuong}
             />
           ) : null}
         </>
@@ -351,7 +323,8 @@ export function Khu({
   vuaChot,
 }: {
   khu: KhuMa;
-  snapshot: Snapshot;
+  /** `undefined` chỉ ở các khu mức máy — xem chỗ gọi. */
+  snapshot: Snapshot | undefined;
   /** Mọi cuốn trong xưởng — chỉ khu `xuong` đọc, vì chỉ nó là bề mặt của CẢ xưởng. */
   sach: Book[];
   /**
@@ -392,6 +365,36 @@ export function Khu({
   /** Họ 09 — chỉ buồng lái đọc; các khu khác không có lane chương. */
   vuaChot: ReadonlySet<number>;
 }) {
+  if (!snapshot) {
+    switch (khu) {
+      case 'xuong':
+        return (
+          <Xuong
+            sach={sach}
+            tong={tong}
+            onChonKhu={onChonKhu}
+            onMoTacPham={onMoTacPham}
+            onXoaXong={onXoaXong}
+          />
+        );
+      case 'chi-phi-xuong':
+        return <ChiPhiXuong tong={tong} />;
+      case 'cau-hinh':
+        return <CauHinhXuong onDoiCauHinh={onDoiCauHinh} />;
+      case 'tac-pham-moi':
+        return <TacPhamMoi onXong={onXongTaoSach} nhapSan={nhapSan} onChonKhu={onChonKhu} />;
+      case 'cung-dung':
+        return (
+          <CungDung
+            cheDo={tacPham ? 'giai-doan' : 'mo-sach'}
+            tacPham={tacPham}
+            onXong={onChotCungDung}
+          />
+        );
+      default:
+        return <DangTai />;
+    }
+  }
   switch (khu) {
     // Xưởng là bề mặt của CẢ xưởng, nên nó cố ý KHÔNG nhận `tacPham`: nội dung của nó không
     // đổi theo cuốn đang mở (`laKhuMucMay('xuong')`). Truyền vào sẽ mời người sau dùng nó rồi
@@ -411,6 +414,7 @@ export function Khu({
     case 'ban-thao':
       return (
         <DocTruyen
+          onChonKhu={onChonKhu}
           snapshot={snapshot}
           tacPham={tacPham}
           chuongChon={chuongChon}
@@ -423,6 +427,7 @@ export function Khu({
     case 'kiem-dinh':
       return (
         <KiemDinh
+          onChonKhu={onChonKhu}
           snapshot={snapshot}
           tacPham={tacPham}
           choGhi={choGhi}
@@ -435,6 +440,7 @@ export function Khu({
     case 'hang-cho-viet-lai':
       return (
         <HangChoVietLai
+          onChonKhu={onChonKhu}
           snapshot={snapshot}
           chuongChon={chuongChon}
           onChonChuong={onChonChuong}

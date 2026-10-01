@@ -1,138 +1,209 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, expect, test, vi } from 'vitest';
 
 import type { CauHinhDoc } from '@/lib/types';
 
 /**
- * Bề mặt "Model theo vai" phải VẼ ĐƯỢC sau khi dữ liệu về.
+ * Thẻ "Đang dùng" — câu trả lời cho "truyện sẽ viết bằng gì", và chỗ DUY NHẤT chọn model.
  *
- * # Vì sao một bài kiểm chỉ để "nó vẽ ra"
- *
- * ĐO ĐƯỢC trên máy thật: bề mặt này chết trắng với `Uncaught Error: Minified React error #310`
- * — "Rendered more hooks than during the previous render". Nguyên nhân là `useModelNapVe()` bị
- * đặt SAU hai nhánh `return` sớm, nên lần vẽ đầu (`du` còn null, thoát sớm) gọi ít hook hơn lần
- * vẽ sau.
- *
- * Đây là loại hỏng mà `tsc` không thấy, `eslint` không chạy trong dự án này, và mọi bài kiểm
- * khác không chạm tới — nó chỉ lộ ra ở lần vẽ THỨ HAI, tức phải có một bài kiểm dựng thật rồi
- * chờ dữ liệu về. Hư hại: cả một bề mặt biến mất, và đó lại là bề mặt DUY NHẤT gỡ được ghim
- * model theo vai.
+ * Mỗi bài canh một lỗi đo được ở bản trước:
+ *   - lưu một vai xóa `fallbacks`/`reasoning_effort` của mọi vai khác (B5);
+ *   - "Chỉ đổi mặc định" gửi `model: ""` hoặc `models[0]`, bỏ qua thứ người dùng vừa chọn (B3);
+ *   - chọn một model vừa tải mà chưa khai thì server từ chối — phải khai trong cùng lượt ghi;
+ *   - và bề mặt chết trắng vì thứ tự hook (#310) — bài đầu tiên.
  */
 
-const CAU_HINH: CauHinhDoc = {
+const LUU = vi.fn((_than?: Record<string, unknown>) => Promise.resolve({ saved: true, path: '', reopen_to_apply: [] }));
+const LIET_KE = vi.fn<(p: string) => Promise<{ provider: string; models: string[]; count: number; windows?: Record<string, number> }>>();
+const AP_DUNG = vi.fn((_b: string) => Promise.resolve({ applied: true }));
+
+const GOC: CauHinhDoc = {
   needs_setup: false,
   path: '/tmp/x/.ainovel/config.json',
-  provider: 'kiraai',
-  model: 'kira-mini-1.0',
+  provider: 'lingoreup',
+  model: 'auto',
   style: 'default',
   styles: ['default'],
   role_names: ['default', 'architect', 'writer', 'editor'],
-  roles: { writer: { provider: 'openai', model: 'cx/gpt-5.5' } },
+  roles: {
+    writer: {
+      provider: '9Router',
+      model: 'cx/luna',
+      reasoning_effort: 'high',
+      fallbacks: [{ provider: 'lingoreup', model: 'auto' }],
+    },
+  },
   providers: [
-    { name: 'kiraai', api_key_set: true, models: [{ name: 'kira-mini-1.0' }] },
-    { name: 'openai', api_key_set: true, models: [{ name: 'cx/gpt-5.5' }] },
+    { name: 'lingoreup', api_key_set: true, models: [{ name: 'auto', context_window: 128000 }] },
+    { name: '9Router', api_key_set: true, models: [{ name: 'cx/luna', context_window: 272000 }] },
+    { name: 'kiraai', api_key_set: true, models: [{ name: 'kira-mini', context_window: 64000, json_schema: true }] },
+    { name: 'chuaKhoa', api_key_set: false, models: [{ name: 'x1' }] },
   ],
   presets: [],
   engine_open: [],
 };
 
-/** Bộ dữ liệu cho lần dựng kế tiếp — mặc định là cấu hình lành. */
-let DU_HIEN: CauHinhDoc;
+let DU: CauHinhDoc = GOC;
 
 vi.mock('@/lib/api', async (goc) => ({
   ...(await goc<typeof import('@/lib/api')>()),
-  layCauHinh: () => Promise.resolve(DU_HIEN ?? CAU_HINH),
+  layCauHinh: () => Promise.resolve(DU),
+  luuCauHinh: (...a: unknown[]) => LUU(...(a as [])),
+  lietKeModel: (p: string) => LIET_KE(p),
+  apDungCauHinh: (b: string) => AP_DUNG(b),
 }));
 
-// Dựng qua CHỦ SỞ HỮU dữ liệu, không dựng dải kênh trần: từ bản gộp, `KenhVaiChung` nhận `du`
-// sẵn nên tự nó không còn lần vẽ "chưa có dữ liệu" — tức không còn tái tạo được lỗi #310. Bề
-// mặt thật mới là chỗ có hai lần vẽ, và đó là chỗ phải canh.
 const { CauHinhXuong } = await import('./CauHinhXuong');
 
 beforeEach(() => {
   cleanup();
-  DU_HIEN = CAU_HINH;
+  DU = GOC;
+  LUU.mockClear();
+  LIET_KE.mockReset();
+  AP_DUNG.mockClear();
 });
 
-test('vẽ được bốn kênh sau khi cấu hình về — không ném lỗi thứ tự hook', async () => {
-  render(<CauHinhXuong onDoiCauHinh={() => {}} />);
+async function dung() {
+  render(<CauHinhXuong />);
+  await waitFor(() => expect(document.querySelector('.chDangDung')).not.toBeNull());
+  return within(document.querySelector<HTMLElement>('.chDangDung')!);
+}
 
-  // Lần vẽ đầu là trạng thái "đang tải"; lần vẽ thứ hai mới là lần lỗi #310 nổ.
-  await waitFor(() => expect(document.querySelector('.kenhDai')).not.toBeNull());
-
-  // Soi trong DẢI KÊNH, không soi cả màn: tên vai giờ còn xuất hiện ở dòng "Đang dùng bởi"
-  // của thẻ nhà cung cấp, nên một truy vấn phẳng khớp nhiều phần tử và ngã.
-  const dai = document.querySelector('.kenhDai')!;
-  const ten = Array.from(dai.querySelectorAll('.kenhTen')).map((e) => e.textContent);
-  expect(ten).toEqual(['Mặc định', 'Kiến trúc', 'Chấp bút', 'Biên tập']);
-  // `writer` có ghim riêng → phải gỡ được; ba vai kia đang thừa hưởng → không có nút gỡ.
-  expect(screen.getAllByRole('button', { name: 'Gỡ, dùng mặc định' })).toHaveLength(1);
-});
-
-test('thẻ nhà cung cấp nói ĐÚNG vai nào đang gọi tới nó, kể cả vai thừa hưởng', async () => {
-  // Không có dòng này thì nút Xóa trên thẻ bấm trong mù — và xóa một nhà cung cấp còn vai ghim
-  // vào nó làm `NewModelSet` lỗi, tức KHÔNG MỞ ĐƯỢC MÁY cho bất kỳ cuốn nào.
-  render(<CauHinhXuong onDoiCauHinh={() => {}} />);
-  await waitFor(() => expect(document.querySelectorAll('li.nccMuc').length).toBe(2));
-
-  const the = (ten: string) =>
-    Array.from(document.querySelectorAll<HTMLElement>('li.nccMuc')).find(
-      (li) => li.querySelector('.nccTen')?.textContent === ten,
-    )!;
-
-  // `kiraai` là mặc định; `writer` ghim sang `openai`, ba vai còn lại thừa hưởng kiraai.
-  expect(the('kiraai').textContent).toMatch(/Mặc định, Kiến trúc, Biên tập/);
-  expect(the('kiraai').textContent).not.toMatch(/Chấp bút/);
-  expect(the('openai').textContent).toMatch(/Chấp bút/);
-});
-
-/* ── vai trỏ vào model nhà cung cấp không khai ──────────────────────────── */
-
-/**
- * Ca thật: người dùng sửa ô "Danh sách model" trên thẻ `9Router` từ `cx/gpt-5.5` sang
- * `cx/gpt-5.6-luna`, rồi hỏi *"Model theo vai cũng thay đổi theo chứ nhỉ"*.
- *
- * Danh mục chỉ nạp GỢI Ý; model có hiệu lực nằm ở dải kênh. Nên bốn vai đứng im và bốn ô cảnh
- * báo giống hệt nhau hiện lên — không ô nào làm được gì. Cảnh báo không có lối ra là nhiễu.
- */
-const LAC: CauHinhDoc = {
-  ...CAU_HINH,
-  provider: '9Router',
-  model: 'cx/gpt-5.5',
-  roles: undefined,
-  providers: [
-    // Thẻ khai `luna`, trong khi mọi vai đang trỏ `cx/gpt-5.5`.
-    { name: '9Router', api_key_set: true, models: [{ name: 'cx/gpt-5.6-luna' }] },
-  ],
-};
-
-test('có vai lạc model thì hiện LỐI RA, không chỉ báo động', async () => {
-  DU_HIEN = LAC;
-  render(<CauHinhXuong onDoiCauHinh={() => {}} />);
-  await waitFor(() => expect(document.querySelector('.kenhDai')).not.toBeNull());
-
-  const nut = screen.getByRole('button', { name: 'Sửa các vai theo 9Router' });
-  expect(nut, 'bốn ô cảnh báo mà không nút nào sửa được').toBeDefined();
-
-  nut.click();
-  await waitFor(() => expect(document.querySelector('dialog')).not.toBeNull());
-  const hop = document.querySelector('dialog')!;
-
-  // Cùng nhà cung cấp thì đây KHÔNG phải lượt "chuyển" — gọi đúng tên việc.
-  expect(hop.querySelector('h2')?.textContent).toBe('Cập nhật model theo 9Router?');
-  expect(
-    Array.from(hop.querySelectorAll('.hopxnNut button')).map((b) => b.textContent),
-    'bày nút "chỉ đổi mặc định" trong khi không có nhà cung cấp nào để đổi',
-  ).toEqual(['Hủy', 'Cập nhật model']);
-  // Và bảng đề xuất đúng tên model mà thẻ đang khai.
-  expect(Array.from(hop.querySelectorAll('tbody input')).map((i) => (i as HTMLInputElement).value)).toEqual(
-    ['cx/gpt-5.6-luna', 'cx/gpt-5.6-luna', 'cx/gpt-5.6-luna', 'cx/gpt-5.6-luna'],
+function dongVai(ten: string): HTMLElement {
+  const d = Array.from(document.querySelectorAll<HTMLElement>('.chDongVai')).find(
+    (x) => x.querySelector('.chTenVai')?.textContent === ten,
   );
+  expect(d, `không thấy dòng vai ${ten}`).toBeDefined();
+  return d!;
+}
+
+function thanCuoi(): Record<string, unknown> {
+  return LUU.mock.calls.at(-1)?.[0] as Record<string, unknown>;
+}
+
+/** Mở ô chọn model qua nhãn truy cập rồi bấm một dòng. */
+function chonTrong(nhan: RegExp, model: string, nhom?: string) {
+  fireEvent.click(screen.getByRole('button', { name: nhan }));
+  const ds = screen.getByRole('listbox');
+  const pham = nhom ? within(within(ds).getByRole('group', { name: nhom })) : within(ds);
+  fireEvent.click(pham.getByRole('option', { name: new RegExp(model.replace(/[/.]/g, '\\$&')) }));
+}
+
+test('vẽ được mặc định và MỌI vai sau khi cấu hình về — không ném lỗi thứ tự hook', async () => {
+  const the = await dung();
+  expect(the.getByText('Model mặc định')).toBeDefined();
+  for (const v of ['Kiến trúc sư', 'Người viết', 'Biên tập viên', 'Điều phối']) dongVai(v);
 });
 
-test('mọi vai khớp danh mục thì KHÔNG hiện nút — một lối ra thừa là nhiễu', async () => {
-  DU_HIEN = { ...LAC, model: 'cx/gpt-5.6-luna' };
-  render(<CauHinhXuong onDoiCauHinh={() => {}} />);
-  await waitFor(() => expect(document.querySelector('.kenhDai')).not.toBeNull());
-  expect(screen.queryByRole('button', { name: /^Sửa các vai theo/ })).toBeNull();
+test('vai theo mặc định hiện CẶP thừa hưởng; vai đặt riêng có lối quay về mặc định', async () => {
+  await dung();
+  const kts = dongVai('Kiến trúc sư');
+  expect(kts.textContent).toMatch(/lingoreup·auto/);
+  expect(kts.textContent).toMatch(/theo mặc định/);
+  expect(within(kts).queryByRole('button', { name: 'Dùng mặc định' })).toBeNull();
+
+  const nv = dongVai('Người viết');
+  expect(nv.textContent).toMatch(/9Router·cx\/luna/);
+  expect(nv.textContent).toMatch(/đặt riêng/);
+  expect(within(nv).getByRole('button', { name: 'Dùng mặc định' })).toBeDefined();
+  // Điều phối không có ô chọn — host.arbiterModel luôn dùng mặc định.
+  expect(within(dongVai('Điều phối')).queryAllByRole('button')).toHaveLength(0);
+});
+
+test('chọn riêng một vai GIỮ fallbacks và độ suy luận của vai khác (B5)', async () => {
+  await dung();
+  chonTrong(/Biên tập viên/, 'kira-mini', 'kiraai');
+  await waitFor(() => expect(LUU).toHaveBeenCalled());
+  const roles = thanCuoi().roles as Record<string, Record<string, unknown>>;
+  expect(roles.editor).toEqual({ provider: 'kiraai', model: 'kira-mini' });
+  expect(roles.writer, 'lưu vai Biên tập viên đã xóa ý định riêng của Người viết').toEqual(GOC.roles!.writer);
+  expect(thanCuoi().provider_config, 'model đã khai thì không khai lại').toBeUndefined();
+  await waitFor(() => expect(within(dongVai('Biên tập viên')).getByText('Đã lưu')).toBeDefined());
+});
+
+test('"Dùng mặc định" gỡ đúng vai đó, các vai khác đi qua nguyên vẹn', async () => {
+  DU = { ...GOC, roles: { ...GOC.roles, editor: { provider: 'kiraai', model: 'kira-mini' } } };
+  await dung();
+  fireEvent.click(within(dongVai('Biên tập viên')).getByRole('button', { name: 'Dùng mặc định' }));
+  await waitFor(() => expect(LUU).toHaveBeenCalled());
+  const roles = thanCuoi().roles as Record<string, unknown>;
+  expect(Object.keys(roles)).toEqual(['writer']);
+  expect(roles.writer).toEqual(GOC.roles!.writer);
+});
+
+test('không còn vai đặt riêng ở nơi khác thì đổi mặc định ghi THẲNG, không hỏi', async () => {
+  DU = { ...GOC, roles: undefined };
+  await dung();
+  chonTrong(/Đổi model — Model mặc định/, 'kira-mini', 'kiraai');
+  await waitFor(() => expect(LUU).toHaveBeenCalled());
+  expect(thanCuoi()).toEqual({ provider: 'kiraai', model: 'kira-mini' });
+  expect(screen.queryByRole('dialog', { name: /Chuyển model mặc định/ })).toBeNull();
+});
+
+test('còn vai đặt riêng ở nơi khác thì HỎI, và "Chỉ đổi mặc định" gửi đúng model đã chọn (B3)', async () => {
+  await dung();
+  chonTrong(/Đổi model — Model mặc định/, 'kira-mini', 'kiraai');
+  expect(LUU, 'chưa xác nhận mà đã ghi').not.toHaveBeenCalled();
+  const hop = await screen.findByText(/Chuyển model mặc định sang kiraai/);
+  const dialog = hop.closest('dialog')!;
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Chỉ đổi mặc định' }));
+  await waitFor(() => expect(LUU).toHaveBeenCalled());
+  expect(thanCuoi()).toEqual({ provider: 'kiraai', model: 'kira-mini' });
+});
+
+test('"Chuyển cả các vai" ghi mặc định lẫn vai đặt riêng trong MỘT lượt, giữ độ suy luận', async () => {
+  await dung();
+  chonTrong(/Đổi model — Model mặc định/, 'kira-mini', 'kiraai');
+  const dialog = (await screen.findByText(/Chuyển model mặc định sang kiraai/)).closest('dialog')!;
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Chuyển cả các vai' }));
+  await waitFor(() => expect(LUU).toHaveBeenCalledTimes(1));
+  const than = thanCuoi() as { provider: string; model: string; roles: Record<string, Record<string, unknown>> };
+  expect(than.provider).toBe('kiraai');
+  expect(than.model).toBe('kira-mini');
+  expect(than.roles.writer).toMatchObject({ provider: 'kiraai', model: 'kira-mini', reasoning_effort: 'high' });
+  expect(Object.keys(than.roles), 'vai thừa hưởng không được biến thành đặt riêng').toEqual(['writer']);
+});
+
+test('chọn model vừa TẢI mà chưa khai thì khai nó trong cùng lượt ghi, giữ nguyên mục cũ', async () => {
+  DU = { ...GOC, roles: undefined };
+  LIET_KE.mockResolvedValue({ provider: 'kiraai', models: ['kira-mini', 'kira-pro'], count: 2, windows: { 'kira-pro': 200000 } });
+  await dung();
+  fireEvent.click(screen.getByRole('button', { name: /Đổi model — Người viết/ }));
+  const nhom = within(within(screen.getByRole('listbox')).getByRole('group', { name: 'kiraai' }));
+  fireEvent.click(nhom.getByRole('button', { name: 'Tải danh sách' }));
+  await waitFor(() => expect(nhom.getByRole('option', { name: /kira-pro/ })).toBeDefined());
+  fireEvent.click(nhom.getByRole('option', { name: /kira-pro/ }));
+  await waitFor(() => expect(LUU).toHaveBeenCalled());
+  expect(thanCuoi().provider_config).toEqual({
+    name: 'kiraai',
+    models: [{ name: 'kira-mini', context_window: 64000, json_schema: true }, { name: 'kira-pro', context_window: 200000 }],
+  });
+  expect((thanCuoi().roles as Record<string, unknown>).writer).toEqual({ provider: 'kiraai', model: 'kira-pro' });
+});
+
+test('ô tìm lọc theo tên model, và nhà cung cấp chưa có khóa không chọn được', async () => {
+  await dung();
+  fireEvent.click(screen.getByRole('button', { name: /Đổi model — Model mặc định/ }));
+  const ds = screen.getByRole('listbox');
+  expect(within(within(ds).getByRole('group', { name: 'chuaKhoa' })).queryAllByRole('option')).toHaveLength(0);
+  fireEvent.change(screen.getByPlaceholderText(/Tìm model/), { target: { value: 'luna' } });
+  const lua = within(ds).getAllByRole('option').map((o) => o.textContent);
+  expect(lua).toHaveLength(1);
+  expect(lua[0]).toMatch(/cx\/luna/);
+});
+
+test('vai trỏ vào model không còn trong danh sách thì nói ra ngay trên dòng của nó', async () => {
+  DU = { ...GOC, roles: { editor: { provider: 'kiraai', model: 'kira-cu' } } };
+  await dung();
+  expect(dongVai('Biên tập viên').textContent).toMatch(/không còn trong danh sách/);
+  expect(dongVai('Kiến trúc sư').textContent).not.toMatch(/không còn trong danh sách/);
+});
+
+test('truyện đang mở phiên: nói rõ, và "Áp dụng ngay" nạp lại vào phiên đó', async () => {
+  DU = { ...GOC, engine_open: ['chay-thu'] };
+  render(<CauHinhXuong />);
+  await waitFor(() => expect(screen.getByText(/chay-thu đang mở phiên/)).toBeDefined());
+  fireEvent.click(screen.getByRole('button', { name: 'Áp dụng ngay cho chay-thu' }));
+  await waitFor(() => expect(AP_DUNG).toHaveBeenCalledWith('chay-thu'));
+  await waitFor(() => expect(screen.getByText(/Đã áp dụng cho chay-thu/)).toBeDefined());
 });

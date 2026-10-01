@@ -2,9 +2,14 @@ package serve
 
 import (
 	"fmt"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"sort"
+	"strings"
+
+	"github.com/voocel/agentcore/llm"
 
 	"github.com/huuhoa143/ainovel-studio/assets"
 	"github.com/huuhoa143/ainovel-studio/internal/bootstrap"
@@ -72,10 +77,57 @@ type nhaCungCapRa struct {
 	KhongCanKhoa bool                    `json:"api_key_optional,omitempty"`
 }
 
+// khongCanKhoa nói một nhà cung cấp có được phép chạy KHÔNG khóa hay không.
+//
+// # Vì sao không dùng `ProviderConfig.RequiresAPIKey`
+//
+// Luật của engine coi MỌI mục có `type` là "proxy tự dựng, khóa tùy chọn" — mà biểu mẫu web
+// luôn gửi `type`. Dùng luật đó ở đây thì không nhà cung cấp nào thêm qua web từng bị đòi
+// khóa: ĐO ĐƯỢC, thêm `thu` không khóa rồi đặt làm mặc định → lưu xong, lượt chạy sau mới
+// chết vì 401. Studio cần câu hỏi hẹp hơn: gateway này có thật sự sống không cần khóa không?
+// Câu trả lời đáng tin duy nhất là tên đã biết (ollama/bedrock) hoặc địa chỉ trên máy/LAN.
+func khongCanKhoa(ten string, pc bootstrap.ProviderConfig) bool {
+	switch strings.ToLower(ten) {
+	case "ollama", "bedrock":
+		return true
+	}
+	if strings.EqualFold(pc.Type, "ollama") || strings.EqualFold(pc.Type, "bedrock") {
+		return true
+	}
+	u, err := url.Parse(strings.TrimSpace(pc.BaseURL))
+	if err != nil || u.Hostname() == "" {
+		return false
+	}
+	host := u.Hostname()
+	if host == "localhost" || strings.HasSuffix(host, ".local") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && (ip.IsLoopback() || ip.IsPrivate())
+}
+
+// tangCheKhuat trả về đường dẫn tệp cấu hình TOÀN CỤC khi nó là một tầng KHÁC tệp đích và
+// đang tồn tại — tức tầng mà mọi giá trị rỗng ở tệp đích sẽ rơi xuống. "" khi chỉ có một tệp.
+func tangCheKhuat(dich string) string {
+	goc := bootstrap.DefaultConfigPath()
+	if goc == "" || dich == "" {
+		return ""
+	}
+	a, errA := os.Stat(goc)
+	if errA != nil {
+		return ""
+	}
+	if b, errB := os.Stat(dich); errB == nil && os.SameFile(a, b) {
+		return ""
+	}
+	return goc
+}
+
 // handleDocCauHinh — GET /api/config
 func (s *server) handleDocCauHinh(w http.ResponseWriter, r *http.Request) {
 	// Ở ĐÂY dùng bản đã trộn, không phải tệp đích: người dùng cần thấy cái đang CÓ HIỆU
-	// LỰC. Chỉ đường GHI mới phải đọc riêng tệp đích.
+	// LỰC. Mọi lượt ghi được kiểm để thứ hiện ra ở đây luôn khớp thứ vừa ghi (xem
+	// `kiemYDinhCoHieuLuc`), nên hai nguồn không thể nói hai điều khác nhau.
 	cfg, err := bootstrap.LoadConfig()
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, err)
@@ -87,27 +139,20 @@ func (s *server) handleDocCauHinh(w http.ResponseWriter, r *http.Request) {
 		ncc = append(ncc, nhaCungCapRa{
 			Ten: ten, Loai: pc.Type, BaseURL: pc.BaseURL,
 			CoKhoa: pc.APIKey != "", KhoaChe: cheKhoa(pc.APIKey),
-			Models: pc.Models,
+			Models: pc.Models, KhongCanKhoa: khongCanKhoa(ten, pc),
 		})
 	}
 	sort.Slice(ncc, func(i, j int) bool { return ncc[i].Ten < ncc[j].Ten })
 
 	// Cuốn nào đang mở engine: đổi cấu hình KHÔNG ăn vào engine đang chạy (nó giữ bản
-	// `cfg` từ lúc host.New). Giao diện phải nói rõ điều đó thay vì để người dùng tưởng
-	// mình vừa đổi model của lượt đang chạy.
-	dangMo := []string{}
-	if s.may != nil {
-		s.may.mu.Lock()
-		for id := range s.may.dang {
-			dangMo = append(dangMo, id)
-		}
-		s.may.mu.Unlock()
-		sort.Strings(dangMo)
-	}
+	// `cfg` từ lúc host.New) cho tới khi bấm "Áp dụng ngay" hoặc mở lại phiên.
+	dangMo := s.cuonDangMo()
 
+	duong := bootstrap.EffectiveConfigPath()
 	writeJSON(w, map[string]any{
 		"needs_setup":      bootstrap.NeedsSetup(),
-		"path":             bootstrap.EffectiveConfigPath(),
+		"path":             duong,
+		"base_path":        tangCheKhuat(duong),
 		"provider":         cfg.Provider,
 		"model":            cfg.ModelName,
 		"reasoning_effort": cfg.ReasoningEffort,
@@ -119,6 +164,20 @@ func (s *server) handleDocCauHinh(w http.ResponseWriter, r *http.Request) {
 		"presets":          mauNhaCungCap(),
 		"engine_open":      dangMo,
 	})
+}
+
+func (s *server) cuonDangMo() []string {
+	dangMo := []string{}
+	if s.may == nil {
+		return dangMo
+	}
+	s.may.mu.Lock()
+	for id := range s.may.dang {
+		dangMo = append(dangMo, id)
+	}
+	s.may.mu.Unlock()
+	sort.Strings(dangMo)
+	return dangMo
 }
 
 // thanCauHinh là thân của PUT /api/config. Mọi trường là con trỏ: vắng = không đổi.
@@ -134,8 +193,11 @@ type thanCauHinh struct {
 	Style           *string `json:"style,omitempty"`
 
 	NhaCungCap *struct {
-		Ten     string                  `json:"name"`
-		Loai    string                  `json:"type,omitempty"`
+		Ten string `json:"name"`
+		// Loai là con trỏ vì "" có nghĩa riêng: "suy giao thức theo tên" (mục do TUI tạo,
+		// như `anthropic` không khai type). Bản trước coi "" là "không đổi" còn biểu mẫu thì
+		// luôn gửi `openai` — sửa base_url của một mục như thế là âm thầm đổi giao thức.
+		Loai    *string                 `json:"type,omitempty"`
 		BaseURL *string                 `json:"base_url,omitempty"`
 		APIKey  *string                 `json:"api_key,omitempty"`
 		Models  []bootstrap.ModelConfig `json:"models,omitempty"`
@@ -146,24 +208,38 @@ type thanCauHinh struct {
 	// # Vì sao nó THAY CẢ MAP chứ không trộn từng khóa
 	//
 	// Một vai không có mặt trong map nghĩa là "thừa hưởng mặc định" — đó là cách duy nhất
-	// nói ra việc BỎ một ghi đè. Trộn từng khóa thì thêm được mà không bao giờ xóa được,
-	// và bề mặt sẽ có một ô người dùng đặt rồi không gỡ ra được nữa.
+	// nói ra việc BỎ một ghi đè. Trộn từng khóa thì thêm được mà không bao giờ xóa được.
 	//
 	// Con trỏ vì `nil` (không gửi) và `{}` (gửi map rỗng = gỡ hết ghi đè) là hai ý định
-	// khác nhau — cùng lý lẽ đã ghi cho `Style` và `APIKey` ở trên.
-	//
-	// `GET /api/config` đã trả `roles` từ lâu; trước bản này nó ĐỌC được mà không GHI
-	// được, nên bề mặt Cài đặt chung sẽ phải hiện một bảng chỉ để nhìn. Đó đúng là khiếm
-	// khuyết mà màn Cài đặt chung tồn tại để xoá.
+	// khác nhau. Mục gửi lên mang đủ `fallbacks` + `reasoning_effort`; giao diện phải gửi
+	// lại nguyên vẹn những gì nó không đổi (xem `vaiGuiLai` phía web).
 	Roles *map[string]bootstrap.RoleConfig `json:"roles,omitempty"`
 
 	XoaNhaCungCap *string `json:"remove_provider,omitempty"`
 }
 
 // handleGhiCauHinh — PUT /api/config
+//
+// # Trình tự
+//
+//  1. Kiểm THÂN: những giá trị tự nó đã vô nghĩa (model rỗng, giao thức lạ) bị từ chối
+//     trước khi đụng tệp.
+//  2. Đọc ĐÚNG tệp đích, áp thay đổi, ghi.
+//  3. Nạp lại bản TRỘN theo đúng đường engine nạp, rồi kiểm ba điều: `ValidateBase`; cặp
+//     provider/model vừa chọn có thật; và mọi ý định trong thân ĐÃ CÓ HIỆU LỰC — tức không bị
+//     tầng toàn cục che. Hỏng bất kỳ điều nào thì hoàn nguyên tệp.
+//
+// Điều thứ ba là thứ làm "một nguồn sự thật" thành thật: trước bản này, xóa một nhà cung cấp
+// cũng có ở `~/.ainovel/config.json` trả "đã lưu" mà nó vẫn nằm đó, xóa khóa trả "đã lưu" mà
+// thẻ vẫn "đã đặt khóa", và `model: ""` lặng lẽ thừa hưởng `auto` của tầng toàn cục — sinh ra
+// cặp `kiraai · auto` không tồn tại.
 func (s *server) handleGhiCauHinh(w http.ResponseWriter, r *http.Request) {
 	var than thanCauHinh
 	if err := docThan(r, &than); err != nil {
+		writeErr(w, http.StatusBadRequest, err)
+		return
+	}
+	if err := kiemThanCauHinh(&than); err != nil {
 		writeErr(w, http.StatusBadRequest, err)
 		return
 	}
@@ -174,10 +250,12 @@ func (s *server) handleGhiCauHinh(w http.ResponseWriter, r *http.Request) {
 			fmt.Errorf("không xác định được đường dẫn tệp cấu hình"))
 		return
 	}
-	// Đọc ĐÚNG tệp đích. `LoadConfigFile` lỗi khi tệp không tồn tại, và đó là ca bình
-	// thường ở lần cài đầu — nên coi lỗi đọc là "bắt đầu từ cấu hình trống" chứ không
-	// chặn. Hướng sai duy nhất của việc này là ghi đè một tệp hỏng cú pháp, mà người dùng
-	// web thì không có cách nào khác để sửa tệp hỏng đó.
+	// Bản trộn TRƯỚC lượt ghi: cần để biết vai nào thật sự đổi (chỉ kiểm cặp model của chỗ
+	// đổi — một cặp cũ đã lệch không được phép chặn một lượt lưu không liên quan).
+	truoc, _ := bootstrap.LoadConfig()
+
+	// Đọc ĐÚNG tệp đích. Không có tệp là ca bình thường ở lần cài đầu; tệp HỎNG cú pháp thì
+	// cũng bắt đầu từ rỗng, vì người dùng web không có cách nào khác để sửa nó.
 	cfg, err := bootstrap.LoadConfigFile(duong)
 	if err != nil {
 		cfg = bootstrap.Config{}
@@ -185,23 +263,131 @@ func (s *server) handleGhiCauHinh(w http.ResponseWriter, r *http.Request) {
 	if cfg.Providers == nil {
 		cfg.Providers = map[string]bootstrap.ProviderConfig{}
 	}
+	apThanCauHinh(&cfg, &than)
 
-	if than.NhaCungCap != nil {
-		n := than.NhaCungCap
-		if n.Ten == "" {
-			writeErr(w, http.StatusBadRequest, fmt.Errorf("thiếu tên nhà cung cấp"))
-			return
+	cu, errCu := os.ReadFile(duong)
+	if err := bootstrap.SaveConfig(duong, cfg); err != nil {
+		writeErr(w, http.StatusInternalServerError, fmt.Errorf("ghi cấu hình: %w", err))
+		return
+	}
+	hoanNguyen := func() {
+		if errCu == nil {
+			_ = os.WriteFile(duong, cu, 0o600)
+		} else {
+			_ = os.Remove(duong) // trước đó không có tệp thì đừng để lại tệp nửa vời
 		}
+	}
+
+	tron, err := bootstrap.LoadConfig()
+	if err == nil {
+		// Kiểm trên một BẢN đã điền mặc định (đúng thứ engine dựng), nhưng đối chiếu ý định trên
+		// bản thô: `FillDefaults` biến style "" thành "default", và so trên bản đó thì xóa kiểu
+		// văn luôn bị báo là "không có tác dụng".
+		kiem := tron
+		kiem.FillDefaults()
+		err = kiem.ValidateBase()
+	}
+	if err != nil {
+		hoanNguyen()
+		writeErr(w, http.StatusBadRequest, fmt.Errorf("cấu hình chưa dùng được: %w", err))
+		return
+	}
+	if err := kiemCapDaChon(truoc, tron, &than); err != nil {
+		hoanNguyen()
+		writeErr(w, http.StatusBadRequest, err)
+		return
+	}
+	if err := kiemYDinhCoHieuLuc(tron, &than, tangCheKhuat(duong)); err != nil {
+		hoanNguyen()
+		writeErr(w, http.StatusConflict, err)
+		return
+	}
+
+	writeJSON(w, map[string]any{
+		"saved":           true,
+		"path":            duong,
+		"reopen_to_apply": s.cuonDangMo(),
+	})
+}
+
+// kiemThanCauHinh chặn những giá trị tự nó đã vô nghĩa, trước khi đụng tệp.
+func kiemThanCauHinh(than *thanCauHinh) error {
+	if than.Provider != nil {
+		*than.Provider = strings.TrimSpace(*than.Provider)
+		if *than.Provider == "" {
+			return fmt.Errorf("nhà cung cấp mặc định không được để trống")
+		}
+	}
+	if than.Model != nil {
+		*than.Model = strings.TrimSpace(*than.Model)
+		// Model rỗng KHÔNG phải "không đặt": bản trộn sẽ thừa hưởng model của tầng toàn cục
+		// và ghép nó với nhà cung cấp vừa chọn — ĐO ĐƯỢC ra `kiraai · auto`, một cặp không có.
+		if *than.Model == "" {
+			return fmt.Errorf("model mặc định không được để trống — chọn một model của nhà cung cấp")
+		}
+	}
+	if than.Style != nil {
+		if err := kiemKieuVan(*than.Style); err != nil {
+			return err
+		}
+	}
+	if n := than.NhaCungCap; n != nil {
+		n.Ten = strings.TrimSpace(n.Ten)
+		if n.Ten == "" {
+			return fmt.Errorf("thiếu tên nhà cung cấp")
+		}
+		if strings.ContainsAny(n.Ten, " \t\r\n") {
+			return fmt.Errorf("tên nhà cung cấp %q không được chứa khoảng trắng", n.Ten)
+		}
+		if n.Loai != nil {
+			*n.Loai = strings.ToLower(strings.TrimSpace(*n.Loai))
+			if *n.Loai != "" && !llm.IsProviderRegistered(*n.Loai) {
+				return fmt.Errorf("giao thức %q không được hỗ trợ; chọn một trong: %v",
+					*n.Loai, llm.RegisteredProviders())
+			}
+		}
+		if n.BaseURL != nil {
+			*n.BaseURL = strings.TrimSpace(*n.BaseURL)
+		}
+		if n.Models != nil {
+			sach := make([]bootstrap.ModelConfig, 0, len(n.Models))
+			thay := map[string]bool{}
+			for _, m := range n.Models {
+				m.Name = strings.TrimSpace(m.Name)
+				if m.Name == "" || thay[m.Name] {
+					continue
+				}
+				thay[m.Name] = true
+				sach = append(sach, m)
+			}
+			n.Models = sach
+		}
+	}
+	if than.XoaNhaCungCap != nil {
+		*than.XoaNhaCungCap = strings.TrimSpace(*than.XoaNhaCungCap)
+	}
+	if than.Roles != nil {
+		for vai, rc := range *than.Roles {
+			rc.Provider = strings.TrimSpace(rc.Provider)
+			rc.Model = strings.TrimSpace(rc.Model)
+			(*than.Roles)[vai] = rc
+		}
+	}
+	return nil
+}
+
+// apThanCauHinh áp thân lên tệp đích.
+func apThanCauHinh(cfg *bootstrap.Config, than *thanCauHinh) {
+	if n := than.NhaCungCap; n != nil {
 		pc := cfg.Providers[n.Ten] // giữ nguyên extra_body / extra / timeout đã có
-		if n.Loai != "" {
-			pc.Type = n.Loai
+		if n.Loai != nil {
+			pc.Type = *n.Loai
 		}
 		if n.BaseURL != nil {
 			pc.BaseURL = *n.BaseURL
 		}
-		// Đây là điểm mấu chốt của "khóa một chiều": nil nghĩa là giao diện không gửi
-		// khóa (vì nó không bao giờ nhận được khóa), nên phải GIỮ khóa cũ. Nếu chỗ này
-		// gán thẳng thì mỗi lần người dùng đổi base_url là khóa bị xóa sạch.
+		// "Khóa một chiều": nil nghĩa là giao diện không gửi khóa (vì nó không bao giờ nhận
+		// được khóa), nên phải GIỮ khóa cũ.
 		if n.APIKey != nil {
 			pc.APIKey = *n.APIKey
 		}
@@ -210,7 +396,6 @@ func (s *server) handleGhiCauHinh(w http.ResponseWriter, r *http.Request) {
 		}
 		cfg.Providers[n.Ten] = pc
 	}
-
 	if than.XoaNhaCungCap != nil {
 		delete(cfg.Providers, *than.XoaNhaCungCap)
 	}
@@ -224,9 +409,8 @@ func (s *server) handleGhiCauHinh(w http.ResponseWriter, r *http.Request) {
 		cfg.ReasoningEffort = *than.ReasoningEffort
 	}
 	if than.Roles != nil {
-		// Map rỗng → `nil`, không phải `map[]{}`: `Roles` mang `omitempty`, nên một map rỗng
-		// vẫn rụng khỏi JSON lúc ghi. Đặt nil tường minh để thứ nằm trên đĩa khớp với thứ
-		// trong bộ nhớ, thay vì để hai lượt ghi liên tiếp cho hai kết quả khác nhau.
+		// Map rỗng → `nil`: `Roles` mang `omitempty`, nên đặt nil tường minh để thứ nằm trên
+		// đĩa khớp với thứ trong bộ nhớ.
 		if len(*than.Roles) == 0 {
 			cfg.Roles = nil
 		} else {
@@ -234,66 +418,124 @@ func (s *server) handleGhiCauHinh(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if than.Style != nil {
-		if err := kiemKieuVan(*than.Style); err != nil {
-			writeErr(w, http.StatusBadRequest, err)
-			return
-		}
 		cfg.Style = *than.Style
 	}
+}
 
-	// Ghi tệp đích, rồi kiểm bản ĐÃ TRỘN, và hoàn nguyên nếu không dùng được.
-	//
-	// # Vì sao không kiểm trước khi ghi
-	//
-	// Bản đầu kiểm `ValidateBase` trên riêng tệp đích, và nó SAI: tệp project hợp lệ khi
-	// chỉ chứa phần ghi đè (ví dụ đúng một dòng `style`), còn provider/khóa nằm ở lớp
-	// global. Kiểm tệp đích một mình thì không bao giờ lưu được một override như thế —
-	// tức chặn đúng cách dùng mà `EffectiveConfigPath` tồn tại để phục vụ.
-	//
-	// Cái phải hợp lệ là thứ engine SẼ NẠP, tức `LoadConfig()` sau khi ghi. Nên trình tự
-	// là ghi → nạp lại theo đúng đường thật → kiểm → hoàn nguyên nếu hỏng. Dùng chính
-	// `LoadConfig` chứ không tự dựng lại phép trộn: một bản trộn viết tay sẽ trôi khỏi
-	// `mergeConfig` và lúc đó phép kiểm nói về một cấu hình không ai nạp.
-	// errCu != nil nghĩa là TRƯỚC ĐÓ không có tệp — cần cho việc hoàn nguyên đúng cách:
-	// hoàn nguyên về "không có tệp" là XÓA, không phải ghi lại chuỗi rỗng.
-	cu, errCu := os.ReadFile(duong)
-	if err := bootstrap.SaveConfig(duong, cfg); err != nil {
-		writeErr(w, http.StatusInternalServerError, fmt.Errorf("ghi cấu hình: %w", err))
-		return
-	}
-	tron, err := bootstrap.LoadConfig()
-	if err == nil {
-		tron.FillDefaults()
-		err = tron.ValidateBase()
-	}
-	if err != nil {
-		// Hoàn nguyên. Studio là giao diện duy nhất, nên để lại một cấu hình hỏng là khóa
-		// người dùng ra khỏi công cụ của họ — trên web không có `vim` để sửa tệp.
-		if errCu == nil {
-			_ = os.WriteFile(duong, cu, 0o600)
-		} else {
-			_ = os.Remove(duong) // trước đó không có tệp thì đừng để lại tệp nửa vời
+// kiemCapDaChon kiểm mọi cặp provider/model mà lượt ghi này CHỌN (mặc định, và từng vai đã
+// đổi so với trước): model phải nằm trong danh sách nhà cung cấp đó khai, và nhà cung cấp phải
+// có khóa nếu nó không phải gateway không-khóa.
+//
+// Chỉ kiểm chỗ ĐỔI: một vai cũ đã lệch từ trước không được chặn một lượt lưu kiểu văn.
+// Nhà cung cấp không khai model nào thì không có cơ sở nói tên nào sai — cho qua.
+func kiemCapDaChon(truoc, tron bootstrap.Config, than *thanCauHinh) error {
+	kiem := func(chu, ncc, model string) error {
+		pc, ok := tron.Providers[ncc]
+		if !ok {
+			return fmt.Errorf("%s trỏ vào nhà cung cấp %q không có trong cấu hình", chu, ncc)
 		}
-		writeErr(w, http.StatusBadRequest, fmt.Errorf("cấu hình chưa dùng được: %w", err))
-		return
+		if pc.APIKey == "" && !khongCanKhoa(ncc, pc) {
+			return fmt.Errorf("%s dùng nhà cung cấp %q nhưng nó chưa có khóa API — nhập khóa trước", chu, ncc)
+		}
+		if len(pc.Models) == 0 {
+			return nil
+		}
+		for _, m := range pc.Models {
+			if m.Name == model {
+				return nil
+			}
+		}
+		return fmt.Errorf("%s: model %q không có trong danh sách của %q — thêm nó vào danh sách model của nhà cung cấp, hoặc chọn một model có sẵn",
+			chu, model, ncc)
 	}
+	if than.Provider != nil || than.Model != nil {
+		if tron.Provider != truoc.Provider || tron.ModelName != truoc.ModelName {
+			if err := kiem("Model mặc định", tron.Provider, tron.ModelName); err != nil {
+				return err
+			}
+		}
+	}
+	if than.Roles != nil {
+		for vai, rc := range tron.Roles {
+			if rc.IsEffortOnly() {
+				continue
+			}
+			cu, coCu := truoc.Roles[vai]
+			if coCu && cu.Provider == rc.Provider && cu.Model == rc.Model {
+				continue
+			}
+			if err := kiem(fmt.Sprintf("Vai %s", vai), rc.Provider, rc.Model); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
 
-	// Engine đang mở giữ bản cfg từ lúc host.New, nên thay đổi chỉ ăn từ lượt mở sau.
-	// Trả về để giao diện nói đúng, không hứa hẹn quá.
-	canMoLai := []string{}
-	if s.may != nil {
-		s.may.mu.Lock()
-		for id := range s.may.dang {
-			canMoLai = append(canMoLai, id)
+// kiemYDinhCoHieuLuc đối chiếu bản TRỘN sau khi ghi với từng ý định trong thân.
+//
+// Lệch nghĩa là tầng toàn cục đang che giá trị vừa ghi ở tệp dự án (`mergeConfig` chỉ đè khi
+// giá trị khác rỗng, nên tệp dự án không có cách nào nói "xóa"). Lưu một thay đổi không có tác
+// dụng rồi báo "đã lưu" là chính lỗi phải diệt, nên ở đây từ chối, và nói rõ phải sửa ở đâu.
+func kiemYDinhCoHieuLuc(tron bootstrap.Config, than *thanCauHinh, goc string) error {
+	che := func(cai string) error {
+		if goc == "" {
+			return fmt.Errorf("%s chưa có hiệu lực sau khi lưu", cai)
 		}
-		s.may.mu.Unlock()
-		sort.Strings(canMoLai)
+		return fmt.Errorf("%s không có tác dụng: tệp toàn cục %s vẫn giữ giá trị cũ và tầng đó được trộn vào. Sửa hoặc xóa mục ấy trong %s",
+			cai, goc, goc)
 	}
-	writeJSON(w, map[string]any{
-		"saved":           true,
-		"path":            duong,
-		"reopen_to_apply": canMoLai,
-	})
+	if than.XoaNhaCungCap != nil {
+		if _, con := tron.Providers[*than.XoaNhaCungCap]; con {
+			return che(fmt.Sprintf("Xóa nhà cung cấp %q", *than.XoaNhaCungCap))
+		}
+	}
+	if n := than.NhaCungCap; n != nil {
+		pc := tron.Providers[n.Ten]
+		if n.APIKey != nil && pc.APIKey != *n.APIKey {
+			return che(fmt.Sprintf("Đổi khóa của %q", n.Ten))
+		}
+		if n.BaseURL != nil && pc.BaseURL != *n.BaseURL {
+			return che(fmt.Sprintf("Đổi địa chỉ gốc của %q", n.Ten))
+		}
+		if n.Loai != nil && pc.Type != *n.Loai {
+			return che(fmt.Sprintf("Đổi giao thức của %q", n.Ten))
+		}
+		if n.Models != nil && !cungTenModel(pc.Models, n.Models) {
+			return che(fmt.Sprintf("Đổi danh sách model của %q", n.Ten))
+		}
+	}
+	if than.ReasoningEffort != nil && tron.ReasoningEffort != *than.ReasoningEffort {
+		return che("Đổi độ suy luận mặc định")
+	}
+	if than.Style != nil && tron.Style != *than.Style {
+		return che("Đổi kiểu văn mặc định")
+	}
+	if than.Roles != nil {
+		muon := *than.Roles
+		if len(tron.Roles) != len(muon) {
+			return che("Đổi model theo vai")
+		}
+		for vai, rc := range muon {
+			co, ok := tron.Roles[vai]
+			if !ok || co.Provider != rc.Provider || co.Model != rc.Model || co.ReasoningEffort != rc.ReasoningEffort {
+				return che(fmt.Sprintf("Đổi model của vai %s", vai))
+			}
+		}
+	}
+	return nil
+}
+
+func cungTenModel(a, b []bootstrap.ModelConfig) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i].Name != b[i].Name {
+			return false
+		}
+	}
+	return true
 }
 
 func kiemKieuVan(k string) error {

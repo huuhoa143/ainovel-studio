@@ -54,7 +54,7 @@ export function MucXem({
 function chuGiai(pv: PhamVi): string {
   if (pv.khongRo) return `${nhanMucXem(pv.muc)} — ${GIAI_THICH.mucChuaMo}`;
   if (pv.from === undefined || pv.to === undefined) {
-    return 'mọi chương có dấu vết sản xuất';
+    return 'mọi chương đã viết';
   }
   return `chương ${pv.from}–${pv.to}`;
 }

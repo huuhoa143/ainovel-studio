@@ -1427,11 +1427,25 @@ func (h *Host) SwitchModel(role, provider, model string) error {
 		h.cfg.Roles[role] = rc
 	}
 	// 换模型不改动已存的推理强度意图：只在下发时按新模型能力钳制。
-	if h.configPath != "" {
-		if err := bootstrap.SaveConfig(h.configPath, h.cfg); err != nil {
-			slog.Warn(i18n.F("保存配置失败"), "module", "host", "err", err)
+	//
+	// VÁ đúng trường vừa đổi trong tệp đích, không ghi lại `h.cfg`. `h.cfg` là ảnh chụp ĐÃ TRỘN
+	// từ lúc mở engine: ghi nó là đè mất mặc định/vai mà studio vừa lưu sau đó, và đổ cả tầng
+	// toàn cục xuống tệp dự án. Đo được: đổi mặc định sang kiraai ở màn cấu hình, rồi đổi model
+	// Biên tập viên ở phiên đang mở — tệp quay về mặc định cũ.
+	h.vaTepCauHinh(func(c *bootstrap.Config) {
+		if role == "" || role == "default" {
+			c.Provider = provider
+			c.ModelName = model
+			return
 		}
-	}
+		if c.Roles == nil {
+			c.Roles = make(map[string]bootstrap.RoleConfig)
+		}
+		rc := c.Roles[role] // giữ fallbacks / reasoning_effort đang có trong TỆP
+		rc.Provider = provider
+		rc.Model = model
+		c.Roles[role] = rc
+	})
 	h.applyThinkingLocked(role)
 	// 切到未登记模型时打一行 warn，提示用户走了 128k 兜底——长篇容易被提前压缩。
 	logRole := role
@@ -1448,6 +1462,58 @@ func (h *Host) SwitchModel(role, provider, model string) error {
 		Time:     time.Now(),
 		Category: "SYSTEM",
 		Summary:  fmt.Sprintf(i18n.F("模型已切换：%s → %s/%s"), role, provider, model),
+		Level:    "info",
+	})
+	return nil
+}
+
+// vaTepCauHinh vá tệp cấu hình đích bằng `sua`. Người gọi phải đang giữ `h.mu`.
+func (h *Host) vaTepCauHinh(sua func(*bootstrap.Config)) {
+	if h.configPath == "" {
+		return
+	}
+	if err := bootstrap.PatchConfigFile(h.configPath, sua); err != nil {
+		slog.Warn(i18n.F("保存配置失败"), "module", "host", "err", err)
+	}
+}
+
+// ApplyConfigFromDisk nạp lại cấu hình model từ đĩa vào engine ĐANG MỞ — nút "Áp dụng ngay".
+//
+// Đổi model ở màn cấu hình ghi tệp, còn engine giữ ảnh chụp lúc mở. Trước đây cách duy nhất
+// để phiên đang mở nhận thay đổi là đóng rồi mở lại. Hàm này dựng một ModelSet mới từ
+// `LoadConfig` rồi `ApplyPrepared` — cùng cơ chế `ConfigureModels` đã dùng — nên Worker và
+// Arbiter dùng client mới từ lượt gọi kế tiếp. Không ghi tệp nào: nguồn đã là tệp.
+//
+// Chỉ áp phần MODEL (provider/model mặc định, vai, độ suy luận, danh mục nhà cung cấp). Kiểu
+// văn nạp vào bundle lúc mở engine, nên nó vẫn cần mở lại phiên.
+func (h *Host) ApplyConfigFromDisk() error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	cfg, err := bootstrap.LoadConfig()
+	if err != nil {
+		return err
+	}
+	ung := bootstrap.CloneConfig(h.cfg)
+	ung.Provider = cfg.Provider
+	ung.ModelName = cfg.ModelName
+	ung.ReasoningEffort = cfg.ReasoningEffort
+	ung.Providers = cfg.Providers
+	ung.Roles = cfg.Roles
+	ung.FillDefaults()
+	if err := ung.ValidateBase(); err != nil {
+		return err
+	}
+	ms, err := bootstrap.NewModelSet(ung)
+	if err != nil {
+		return fmt.Errorf(i18n.F("创建模型客户端失败: %w"), err)
+	}
+	h.models.ApplyPrepared(ms)
+	h.cfg = ung
+	h.applyThinkingLocked("default")
+	h.emitEvent(Event{
+		Time:     time.Now(),
+		Category: "SYSTEM",
+		Summary:  fmt.Sprintf(i18n.F("模型已切换：%s → %s/%s"), "default", ung.Provider, ung.ModelName),
 		Level:    "info",
 	})
 	return nil
@@ -1517,11 +1583,24 @@ func (h *Host) SetRoleThinking(role, level string) error {
 		rc.ReasoningEffort = string(parsed)
 		h.cfg.Roles[role] = rc
 	}
-	if h.configPath != "" {
-		if err := bootstrap.SaveConfig(h.configPath, h.cfg); err != nil {
-			slog.Warn(i18n.F("保存配置失败"), "module", "host", "err", err)
+	// Cùng luật với SwitchModel: vá đúng một trường, không ghi lại ảnh chụp đã trộn.
+	h.vaTepCauHinh(func(c *bootstrap.Config) {
+		if role == "" || role == "default" {
+			c.ReasoningEffort = string(parsed)
+			return
 		}
-	}
+		if c.Roles == nil {
+			c.Roles = make(map[string]bootstrap.RoleConfig)
+		}
+		rc := c.Roles[role]
+		rc.ReasoningEffort = string(parsed)
+		if rc.IsEffortOnly() && rc.ReasoningEffort == "" {
+			// Bỏ ghi đè cuối cùng của một vai thừa hưởng: xóa hẳn mục, đừng để lại `{}`.
+			delete(c.Roles, role)
+			return
+		}
+		c.Roles[role] = rc
+	})
 
 	// 联动 live：具体角色直接应用；default 则遍历各具体角色按 ResolveReasoningEffort 重新应用
 	// （已被角色级覆盖的保留自身，未覆盖的吃上新默认）。

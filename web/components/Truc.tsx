@@ -71,9 +71,9 @@ export function Truc({
             <Lane blocks={timeline.volumes ?? []} tien="T" nhanLane="tập" />
 
             <div className="lane-lbl" id="lane-cung">
-              {nhanLaneCung(timeline.volumes)}
+              {CHU.cung}
             </div>
-            <Lane blocks={timeline.arcs ?? []} tien="C" nhanLane="cung" />
+            <Lane blocks={timeline.arcs ?? []} tien="H" nhanLane="hồi" />
           </>
         ) : null}
 
@@ -95,12 +95,6 @@ export function Truc({
   );
 }
 
-/** Nhãn lane cung nói rõ nó là cung của TẬP NÀO, không phải mọi cung. */
-function nhanLaneCung(volumes: LaneBlock[] | null): string {
-  const dangChay = volumes?.find((v) => v.state === 'running');
-  return dangChay ? `${CHU.cung}, tập ${dangChay.index}` : CHU.cung;
-}
-
 function Lane({
   blocks,
   tien,
@@ -114,16 +108,20 @@ function Lane({
     return (
       <div className="lane">
         <span className="blk planned" style={{ flex: '1 1 0' }}>
-          <span className="txt">chưa có {nhanLane} nào được quy hoạch</span>
+          <span className="txt">chưa có {nhanLane.toLowerCase()} nào được lên dàn ý</span>
         </span>
       </div>
     );
   }
 
   const daDo = doTruc(blocks);
+  // Lane DÀY (nhiều khối hơn số nhãn đọc được ở bề rộng thường): khối đã xong chỉ còn màu,
+  // nhãn giữ cho khối đang mở. Mười mấy nhãn "T1…" bị cắt nửa chữ còn khó đọc hơn không nhãn,
+  // và chú giải đầy đủ của từng khối vẫn nằm trong `title`.
+  const day = daDo.length > 12;
 
   return (
-    <div className="lane" role="group" aria-label={`Trục ${nhanLane}`}>
+    <div className={`lane${day ? ' day' : ''}`} role="group" aria-label={`Trục ${nhanLane}`}>
       {daDo.map((b) => {
         const tt = TRANG_THAI_KHOI[b.state];
         const phamVi = nhanPhamVi(b);
@@ -139,7 +137,7 @@ function Lane({
           soChuong,
           b.chuaBietPhamVi ? GIAI_THICH.chuaBietPhamVi : undefined,
           b.estimated && !b.chuaBietPhamVi ? GIAI_THICH.soDuKien : undefined,
-          b.final ? 'tập chốt' : undefined,
+          b.final ? 'tập cuối' : undefined,
         ]
           .filter(Boolean)
           .join(' · ');
@@ -161,7 +159,12 @@ function Lane({
               {tien}
               {b.index}
             </span>
-            <span className="txt">· {phamViGon(b) ?? tt.nhan}</span>
+            {/* Chỉ khối ĐANG MỞ mang phạm vi: nó là chỗ mắt cần biết "đang ở đâu". Khối đã
+                xong hay chưa tới chỉ mang số hiệu — mười mấy khối hẹp mà khối nào cũng cố nhét
+                thêm chữ thì chữ nào cũng bị cắt thành "x…". */}
+            {b.state === 'running' ? (
+              <span className="txt">· {phamViGon(b) ?? tt.nhan}</span>
+            ) : null}
           </span>
         );
       })}
@@ -240,7 +243,6 @@ function LaneChuong({
               onClick={() => onChonChuong(m.chapter)}
               title={`chương ${m.chapter} · ${TRANG_THAI_VACH[m.state].nhan}`}
               style={{
-                borderRadius: 1.5,
                 outline: m.chapter === chuongChon ? '1px solid var(--ink)' : undefined,
                 outlineOffset: 1,
               }}
@@ -456,7 +458,7 @@ function mauVach(s: MarkState): string {
     case 'done':
       return 'color-mix(in oklch, var(--teal) 62%, var(--panel))';
     case 'running':
-      return 'var(--gold)';
+      return 'var(--gold-fill)';
     case 'rewrite':
       return 'color-mix(in oklch, var(--amber) 68%, var(--panel))';
     case 'gate':

@@ -1,39 +1,45 @@
 'use client';
 
-import { useState } from 'react';
+import { useId, useState } from 'react';
 
-import { duKienChuyen, thanChuyenCaDay, type DongChuyen } from '@/lib/chuyenNhaCungCap';
-import { CHU, GIAI_THICH, nhanKenhVai } from '@/lib/nhan';
+import type { SuaCauHinh } from '@/lib/api';
+import { CH } from '@/lib/chu/cau-hinh';
+import {
+  duKienChuyen,
+  khaiThemNeuThieu,
+  thanChiDoiMacDinh,
+  thanChuyenCaDay,
+  type DongChuyen,
+} from '@/lib/chuyenNhaCungCap';
+import { nhanKenhVai } from '@/lib/nhan';
 import type { CauHinhDoc } from '@/lib/types';
 
 import { HopXacNhan } from './HopXacNhan';
 
 /**
- * Hộp "chuyển sang nhà cung cấp này" — bảng đối chiếu trước khi ghi.
+ * Hộp "chuyển model mặc định sang nhà cung cấp khác" — bảng đối chiếu trước khi ghi.
  *
- * # Vì sao một hộp chứ không phải hai nút
- *
- * Người dùng hỏi hai chuyện tưởng khác nhau: *"đổi mặc định thì Model theo vai có đổi theo
- * không"* và *"A hết tiền, mua B, chuyển cả xưởng sang B"*. Chúng là CÙNG một việc nhìn từ hai
- * phía, nên chúng dùng chung một bảng. Dựng hai nút riêng là dựng hai đường tới cùng một lượt
- * ghi, và hai đường thì có ngày lệch.
- *
- * # Vì sao có LỐI RA THỨ BA
- *
- * Câu hỏi thật sự có ba đáp án: hủy, chỉ đổi mặc định (vai đặt riêng giữ nguyên — đó là cả lý
- * do nó được đặt riêng), hoặc chuyển hết. Ép thành hai là bắt người dùng đoán "Đồng ý" nghĩa
- * là lối nào.
+ * Chỉ mở khi câu hỏi thật sự có ba đáp án: còn vai CHỌN RIÊNG ở nhà cung cấp khác. Hủy, chỉ đổi
+ * mặc định (vai chọn riêng giữ nguyên — đó là cả lý do nó được chọn riêng), hoặc chuyển cả các
+ * vai. Không còn vai chọn riêng thì đổi mặc định là một lượt ghi thẳng, và thẻ "Đang dùng" cho
+ * thấy ngay mọi vai đổi theo.
  *
  * # Vì sao phải CHO XEM chứ không tự ánh xạ
  *
- * Tên model chỉ có nghĩa bên trong một nhà cung cấp. Sang nhà cung cấp mới, một số vai giữ
- * được tên (gateway khai đúng tên đó), một số phải chọn lại. Tự đoán im lặng là đúng cách đã
- * đẻ ra ca hỏng của người dùng: ba vai trỏ `openai · cx/gpt-5.5` trong khi `openai` chỉ khai
- * `claude-opus-5`, và lỗi lúc chạy thì nói về khóa API.
+ * Tên model chỉ có nghĩa bên trong một nhà cung cấp. Sang nơi mới, vai nào có đúng tên thì giữ,
+ * vai nào không thì phải chọn lại — tự đoán im lặng là đúng cách đã đẻ ra `openai · cx/gpt-5.5`.
+ *
+ * # Hai lối ghi, một nguồn
+ *
+ * Cả "Chỉ đổi mặc định" lẫn "Chuyển cả các vai" lấy model mặc định từ dòng Mặc định CỦA BẢNG.
+ * Bản trước cho "Chỉ đổi mặc định" lấy `models[0]` của nhà cung cấp — bỏ qua thứ người dùng
+ * vừa sửa, và gửi `model: ""` khi nhà cung cấp chưa khai model nào (đo được: ra `kiraai · auto`).
  */
 export function ChuyenNhaCungCap({
   du,
   den,
+  goiY,
+  cuaSo,
   dangGui,
   loi,
   onChiDoiMacDinh,
@@ -41,102 +47,103 @@ export function ChuyenNhaCungCap({
   onHuy,
 }: {
   du: CauHinhDoc;
-  /** Nhà cung cấp đích và model mặc định của nó. */
+  /** Nhà cung cấp đích và model mặc định đã chọn ở đó. */
   den: { provider: string; model: string };
+  /** Model của nơi đến (đã lưu + vừa tải) — gợi ý cho từng dòng. */
+  goiY?: string[];
+  cuaSo?: (model: string) => number;
   dangGui: boolean;
   /** Lỗi của lượt ghi vừa rồi. Hộp ở lại để người dùng đọc và thử tiếp. */
   loi?: string | null;
-  /**
-   * Vắng mặt = lối ra thứ ba KHÔNG có nghĩa ở lối vào này.
-   *
-   * Bắt buộc phải truyền thì một lối vào không dùng tới nó sẽ truyền một hàm rỗng cho xong —
-   * và ĐO ĐƯỢC là đã xảy ra: từ dải kênh vai, nút "Chỉ đổi mặc định" chỉ đóng hộp và không
-   * ghi gì, trong khi cùng cái nhãn ấy mở từ thẻ nhà cung cấp thì CÓ ghi. Một nhãn hai nghĩa,
-   * tùy cửa nào mở nó. Kiểu tùy chọn làm chỗ không dùng phải nói ra là không dùng.
-   */
-  onChiDoiMacDinh?: () => void;
-  onChuyenCaDay: (than: ReturnType<typeof thanChuyenCaDay>) => void;
+  /** Vắng mặt = lối "Chỉ đổi mặc định" không có nghĩa ở lối vào này. */
+  onChiDoiMacDinh?: (than: SuaCauHinh) => void;
+  onChuyenCaDay: (than: SuaCauHinh) => void;
   onHuy: () => void;
 }) {
-  // Bảng dựng MỘT LẦN lúc mở hộp, rồi người dùng sửa trên đó. Tính lại ở mỗi lần vẽ sẽ xóa
-  // mất những ô họ vừa chọn tay.
-  const [dong, datDong] = useState<DongChuyen[]>(() => duKienChuyen(du, den.provider, den.model));
+  // Bảng dựng MỘT LẦN lúc mở hộp, rồi người dùng sửa trên đó.
+  const [dong, datDong] = useState<DongChuyen[]>(() => duKienChuyen(du, den.provider, den.model, goiY));
+  const idDs = useId();
+  const dsGoiY = Array.from(new Set(goiY ?? []));
+  const thieu = dong.some((d) => !d.denModel.trim());
 
-  const khai = (du.providers.find((p) => p.name === den.provider)?.models ?? []).map((m) => m.name);
-  const coVaiGhim = dong.some((d) => d.dangGhim);
-  /**
-   * MẶC ĐỊNH có dời chỗ không — đó mới là thứ quyết định gọi việc này là "chuyển" hay không.
-   *
-   * Bản trước hỏi `dong.every(d => d.tuProvider === den.provider)`, tức "mọi vai đã ở đích
-   * chưa". Hai câu hỏi khác nhau, và ĐO ĐƯỢC là chúng lệch nhau ở một trạng thái tới được:
-   * mặc định đã là `9Router`, chỉ mỗi `writer` ghim ở `openai`. Một vai lạc chỗ lật cả hộp
-   * sang giọng "Chuyển sang 9Router?" trong khi 9Router VỐN ĐÃ là mặc định.
-   *
-   * Ở ca ấy tiêu đề hỏi một câu mà biến trả lời một câu khác. Người dùng đứng ở dải kênh vai
-   * chỉ muốn sửa các vai; bảng bên dưới vẫn cho họ thấy `writer` dời chỗ.
-   */
-  const chiDoiModel = den.provider === du.provider;
+  /** Khai luôn mọi model mới được chọn trong bảng — server từ chối cặp chưa khai. */
+  const kemKhai = (than: SuaCauHinh, models: string[]): SuaCauHinh => {
+    const khai = khaiThemNeuThieu(du, den.provider, models, cuaSo);
+    return khai ? { ...than, provider_config: khai } : than;
+  };
+  const macDinh = dong.find((d) => d.vai === 'default')?.denModel ?? '';
 
   return (
     <HopXacNhan
       moRa
-      tieuDe={chiDoiModel ? GIAI_THICH.capNhatModelDe(den.provider) : GIAI_THICH.chuyenDe(den.provider)}
-      /* Không vai nào ĐẶT RIÊNG thì "chuyển cả dây chuyền" và "chỉ đổi mặc định" là CÙNG một
-         lượt ghi — mọi vai đang thừa hưởng nên chúng tự đi theo. Gọi nó bằng cái tên lớn hơn
-         việc nó làm là hứa quá; và bày hai nút cho một hành động là mời người dùng đi tìm
-         khác biệt không có thật. */
-      nhanLam={chiDoiModel ? CHU.capNhatModel : coVaiGhim ? CHU.chuyenCaDay : CHU.doiMacDinh}
-      onLam={() => onChuyenCaDay(thanChuyenCaDay(dong, den.provider, du.roles))}
-      /* Lối ra thứ ba chỉ có nghĩa khi CÓ vai đặt riêng để mà giữ lại. Không có thì hộp này
-         chỉ còn là bảng xác nhận của một lượt đổi mặc định bình thường. */
-      nhanPhu={onChiDoiMacDinh && !chiDoiModel && coVaiGhim ? CHU.chiDoiMacDinh : undefined}
-      onPhu={onChiDoiMacDinh && !chiDoiModel && coVaiGhim ? onChiDoiMacDinh : undefined}
+      tieuDe={CH.chuyenTieuDe(den.provider)}
+      nhanLam={CH.chuyenCa}
+      onLam={() => {
+        if (thieu) return;
+        onChuyenCaDay(
+          kemKhai(
+            thanChuyenCaDay(dong, den.provider, du.roles),
+            dong.map((d) => d.denModel),
+          ),
+        );
+      }}
+      nhanPhu={onChiDoiMacDinh ? CH.chiDoiMacDinh : undefined}
+      onPhu={
+        onChiDoiMacDinh
+          ? () => {
+              if (!macDinh.trim()) return;
+              onChiDoiMacDinh(kemKhai(thanChiDoiMacDinh(dong, den.provider), [macDinh]));
+            }
+          : undefined
+      }
       onHuy={onHuy}
       dangLam={dangGui}
-      nhanDangLam={CHU.dangChuyen}
+      nhanDangLam={CH.dangChuyen}
       than={
         <>
-          <p>{chiDoiModel ? GIAI_THICH.capNhatModelThan(den.provider) : GIAI_THICH.chuyenThan(den.provider)}</p>
+          <p>{CH.chuyenThan}</p>
           <table className="bangChuyen">
             <thead>
               <tr>
-                <th scope="col">{CHU.vai}</th>
-                <th scope="col">{CHU.dangDung}</th>
-                <th scope="col">{CHU.seThanh}</th>
+                <th scope="col">{CH.vai}</th>
+                <th scope="col">{CH.dangDungCot}</th>
+                <th scope="col">{CH.seThanh}</th>
               </tr>
             </thead>
             <tbody>
               {dong.map((d, i) => (
                 <tr key={d.vai} className={d.giuDuocTen ? undefined : 'phaiChon'}>
-                  <th scope="row">{nhanKenhVai(d.vai)}</th>
+                  <th scope="row">
+                    {nhanKenhVai(d.vai)}
+                    {d.vai !== 'default' ? (
+                      <span className="phu"> · {d.dangGhim ? CH.datRieng : CH.theoMacDinh}</span>
+                    ) : null}
+                  </th>
                   <td className="m">
                     {d.tuProvider} · {d.tuModel}
                   </td>
                   <td className="m">
                     <input
-                      aria-label={CHU.modelMoiCua(nhanKenhVai(d.vai))}
+                      aria-label={CH.modelMoiCua(nhanKenhVai(d.vai))}
                       value={d.denModel}
-                      list="ds-chuyen"
+                      list={idDs}
                       onChange={(e) => {
                         const v = e.target.value;
                         datDong((cu) => cu.map((x, j) => (j === i ? { ...x, denModel: v } : x)));
                       }}
                     />
-                    {/* Nói ra dòng nào TỰ giữ được tên và dòng nào bị đề xuất một cái tên
-                        khác — mắt người dùng chỉ cần dừng ở nhóm thứ hai. */}
-                    {d.giuDuocTen ? null : <span className="mo"> {CHU.phaiChonLai}</span>}
+                    {d.giuDuocTen ? null : <span className="mo"> {CH.phaiChonLai}</span>}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-          <datalist id="ds-chuyen">
-            {khai.map((m) => (
+          <datalist id={idDs}>
+            {dsGoiY.map((m) => (
               <option key={m} value={m} />
             ))}
           </datalist>
-          {/* Lỗi ghi đứng TRONG hộp, ngay trên hàng nút: người dùng vừa bấm ở đó. Đóng hộp
-              rồi báo ở đâu đó phía sau là bắt họ đoán xem có chuyện gì xảy ra. */}
+          {thieu ? <p className="loiDoc">{CH.thieuModel}</p> : null}
           {loi ? <p className="loiDoc">{loi}</p> : null}
         </>
       }

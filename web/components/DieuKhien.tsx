@@ -241,7 +241,7 @@ export function DieuKhien({
               title={dangThuDon ? GIAI_THICH.dangThuDon : undefined}
               onClick={() => goi('dung', () => dungSach(tacPham))}
             >
-              {dangGui === 'dung' ? CHU.dangGui : `■ ${CHU.dung}`}
+              {dangGui === 'dung' ? CHU.dangGui : `‖ ${CHU.dung}`}
             </button>
           ) : (
             <button

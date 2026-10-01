@@ -88,7 +88,7 @@ export function CuaNghiemThu({
   const [dangGui, datDangGui] = useState<DangGui>(null);
   const [loi, datLoi] = useState<string | null>(null);
 
-  // Không chờ thì KHÔNG vẽ gì. Một dải amber rỗng nằm thường trực trên đầu buồng lái dạy
+  // Không chờ thì KHÔNG vẽ gì. Một dải màu rỗng nằm thường trực trên đầu buồng lái dạy
   // người vận hành bỏ qua màu amber, và lần nó nói thật thì họ cũng bỏ qua.
   if (!cua.dangCho) return null;
 
@@ -116,10 +116,11 @@ export function CuaNghiemThu({
       <p className="cnthead">
         {/* Ký hiệu hình học đứng trước chữ để ảnh đen trắng và người mù màu vẫn phân biệt
             được — khuôn của `TrangThai.tsx`. Lấy từ `kyTheoTone` chứ không viết cứng: dải
-            này là tông amber, và ngày bảng ký hiệu đổi thì nó phải đi theo cùng bảng mà
-            bản duyệt của Editor đang dùng, vì hai thứ đứng cạnh nhau ở bề mặt Kiểm định. */}
+            này là tông violet ("chờ duyệt" của hệ giao diện 2, cùng màu với vạch `gate` trên
+            trục), và ngày bảng ký hiệu đổi thì nó phải đi theo cùng bảng mà bản duyệt của
+            Editor đang dùng, vì hai thứ đứng cạnh nhau ở bề mặt Kiểm định. */}
         <span className="ky" aria-hidden="true">
-          {kyTheoTone('amber')}
+          {kyTheoTone('violet')}
         </span>
         {CHU.dangChoNghiemThu(cua.chuong)}
       </p>

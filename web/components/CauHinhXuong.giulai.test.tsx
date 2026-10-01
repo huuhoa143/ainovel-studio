@@ -7,35 +7,18 @@ import type { CauHinhDoc } from '@/lib/types';
 /**
  * Một lượt ghi chỉ được đổi ĐÚNG thứ nó nói là đổi.
  *
- * # Vì sao tệp này tồn tại
+ * `ModelConfig` mang `context_window` và `json_schema`, và `PUT /api/config` thay NGUYÊN mảng
+ * models. Vòng tự hủy đo được ở bản cũ: "Ghi lại cửa sổ" ghi 272.000 → vài hôm sau sửa một ký
+ * tự trong base_url → cửa sổ biến mất, engine quay về 1.050.000 của registry toàn cục.
  *
- * Ô "Danh sách model" là một ô chữ, nên nó chỉ mang TÊN. Nhưng `ModelConfig` còn mang
- * `context_window` và `json_schema`, và `PUT /api/config` thay NGUYÊN mảng models. Biểu mẫu
- * dựng lại mục từ mỗi cái tên ⇒ mọi lượt Sửa xóa sạch hai trường kia.
- *
- * Vòng tự hủy đo được, và nó hoàn tác đúng tính năng vừa thêm:
- *
- *	bấm Kiểm tra → cảnh báo lệch cửa sổ → "Ghi lại cửa sổ" → ghi 272.000, cảnh báo tắt
- *	vài hôm sau → bấm Sửa để chữa một ký tự trong base_url → Lưu → CỬA SỔ BIẾN MẤT
- *	engine quay lại đọc 1.050.000 từ registry toàn cục, `writer ngữ cảnh 0% (5/1050000)`
- *
- * Không dấu hiệu nào trên màn hình. Luật mà tệp này canh: KHÔNG dựng lại một mục cấu hình từ
- * mảnh — giữ bản gốc rồi chỉ đè phần đổi.
+ * Cùng họ lỗi: sửa một mục KHÔNG khai giao thức (do TUI tạo, suy theo tên) từng âm thầm gắn
+ * `type: "openai"` (B4).
  */
 
 const LIET_KE =
-  vi.fn<
-    (p: string) => Promise<{
-      provider: string;
-      models: string[];
-      count: number;
-      windows?: Record<string, number>;
-    }>
-  >();
-
-const LUU_CAU_HINH = vi.fn((_than?: Record<string, unknown>) =>
-  Promise.resolve({ saved: true, path: '', reopen_to_apply: [] }),
-);
+  vi.fn<(p: string) => Promise<{ provider: string; models: string[]; count: number; windows?: Record<string, number> }>>();
+const THU = vi.fn<(n: Record<string, unknown>) => Promise<{ provider: string; models: string[]; count: number; windows?: Record<string, number> }>>();
+const LUU = vi.fn((_than?: Record<string, unknown>) => Promise.resolve({ saved: true, path: '', reopen_to_apply: [] }));
 
 let DU_HIEN: CauHinhDoc;
 
@@ -43,12 +26,12 @@ vi.mock('@/lib/api', async (goc) => ({
   ...(await goc<typeof import('@/lib/api')>()),
   layCauHinh: () => Promise.resolve(DU_HIEN),
   lietKeModel: (p: string) => LIET_KE(p),
-  luuCauHinh: (...a: unknown[]) => LUU_CAU_HINH(...(a as [])),
+  thuKetNoi: (n: Record<string, unknown>) => THU(n),
+  luuCauHinh: (...a: unknown[]) => LUU(...(a as [])),
 }));
 
 const { CauHinhXuong } = await import('./CauHinhXuong');
 
-/** Một nhà cung cấp DUY NHẤT, và model của nó đã có cả hai trường dễ rơi. */
 const GIU: CauHinhDoc = {
   needs_setup: false,
   path: '/tmp/x/.ainovel/config.json',
@@ -74,181 +57,124 @@ const GIU: CauHinhDoc = {
 
 beforeEach(() => {
   cleanup();
-  LUU_CAU_HINH.mockClear();
-  LUU_CAU_HINH.mockImplementation(() => Promise.resolve({ saved: true, path: '', reopen_to_apply: [] }));
+  LUU.mockClear();
+  LUU.mockImplementation(() => Promise.resolve({ saved: true, path: '', reopen_to_apply: [] }));
   LIET_KE.mockReset();
+  THU.mockReset();
   DU_HIEN = GIU;
 });
 
-/** Mảng `models` của lượt ghi gần nhất. */
-function modelDaGhi() {
-  const than = LUU_CAU_HINH.mock.calls.at(-1)?.[0] as
-    | { provider_config?: { models?: unknown[] } }
-    | undefined;
-  return than?.provider_config?.models;
+function thanCuoi() {
+  return LUU.mock.calls.at(-1)?.[0] as { provider_config?: Record<string, unknown> } | undefined;
 }
 
-/**
- * Mở biểu mẫu Sửa của thẻ nhà cung cấp và trả về phạm vi truy vấn TRONG thẻ đó.
- *
- * Soi trong thẻ chứ không soi cả màn: khối "Mặc định khác" ở cuối trang cũng có một nút "Lưu",
- * nên một truy vấn phẳng khớp hai phần tử và ngã trước khi kiểm được điều đang cần kiểm.
- */
+/** Mở biểu mẫu Sửa của dòng đầu tiên và trả về phạm vi truy vấn trong biểu mẫu đó. */
 async function moFormSua() {
+  render(<CauHinhXuong />);
   await waitFor(() => expect(document.querySelector('li.nccMuc')).not.toBeNull());
-  const the = within(document.querySelector<HTMLElement>('li.nccMuc')!);
-  fireEvent.click(the.getByRole('button', { name: 'Sửa' }));
-  return the;
+  const li = document.querySelector<HTMLElement>('li.nccMuc')!;
+  fireEvent.click(within(li).getByRole('button', { name: 'Sửa' }));
+  return within(li.querySelector('form')!);
 }
 
-test('sửa Địa chỉ gốc KHÔNG được làm rơi context_window và json_schema', async () => {
-  render(<CauHinhXuong onDoiCauHinh={() => {}} />);
-  const the = await moFormSua();
-
-  // Đúng thao tác của ca thật: chữa một ký tự trong địa chỉ gốc, không đụng danh sách model.
-  fireEvent.change(the.getByLabelText('Địa chỉ gốc'), {
+test('sửa Địa chỉ gốc KHÔNG làm rơi context_window, json_schema, khóa hay giao thức', async () => {
+  const form = await moFormSua();
+  fireEvent.change(form.getByPlaceholderText('https://openrouter.ai/api/v1'), {
     target: { value: 'https://9router.example/v2' },
   });
-  fireEvent.click(the.getByRole('button', { name: 'Lưu' }));
-
-  await waitFor(() => expect(LUU_CAU_HINH).toHaveBeenCalledTimes(1));
-  expect(modelDaGhi(), 'một lượt sửa base_url đã xóa cửa sổ ngữ cảnh và khai json_schema').toEqual([
-    { name: 'cx/gpt-5.6-luna', context_window: 272000, json_schema: true },
-  ]);
+  fireEvent.click(form.getByRole('button', { name: 'Lưu' }));
+  await waitFor(() => expect(LUU).toHaveBeenCalledTimes(1));
+  expect(thanCuoi()?.provider_config).toEqual({
+    name: '9Router',
+    base_url: 'https://9router.example/v2',
+    models: [{ name: 'cx/gpt-5.6-luna', context_window: 272000, json_schema: true }],
+  });
 });
 
-test('gõ THÊM một tên model mới thì tên cũ vẫn giữ nguyên vẹn', async () => {
-  render(<CauHinhXuong onDoiCauHinh={() => {}} />);
-  const the = await moFormSua();
-
-  fireEvent.change(the.getByLabelText('Danh sách model'), {
-    target: { value: 'cx/gpt-5.6-luna, cx/gpt-5.6-terra' },
-  });
-  fireEvent.click(the.getByRole('button', { name: 'Lưu' }));
-
-  await waitFor(() => expect(LUU_CAU_HINH).toHaveBeenCalledTimes(1));
-  // Tên mới sinh ra mục TRẦN — nó chưa có gì để giữ. Tên cũ phải nguyên vẹn.
-  expect(modelDaGhi()).toEqual([
+test('thêm một model theo tên thì mục cũ vẫn nguyên vẹn, mục mới là mục trần', async () => {
+  const form = await moFormSua();
+  const o = form.getByPlaceholderText(/Gõ tên rồi nhấn Enter/);
+  fireEvent.change(o, { target: { value: 'cx/gpt-5.6-terra' } });
+  fireEvent.keyDown(o, { key: 'Enter' });
+  fireEvent.click(form.getByRole('button', { name: 'Lưu' }));
+  await waitFor(() => expect(LUU).toHaveBeenCalledTimes(1));
+  expect(thanCuoi()?.provider_config?.models).toEqual([
     { name: 'cx/gpt-5.6-luna', context_window: 272000, json_schema: true },
     { name: 'cx/gpt-5.6-terra' },
   ]);
 });
 
-test('"Ghi lại cửa sổ" chỉ đổi cửa sổ, không đụng khai json_schema', async () => {
-  // Nhà cung cấp khai 400.000, thẻ đang ghi 272.000 → lệch → cảnh báo có lối ra.
-  LIET_KE.mockResolvedValue({
-    provider: '9Router',
-    models: ['cx/gpt-5.6-luna'],
-    count: 1,
-    windows: { 'cx/gpt-5.6-luna': 400000 },
+test('sửa mục KHÔNG khai giao thức thì không âm thầm gắn type (B4)', async () => {
+  DU_HIEN = {
+    ...GIU,
+    provider: 'anthropic',
+    model: 'claude',
+    providers: [{ name: 'anthropic', api_key_set: true, models: [{ name: 'claude' }] }],
+  };
+  const form = await moFormSua();
+  expect((form.getByRole('combobox', { name: 'Giao thức' }) as HTMLSelectElement).value).toBe('');
+  fireEvent.change(form.getByPlaceholderText('https://openrouter.ai/api/v1'), {
+    target: { value: 'https://proxy.example/v1' },
   });
+  fireEvent.click(form.getByRole('button', { name: 'Lưu' }));
+  await waitFor(() => expect(LUU).toHaveBeenCalledTimes(1));
+  expect(thanCuoi()?.provider_config, 'lượt sửa base_url đã đổi giao thức').not.toHaveProperty('type');
+});
 
-  render(<CauHinhXuong onDoiCauHinh={() => {}} />);
+test('kiểm kết nối bằng BẢN NHÁP trước khi lưu, rồi tích chọn từ danh sách', async () => {
+  THU.mockResolvedValue({
+    provider: '9Router',
+    models: ['cx/gpt-5.6-luna', 'cx/gpt-5.6-terra'],
+    count: 2,
+    windows: { 'cx/gpt-5.6-terra': 400000 },
+  });
+  const form = await moFormSua();
+  fireEvent.change(document.querySelector('li.nccMuc input[type="password"]')!, { target: { value: 'sk-moi' } });
+  fireEvent.click(form.getByRole('button', { name: 'Kiểm tra kết nối' }));
+  await waitFor(() => expect(THU).toHaveBeenCalled());
+  expect(THU.mock.calls[0]![0], 'bản nháp phải mang khóa vừa gõ và KHÔNG mang type khi chưa đổi').toEqual({
+    name: '9Router',
+    base_url: 'https://9router.example/v1',
+    api_key: 'sk-moi',
+  });
+  expect(LUU, 'kiểm tra đã ghi cấu hình').not.toHaveBeenCalled();
+
+  fireEvent.click(await form.findByRole('checkbox', { name: /cx\/gpt-5\.6-terra/ }));
+  fireEvent.click(form.getByRole('button', { name: 'Lưu' }));
+  await waitFor(() => expect(LUU).toHaveBeenCalledTimes(1));
+  expect(thanCuoi()?.provider_config?.models).toEqual([
+    { name: 'cx/gpt-5.6-luna', context_window: 272000, json_schema: true },
+    { name: 'cx/gpt-5.6-terra', context_window: 400000 },
+  ]);
+});
+
+test('"Ghi lại cửa sổ" chỉ đổi cửa sổ, không đụng khai json_schema', async () => {
+  LIET_KE.mockResolvedValue({ provider: '9Router', models: ['cx/gpt-5.6-luna'], count: 1, windows: { 'cx/gpt-5.6-luna': 400000 } });
+  render(<CauHinhXuong />);
   await waitFor(() => expect(document.querySelector('li.nccMuc')).not.toBeNull());
-
-  fireEvent.click(screen.getByRole('button', { name: 'Kiểm tra' }));
-  const nut = await screen.findByRole('button', { name: 'Ghi lại cửa sổ' });
-  fireEvent.click(nut);
-
-  await waitFor(() => expect(LUU_CAU_HINH).toHaveBeenCalledTimes(1));
-  expect(modelDaGhi(), 'lượt ghi cửa sổ đã cuốn theo khai json_schema').toEqual([
+  fireEvent.click(within(document.querySelector<HTMLElement>('li.nccMuc')!).getByRole('button', { name: 'Kiểm tra' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Ghi lại cửa sổ' }));
+  await waitFor(() => expect(LUU).toHaveBeenCalledTimes(1));
+  expect(thanCuoi()?.provider_config?.models).toEqual([
     { name: 'cx/gpt-5.6-luna', context_window: 400000, json_schema: true },
   ]);
 });
 
-// Cảnh báo chỉ được hiện khi THẬT SỰ lệch — một cảnh báo thừa dạy người dùng bỏ qua nó.
 test('cửa sổ khớp thì không có cảnh báo lệch', async () => {
-  LIET_KE.mockResolvedValue({
-    provider: '9Router',
-    models: ['cx/gpt-5.6-luna'],
-    count: 1,
-    windows: { 'cx/gpt-5.6-luna': 272000 },
-  });
-
-  render(<CauHinhXuong onDoiCauHinh={() => {}} />);
+  LIET_KE.mockResolvedValue({ provider: '9Router', models: ['cx/gpt-5.6-luna'], count: 1, windows: { 'cx/gpt-5.6-luna': 272000 } });
+  render(<CauHinhXuong />);
   await waitFor(() => expect(document.querySelector('li.nccMuc')).not.toBeNull());
-
-  fireEvent.click(screen.getByRole('button', { name: 'Kiểm tra' }));
-  // Chờ ĐÚNG dòng kết quả của lượt kiểm, không chờ một khuôn mẫu mơ hồ: chờ hụt ở đây làm
-  // bài kiểm xanh vì cảnh báo CHƯA KỊP vẽ, chứ không vì nó đúng.
-  await screen.findByText(/Gọi được nhà cung cấp · 1 model/);
+  fireEvent.click(within(document.querySelector<HTMLElement>('li.nccMuc')!).getByRole('button', { name: 'Kiểm tra' }));
+  await screen.findByText(/Kết nối được · 1 model/);
   expect(screen.queryByRole('button', { name: 'Ghi lại cửa sổ' })).toBeNull();
 });
 
-/* ── hộp "Sửa các vai theo X" ───────────────────────────────────────────── */
-
-/**
- * Trạng thái tới được, và nó làm lộ hai lỗi cùng lúc.
- *
- * Mặc định `a · ma` khớp danh mục của `a`, nên vai `default` KHÔNG lạc. Chỉ `writer` ghim ở
- * `b · mX` trong khi `b` chỉ khai `mb` — nên `nccLac` là `b`, tức MẶC ĐỊNH CÓ dời chỗ.
- */
-const LAC_O_VAI_GHIM: CauHinhDoc = {
-  ...GIU,
-  provider: 'a',
-  model: 'ma',
-  roles: { writer: { provider: 'b', model: 'mX' } },
-  providers: [
-    { name: 'a', api_key_set: true, models: [{ name: 'ma' }] },
-    { name: 'b', api_key_set: true, models: [{ name: 'mb' }] },
-  ],
-};
-
-test('ghi hỏng thì hộp Ở LẠI và nói ra lý do', async () => {
-  DU_HIEN = LAC_O_VAI_GHIM;
-  LUU_CAU_HINH.mockImplementation(() =>
-    Promise.reject(new LoiApi('model "mb" không có trong danh sách của b', 400)),
+test('ghi hỏng thì nói ra lý do ngay cạnh nút vừa bấm, biểu mẫu vẫn mở', async () => {
+  LUU.mockImplementation(() =>
+    Promise.reject(new LoiApi('Đổi khóa của "9Router" không có tác dụng: tệp toàn cục vẫn giữ giá trị cũ', 409)),
   );
-
-  render(<CauHinhXuong onDoiCauHinh={() => {}} />);
-  fireEvent.click(await screen.findByRole('button', { name: 'Sửa các vai theo b' }));
-
-  const hop = document.querySelector('dialog')!;
-  fireEvent.click(screen.getByRole('button', { name: 'Chuyển cả dây chuyền' }));
-
-  // Nuốt lỗi ở đây là ca hỏng thật: hộp đóng, cảnh báo vẫn còn, không một chữ nào.
-  await waitFor(() =>
-    expect(hop.textContent, 'lượt ghi hỏng mà không báo gì').toContain('không có trong danh sách'),
-  );
-  expect(document.querySelector('dialog'), 'hộp đóng mất chỗ đọc lý do').not.toBeNull();
-});
-
-test('lối vào "Sửa các vai" KHÔNG bày nút "Chỉ đổi mặc định"', async () => {
-  DU_HIEN = LAC_O_VAI_GHIM;
-  render(<CauHinhXuong onDoiCauHinh={() => {}} />);
-  fireEvent.click(await screen.findByRole('button', { name: 'Sửa các vai theo b' }));
-
-  const hop = document.querySelector('dialog')!;
-  // Nút này từng hiện ở đây và chỉ đóng hộp — trong khi CÙNG cái nhãn ấy mở từ thẻ nhà cung
-  // cấp thì CÓ ghi. Một nhãn hai nghĩa tùy cửa nào mở nó.
-  expect(Array.from(hop.querySelectorAll('.hopxnNut button')).map((b) => b.textContent)).toEqual([
-    'Hủy',
-    'Chuyển cả dây chuyền',
-  ]);
-});
-
-test('tiêu đề theo việc MẶC ĐỊNH có dời chỗ không, chứ không theo vai nào lạc', async () => {
-  DU_HIEN = LAC_O_VAI_GHIM;
-  render(<CauHinhXuong onDoiCauHinh={() => {}} />);
-  fireEvent.click(await screen.findByRole('button', { name: 'Sửa các vai theo b' }));
-
-  // Mặc định đang ở `a`, đích là `b` ⇒ đây THẬT SỰ là một lượt chuyển.
-  expect(document.querySelector('dialog h2')?.textContent).toBe('Chuyển sang b?');
-});
-
-test('mặc định ĐÃ ở đích thì gọi đúng tên việc, dù còn vai ghim nơi khác', async () => {
-  // `default` lạc (a khai `ma2`, mặc định đang `ma`), nên `nccLac` = `a` = mặc định.
-  DU_HIEN = {
-    ...LAC_O_VAI_GHIM,
-    providers: [
-      { name: 'a', api_key_set: true, models: [{ name: 'ma2' }] },
-      { name: 'b', api_key_set: true, models: [{ name: 'mb' }] },
-    ],
-  };
-  render(<CauHinhXuong onDoiCauHinh={() => {}} />);
-  fireEvent.click(await screen.findByRole('button', { name: 'Sửa các vai theo a' }));
-
-  // Một vai ghim ở `b` từng lật cả hộp sang giọng "Chuyển sang a?" — trong khi `a` VỐN ĐÃ là
-  // mặc định. Tiêu đề khi ấy hỏi một câu mà biến trả lời một câu khác.
-  expect(document.querySelector('dialog h2')?.textContent).toBe('Cập nhật model theo a?');
+  const form = await moFormSua();
+  fireEvent.click(form.getByRole('button', { name: 'Lưu' }));
+  await waitFor(() => expect(form.getByRole('alert').textContent).toMatch(/không có tác dụng/));
+  expect(document.querySelector('li.nccMuc form'), 'lỗi mà biểu mẫu đóng mất').not.toBeNull();
 });

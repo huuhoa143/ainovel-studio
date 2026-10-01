@@ -9,15 +9,16 @@ import type { BoDemVan } from '@/lib/vanSong';
 /**
  * Khu VĂN SỐNG — chữ model đang sinh ra.
  *
- * # Vì sao chữ UI/mono chứ không phải serif
+ * # Serif cho văn, mono cho mã — tách theo TỪNG lượt
  *
- * ĐO ĐƯỢC trên `scripts/sample.gif` (255 khung): khu này KHÔNG phải văn truyện. Nó là đối số
- * JSON của lời gọi tool, danh mục khế ước tự đối chiếu có ✓, bảng kiểm chất lượng, và báo cáo
- * chương theo mục. Văn truyện đọc ở bề mặt Bản thảo — đó là chỗ DUY NHẤT nó xuất hiện, và ở
- * đó nó mới là serif khổ 70ch.
+ * ĐO ĐƯỢC trên `scripts/sample.gif` (255 khung): khu này không chỉ có văn truyện. Nó còn là
+ * đối số JSON của lời gọi tool, danh mục khế ước tự đối chiếu có ✓, bảng kiểm chất lượng.
+ * Bản đầu vẽ cả khu bằng mono vì thế; bản hệ giao diện 2 đổi sang serif vì lượt đáng xem
+ * nhất ở đây là bản nháp Người viết đang viết, và đó là chữ của truyện.
  *
- * Bản preview đầu tiên vẽ khu này thành khổ serif đang chảy văn. Sai, và sai theo kiểu tốn
- * kém: nó làm cả bố cục cột giữa được cân theo một thứ không tồn tại.
+ * Nên lượt nào TRÔNG như dữ liệu (`laMa`: mở bằng `{`/`[`, hoặc dày dấu ngoặc kép-hai-chấm
+ * của JSON) giữ mono cỡ nhỏ; còn lại là văn, serif khổ đọc. Phép thử thô và cố ý thô: sai
+ * một lượt thì chỉ sai kiểu chữ, không mất chữ nào.
  *
  * # Vì sao vạch ngăn thay vì xóa
  *
@@ -102,7 +103,7 @@ export function VanSong({ boDem, dangChay }: { boDem: BoDemVan; dangChay: boolea
                   <span>{l.nhan}</span>
                 </div>
               ) : null}
-              <pre className="chu">{l.chu}</pre>
+              <pre className={`chu${laMa(l.chu) ? ' ma' : ''}`}>{l.chu}</pre>
             </div>
           ))
         )}
@@ -114,4 +115,12 @@ export function VanSong({ boDem, dangChay }: { boDem: BoDemVan; dangChay: boolea
       )}
     </section>
   );
+}
+
+/** Lượt này là dữ liệu máy (JSON, đối số tool) chứ không phải văn? Xem chú thích đầu tệp. */
+export function laMa(chu: string): boolean {
+  const dau = chu.trimStart().slice(0, 1);
+  if (dau === '{' || dau === '[') return true;
+  const mau = chu.slice(0, 400);
+  return (mau.match(/"\s*:/g)?.length ?? 0) >= 3;
 }

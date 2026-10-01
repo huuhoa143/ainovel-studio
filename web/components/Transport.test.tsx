@@ -134,3 +134,25 @@ test('ô trạng thái mang lớp GHIM — nó không được cuộn mất khi 
   const o = container.querySelector('.trans .dai > .cell');
   expect(o?.className).toContain('ghim');
 });
+
+test('lúc nghỉ, ô "lượt trước" đọc last_call (nhà cung cấp · model), không đọc model mặc định', () => {
+  const s = snap({
+    runtime: 'idle',
+    transport: {
+      state: 'idle',
+      cost_usd: 0,
+      last_step: 'commit',
+      model: 'mac-dinh-cu',
+      last_call: { agent: 'writer', provider: '9Router', model: 'cx/gpt-5.6-luna', at: new Date().toISOString() },
+    },
+  });
+  const { container } = render(
+    <Transport transport={s.transport} song={undefined} suKien={[]} runtime={s.runtime} hoatDong={s.book.activity} />,
+  );
+  const o = container.querySelector('.trans .cell.to');
+  expect(o?.textContent).toContain('9Router · cx/gpt-5.6-luna');
+  expect(o?.textContent).toContain('vừa xong');
+  expect(o?.textContent).not.toContain('mac-dinh-cu');
+  // Ô "bước" là việc của lượt cũ — lúc nghỉ không hiện.
+  expect(container.querySelector('.trans .cell.buoc')).toBeNull();
+});

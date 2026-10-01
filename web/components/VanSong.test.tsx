@@ -4,7 +4,7 @@ import { expect, test } from 'vitest';
 import { CHU, GIAI_THICH } from '@/lib/nhan';
 import { BO_DEM_RONG, SO_LUOT_GIU, moLuot, themChu } from '@/lib/vanSong';
 
-import { VanSong } from './VanSong';
+import { VanSong, laMa } from './VanSong';
 
 /** Bộ đệm đã CHẠM trần lượt: mọi lượt còn lại đều mang nhãn, kể cả lượt đầu. */
 function boDemDaCat() {
@@ -41,7 +41,7 @@ test('vạch ngăn hiện nhãn của lượt, và lượt đầu KHÔNG có v�
 
 test('bộ đệm rỗng nói ra là chưa có gì, không để khung trắng', () => {
   render(<VanSong boDem={BO_DEM_RONG} dangChay />);
-  expect(screen.getByText(/chưa có lượt nào/i)).toBeDefined();
+  expect(screen.getByText(/chữ sẽ hiện dần/i)).toBeDefined();
 });
 
 test('lượt đầu của bộ đệm ĐÃ BỊ CẮT vẫn không có vạch, dù nó mang nhãn', () => {
@@ -229,4 +229,19 @@ test('máy nghỉ và bộ đệm rỗng thì nói việc tiếp theo, không n�
   // trước dò `/bấm chạy ở thanh dưới/i` và nó đỏ khi câu thêm ký hiệu `▶` — đỏ vì một chi
   // tiết chính tả, không vì điều đang canh (dải rỗng phải nói VIỆC TIẾP THEO).
   expect(screen.getByText(GIAI_THICH.vanSongNghi)).toBeDefined();
+});
+
+test('lượt là dữ liệu máy thì mang lớp `ma`, lượt là văn thì không', () => {
+  // Văn truyện vẽ serif, đối số JSON của tool vẽ mono — tách theo TỪNG lượt.
+  expect(laMa('{"chapter": 2, "title": "x"}')).toBe(true);
+  expect(laMa('  [1, 2, 3]')).toBe(true);
+  expect(laMa('"a": 1, "b": 2, "c": 3')).toBe(true);
+  expect(laMa('Nàng quay đầu lại, gió thổi qua sân "đá" lạnh.')).toBe(false);
+
+  let bd = themChu(BO_DEM_RONG, '{"chapter": 2}');
+  bd = moLuot(bd, 'chương 2');
+  bd = themChu(bd, 'nàng quay đầu lại');
+  const { container } = render(<VanSong boDem={bd} dangChay />);
+  const chu = [...container.querySelectorAll('.chu')].map((e) => e.classList.contains('ma'));
+  expect(chu).toEqual([true, false]);
 });

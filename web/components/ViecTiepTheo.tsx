@@ -6,6 +6,8 @@ import { CHU, GIAI_THICH, giaiCongDoan, nhanVai } from '@/lib/nhan';
 import type { Snapshot } from '@/lib/types';
 import type { CongDoanSong } from '@/lib/useStudio';
 
+import { BieuTuong } from './BieuTuong';
+
 /**
  * Dải VIỆC TIẾP THEO — dòng đầu tiên của bề mặt mặc định.
  *
@@ -85,9 +87,7 @@ export function ViecTiepTheo({
             className="vttPhu vttCanh"
             onClick={() => onChonKhu('hang-cho-viet-lai')}
           >
-            <span className="ky" aria-hidden="true">
-              ■
-            </span>
+            <BieuTuong ten="vietLai" co={14} />
             {CHU.xemChoVietLai(vietLai)}
           </button>
         ) : null}
@@ -98,6 +98,7 @@ export function ViecTiepTheo({
             className="vttChinh"
             onClick={() => onDocChuong(chuongDoc.so)}
           >
+            <BieuTuong ten="doc" co={14} />
             {chuongDoc.nhan}
           </button>
         ) : null}

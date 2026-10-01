@@ -170,6 +170,8 @@ export interface ChapterRow {
   duration_ms?: number;
   /** Các vai đã tham gia chu kỳ gần nhất. */
   owner?: string[];
+  /** Có bản nhận xét riêng (reviews/NN.json) — không phải chương nào cũng được nhận xét. */
+  reviewed?: boolean;
 }
 
 export interface Dimension {
@@ -238,6 +240,22 @@ export interface Transport {
   /** Vắng khi phiên quá ngắn để con số có nghĩa. */
   chapters_per_hour?: number;
   elapsed_ms?: number;
+  /**
+   * Lượt gọi LLM gần nhất (từ usage.json, có cả khi engine đã đóng). `provider` là TÊN nhà
+   * cung cấp đã cấu hình (vd. "9Router"), không phải loại giao thức. Khác `model` ở trên —
+   * `model` là model MẶC ĐỊNH lúc mở phiên, không phải model của vai nào. Vắng khi chưa có lượt.
+   */
+  last_call?: LuotGoi;
+}
+
+/** Một lượt gọi LLM đã ghi nhận — `transport.last_call`. */
+export interface LuotGoi {
+  /** Vai: architect | writer | editor | arbiter … */
+  agent: string;
+  provider: string;
+  model: string;
+  /** RFC 3339. */
+  at: string;
 }
 
 export interface Selection {
@@ -722,6 +740,8 @@ export interface NhaCungCap {
   base_url?: string;
   api_key_set: boolean;
   api_key_masked?: string;
+  /** Gateway chạy được không cần khóa (ollama/bedrock, hoặc địa chỉ trên máy/LAN). */
+  api_key_optional?: boolean;
   /**
    * Một mục model mang NHIỀU HƠN cái tên, và mọi chỗ ghi lại nó phải giữ đủ.
    *
@@ -737,6 +757,18 @@ export interface MucModel {
   name: string;
   context_window?: number;
   json_schema?: boolean;
+}
+
+/**
+ * Một mục `roles`. Mang đủ `fallbacks` + `reasoning_effort`: `PUT /api/config` thay CẢ map,
+ * nên mọi lượt ghi phải gửi lại nguyên vẹn những gì nó không đổi.
+ * `provider`/`model` rỗng = mục chỉ ghi đè độ suy luận, vai vẫn theo model mặc định.
+ */
+export interface MucVai {
+  provider: string;
+  model: string;
+  fallbacks?: { provider: string; model: string }[];
+  reasoning_effort?: string;
 }
 
 export interface MauNhaCungCap {
@@ -764,8 +796,13 @@ export interface CauHinhDoc {
    */
   styles: string[];
   role_names: string[];
+  /**
+   * Tệp cấu hình TOÀN CỤC đang được trộn dưới `path`, "" khi chỉ có một tệp. Giá trị chỉ có
+   * ở tệp này không xóa được từ studio — server từ chối với 409 thay vì báo "đã lưu" suông.
+   */
+  base_path?: string;
   /** Ghi đè model theo vai đang có hiệu lực. `PUT /api/config` ghi được nó từ bản ba màn. */
-  roles?: Record<string, { provider: string; model: string }> | null;
+  roles?: Record<string, MucVai> | null;
   providers: NhaCungCap[];
   presets: MauNhaCungCap[];
   /** Cuốn đang mở engine — đổi cấu hình KHÔNG ăn vào chúng cho tới lần mở lại. */

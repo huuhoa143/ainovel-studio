@@ -1,6 +1,7 @@
 'use client';
 
 import { layCaiDat } from '@/lib/api';
+import { CHU_VH } from '@/lib/chu/van-hanh';
 import { ngayGio, so } from '@/lib/dinhdang';
 import {
   CHU,
@@ -8,6 +9,7 @@ import {
   nhanCheDoTien,
   nhanMocTamDung,
   nhanMucQuyHoach,
+  nhanVai,
 } from '@/lib/nhan';
 import type { SettingsDoc } from '@/lib/types';
 import { useHoSo } from '@/lib/useHoSo';
@@ -61,28 +63,24 @@ export function CaiDat({ tacPham }: { tacPham: string | undefined }) {
       {tt ??
         (du ? (
           du.state === 'no_file' ? (
-            <section className="sect">
-              <p className="trongSect">
-                {GIAI_THICH.nguonChuaGhi(
-                  GIAI_THICH.caiDatTepNguon,
-                  GIAI_THICH.caiDatKhiNao,
-                )}
+            <section className="vh">
+              <p className="the vhTrong trongSect">
+                {GIAI_THICH.nguonChuaGhi(GIAI_THICH.caiDatTepNguon, GIAI_THICH.caiDatKhiNao)}
               </p>
             </section>
           ) : trongRong(du) ? (
             // Tệp CÓ mà mọi trường rỗng — khác hẳn chưa có tệp, và ta biết chắc là
             // khác vì `state` đã nói `ready`.
-            <section className="sect">
-              <p className="trongSect">
+            <section className="vh">
+              <p className="the vhTrong trongSect">
                 {GIAI_THICH.nguonCoMaRong(GIAI_THICH.caiDatTepNguon, 'trường')}
               </p>
             </section>
           ) : (
-            <>
+            <div className="vh vhPhien">
               <PhienChay du={du} />
-              {/* Dải kênh model đứng ngay sau khối "Khởi động với" vì nó là thứ DUY NHẤT trên
-                  bề mặt này đổi được, và nó đổi đúng cái vừa hiện phía trên (model). Đặt nó
-                  dưới cùng sẽ tách hành động khỏi con số mà hành động ấy sửa.
+              {/* Dải kênh model đứng ngay sau khối "Lúc bắt đầu dùng" vì nó là thứ DUY NHẤT
+                  trên bề mặt này đổi được, và nó đổi đúng cái vừa hiện phía trên (model).
                   `khoiDong` cho nó biết engine đã KHỞI ĐỘNG với gì, để nó nói ra khi hai giá
                   trị đã lệch nhau. */}
               <KenhVai
@@ -90,62 +88,102 @@ export function CaiDat({ tacPham }: { tacPham: string | undefined }) {
                 khoiDong={du.provider && du.model ? `${du.provider} · ${du.model}` : undefined}
               />
               <TienChuong du={du} />
-              <YeuCauKhoiTao du={du} />
               <CanThiepConTon du={du} />
+              <YeuCauKhoiTao du={du} />
               <PhanQuyetKhoiDong du={du} />
               <ChiDoc du={du} />
-            </>
+            </div>
           )
         ) : null)}
     </HoSoKhung>
   );
 }
 
+/**
+ * Một nhóm khóa–giá trị: tiêu đề nhóm rồi các dòng. Mỗi dòng mang một câu giải thích bằng
+ * chữ thường ngay dưới nhãn, để người dùng không phải đoán "Độ dài" hay "Đã cho phép" là gì.
+ */
+function Nhom({
+  tieuDe,
+  phu,
+  children,
+}: {
+  tieuDe: string;
+  phu?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="the vhNhom">
+      <h2>
+        {tieuDe}
+        {phu}
+      </h2>
+      {children}
+    </section>
+  );
+}
+
+function Dong({
+  nhan,
+  giai,
+  ma,
+  title,
+  children,
+}: {
+  nhan: string;
+  giai?: string;
+  /** Giá trị là mã đối chiếu được (model, mã quyết định) — chữ mono. */
+  ma?: boolean;
+  title?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="vhKv">
+      <dt title={title}>
+        <span>{nhan}</span>
+        {giai ? <small>{giai}</small> : null}
+      </dt>
+      <dd className={ma ? 'ma' : undefined}>{children}</dd>
+    </div>
+  );
+}
+
 function PhienChay({ du }: { du: SettingsDoc }) {
   return (
-    <section className="sect">
-      {/* "Khởi động với", KHÔNG phải "Phiên chạy".
-          Khối này đọc `run.json` — giá trị lúc mở máy. Ngay dưới nó là dải kênh model ĐANG
-          SỐNG, cũng có nhãn "Model". Hai con số cho cùng một câu hỏi, và sau một lần đổi nóng
-          thì chúng khác nhau thật. Tên khối phải nói ra cái nào là quá khứ. */}
-      <h2>{CHU.khoiDongVoi}</h2>
-      <dl className="kv kvcd">
+    /* "Lúc bắt đầu dùng", KHÔNG phải "Phiên chạy". Khối này đọc `run.json` — giá trị lúc mở
+       máy. Ngay dưới nó là dải kênh model ĐANG SỐNG, cũng có nhãn "Model". Sau một lần đổi
+       nóng thì hai con số khác nhau thật, nên tên khối phải nói ra cái nào là quá khứ. */
+    <Nhom tieuDe={CHU.khoiDongVoi}>
+      <dl className="vhKvDs">
         {du.started_at ? (
-          <>
-            <dt>{CHU.batDauLuc}</dt>
-            <dd className="m">{ngayGio(du.started_at) ?? du.started_at}</dd>
-          </>
+          <Dong nhan={CHU.batDauLuc} giai={CHU_VH.giaiBatDau}>
+            {ngayGio(du.started_at) ?? du.started_at}
+          </Dong>
         ) : null}
         {du.provider ? (
-          <>
-            <dt>{CHU.nhaCungCap}</dt>
-            <dd className="m">{du.provider}</dd>
-          </>
+          <Dong nhan={CHU.nhaCungCap} giai={CHU_VH.giaiNhaCungCap}>
+            {du.provider}
+          </Dong>
         ) : null}
         {du.model ? (
-          <>
-            <dt>{CHU.model}</dt>
-            <dd className="m">{du.model}</dd>
-          </>
+          <Dong nhan={CHU.model} giai={CHU_VH.giaiModel} ma>
+            {du.model}
+          </Dong>
         ) : null}
-        {/* `style` là kiểu văn chọn LÚC KHỞI ĐỘNG, khác hẳn bộ quy tắc văn phong mà
-            Editor chưng ra sau ở ranh giới cung. Hai thứ đều gọi là "văn phong"
-            trong tiếng Việt nên nhãn phải tách chúng ra, nếu không người vận hành
-            đọc đây là bộ quy tắc đang có hiệu lực. */}
+        {/* `style` là kiểu văn chọn LÚC KHỞI ĐỘNG, khác hẳn bộ quy tắc văn phong mà Editor
+            chưng ra sau ở ranh giới cung. Câu giải thích tách hai thứ ra. */}
         {du.style ? (
-          <>
-            <dt title={GIAI_THICH.caiDatKieuVanKhac}>{CHU.kieuVan}</dt>
-            <dd>{du.style}</dd>
-          </>
+          <Dong nhan={CHU.kieuVan} giai={CHU_VH.giaiKieuVan} title={GIAI_THICH.caiDatKieuVanKhac}>
+            {du.style}
+          </Dong>
         ) : null}
         {du.planning_tier ? (
-          <>
-            <dt>{CHU.mucQuyHoach}</dt>
-            <dd>{nhanMucQuyHoach(du.planning_tier)}</dd>
-          </>
+          <Dong nhan={CHU.mucQuyHoach} giai={CHU_VH.giaiDoDai}>
+            {nhanMucQuyHoach(du.planning_tier)}
+          </Dong>
         ) : null}
       </dl>
-    </section>
+    </Nhom>
   );
 }
 
@@ -166,43 +204,9 @@ function TienChuong({ du }: { du: SettingsDoc }) {
   const cho = du.advance_mode === 'review';
 
   return (
-    <section className="sect">
-      <h2>{CHU.tienChuong}</h2>
-      <dl className="kv kvcd">
-        {du.advance_mode ? (
-          <>
-            <dt>{CHU.cheDoTien}</dt>
-            <dd>{nhanCheDoTien(du.advance_mode)}</dd>
-          </>
-        ) : null}
-        {du.advance_permit_chapter != null ? (
-          <>
-            <dt
-              title={cho ? GIAI_THICH.caiDatCapPhepReview : GIAI_THICH.caiDatCapPhepAuto}
-            >
-              {CHU.chuongDuocCapPhep}
-            </dt>
-            <dd className="m">
-              {du.advance_permit_chapter > 0 ? (
-                so(du.advance_permit_chapter)
-              ) : (
-                <span className="chuacap">{CHU.chuaCapPhepChuongNao}</span>
-              )}
-            </dd>
-          </>
-        ) : null}
-      </dl>
-
-      {/* Ở chế độ chờ cấp phép, số 0 nghĩa là dây chuyền ĐANG ĐỨNG. Đó là tin vận
-          hành, không phải một ô trống trong bảng — nên nó được nói ra thành câu
-          thay vì chỉ nằm trong `title` của nhãn. */}
-      {cho && du.advance_permit_chapter === 0 ? (
-        <p className="steerhint">{GIAI_THICH.caiDatCapPhepReview}</p>
-      ) : null}
-
-      {/* Tạm dừng một lần là một Ý ĐỊNH đã ký, CHƯA tiêu thụ — engine sẽ dừng ở mốc
-          ghi trong nó. Tin sắp-xảy-ra, nên tông amber và đứng riêng chứ không nằm
-          lẫn trong danh sách khoá-giá trị. */}
+    <Nhom tieuDe={CHU.tienChuong}>
+      {/* Tạm dừng một lần là một Ý ĐỊNH đã ký, CHƯA tiêu thụ — tin sắp-xảy-ra, nên tông
+          amber và đứng trên đầu nhóm chứ không lẫn trong danh sách. */}
       {du.advance_hold ? (
         <p className="vphacap">
           <span className="ky" aria-hidden="true">
@@ -214,43 +218,63 @@ function TienChuong({ du }: { du: SettingsDoc }) {
           </span>
         </p>
       ) : null}
-    </section>
+      <dl className="vhKvDs">
+        {du.advance_mode ? (
+          <Dong nhan={CHU.cheDoTien} giai={CHU_VH.giaiCheDo}>
+            {nhanCheDoTien(du.advance_mode)}
+          </Dong>
+        ) : null}
+        {du.advance_permit_chapter != null ? (
+          <Dong
+            nhan={CHU.chuongDuocCapPhep}
+            giai={CHU_VH.giaiCapPhep}
+            title={cho ? GIAI_THICH.caiDatCapPhepReview : GIAI_THICH.caiDatCapPhepAuto}
+          >
+            {du.advance_permit_chapter > 0 ? (
+              so(du.advance_permit_chapter)
+            ) : (
+              <span className={cho ? 'vien amber' : 'trong'}>{CHU.chuaCapPhepChuongNao}</span>
+            )}
+          </Dong>
+        ) : null}
+      </dl>
+
+      {/* Ở chế độ chờ cấp phép, số 0 nghĩa là dây chuyền ĐANG ĐỨNG — nói thành câu. Ở chế độ
+          tự viết thì số 0 không có nghĩa gì, nên câu nói ra điều đó để không ai lo. */}
+      <p className="steerhint">
+        {cho ? GIAI_THICH.caiDatCapPhepReview : GIAI_THICH.caiDatCapPhepAuto}
+      </p>
+    </Nhom>
   );
 }
 
 /**
  * Yêu cầu gốc của người dùng.
  *
- * `--ui`, KHÔNG serif, và đây là chỗ phép thử của DESIGN.md:64 dễ bị làm sai nhất
- * trên cả bề mặt: đoạn này dài, là văn xuôi, và trông rất giống một khối đáng cho
- * serif. Nhưng phép thử hỏi "chữ này có nằm trong bộ truyện xuất bản không" — đây
- * là câu người vận hành dặn engine, người đọc truyện không bao giờ thấy nó. Cùng
- * loại với `core_event` của khế ước chương. Nên `--ui`, và vẫn giữ khổ đọc dài
- * (`line-height` 1.78, `max-width` 74ch).
+ * `--ui`, KHÔNG serif: phép thử hỏi "chữ này có nằm trong bộ truyện xuất bản không" — đây là
+ * câu người vận hành dặn engine, người đọc truyện không bao giờ thấy nó.
  */
 function YeuCauKhoiTao({ du }: { du: SettingsDoc }) {
   if (!du.start_prompt) return null;
   return (
-    <section className="sect">
-      <h2>{CHU.yeuCauKhoiTao}</h2>
-      <p className="steerhint">{GIAI_THICH.caiDatYeuCau}</p>
+    <Nhom tieuDe={CHU.yeuCauKhoiTao}>
+      <p className="vhGiai">{GIAI_THICH.caiDatYeuCau}</p>
       <p className="cdvan">{du.start_prompt}</p>
-    </section>
+    </Nhom>
   );
 }
 
 /**
  * Ý kiến can thiệp còn tồn.
  *
- * Trường này chỉ có giá trị khi engine CHƯA tiêu thụ nó, nên sự hiện diện của nó
- * đã là tin: có một ý kiến đã ký mà dây chuyền chưa xử lý. Nó thuộc bề mặt này vì
- * đây là chỗ duy nhất trong API trả nó ra.
+ * Trường này chỉ có giá trị khi engine CHƯA tiêu thụ nó, nên sự hiện diện của nó đã là tin:
+ * có một ý kiến đã ký mà dây chuyền chưa xử lý. Đứng trước "Ý tưởng ban đầu" vì nó là việc
+ * đang treo, còn ý tưởng là quá khứ.
  */
 function CanThiepConTon({ du }: { du: SettingsDoc }) {
   if (!du.pending_steer) return null;
   return (
-    <section className="sect">
-      <h2>{CHU.canThiepConTon}</h2>
+    <Nhom tieuDe={CHU.canThiepConTon}>
       <p className="vphacap">
         <span className="ky" aria-hidden="true">
           ■
@@ -258,60 +282,72 @@ function CanThiepConTon({ du }: { du: SettingsDoc }) {
         <span>{GIAI_THICH.caiDatCanThiepConTon}</span>
       </p>
       <p className="cdvan">{du.pending_steer}</p>
-    </section>
+    </Nhom>
   );
 }
 
 /**
  * Phán quyết khởi động — sự thật mà việc khôi phục sau sập dựa vào.
  *
- * `decision_id` nối sang nhật ký phán quyết ở bề mặt Dòng sản xuất, nên nó hiện
- * dạng mã mono chứ không được làm đẹp: nó là thứ để đối chiếu, không phải để đọc.
+ * `decision_id` nối sang nhật ký quyết định, nên nó hiện dạng mã mono: nó là thứ để đối
+ * chiếu, không phải để đọc. Việc đã giao dài nhiều dòng và là đọc-một-lần, nên gập lại.
  */
 function PhanQuyetKhoiDong({ du }: { du: SettingsDoc }) {
   const ps = du.plan_start;
   if (!ps) return null;
   return (
-    <section className="sect">
-      <h2>{CHU.phanQuyetKhoiDong}</h2>
-      <dl className="kv kvcd">
+    <Nhom tieuDe={CHU.phanQuyetKhoiDong}>
+      <dl className="vhKvDs">
         {ps.planner ? (
-          <>
-            <dt>{CHU.nguoiQuyHoach}</dt>
-            <dd>{ps.planner}</dd>
-          </>
-        ) : null}
-        {ps.planner_task ? (
-          <>
-            <dt>{CHU.viecQuyHoach}</dt>
-            <dd>{ps.planner_task}</dd>
-          </>
+          <Dong nhan={CHU.nguoiQuyHoach} giai={CHU_VH.giaiNguoiQuyHoach}>
+            {nhanNguoiQuyHoach(ps.planner)}
+          </Dong>
         ) : null}
         {ps.decision_id ? (
-          <>
-            <dt>{CHU.maPhanQuyet}</dt>
-            <dd className="m">{ps.decision_id}</dd>
-          </>
+          <Dong nhan={CHU.maPhanQuyet} giai={CHU_VH.giaiMaPhanQuyet} ma>
+            {ps.decision_id}
+          </Dong>
         ) : null}
       </dl>
-    </section>
+      {ps.planner_task ? (
+        <details className="vhGap">
+          <summary>{CHU_VH.xemViecQuyHoach}</summary>
+          <p className="cdvan">{ps.planner_task}</p>
+        </details>
+      ) : null}
+    </Nhom>
   );
+}
+
+/**
+ * `planner` là mã máy kiểu `architect_long`. Tên vai đọc được thì in tên Việt kèm mức; mã lạ
+ * giữ nguyên chứ không đoán.
+ */
+function nhanNguoiQuyHoach(planner: string): string {
+  const cat = planner.indexOf('_');
+  const goc = cat > 0 ? planner.slice(0, cat) : planner;
+  const ten = nhanVai(goc);
+  if (ten === goc) return planner;
+  const muc = cat > 0 ? nhanMucQuyHoach(planner.slice(cat + 1)) : undefined;
+  return muc ? `${ten} · ${muc}` : ten;
 }
 
 /**
  * Vì sao bề mặt này không sửa được.
  *
- * Đọc từ `writable`, không hard-code — và cũng KHÔNG im lặng. Một bề mặt tên là
- * "Cài đặt" mà không có gì bấm được sẽ bị đọc là hỏng, trừ khi nó nói ra vì sao.
+ * Đọc từ `writable`, không hard-code — và cũng KHÔNG im lặng. Một bề mặt không có gì bấm được
+ * sẽ bị đọc là hỏng, trừ khi nó nói ra vì sao.
  */
 function ChiDoc({ du }: { du: SettingsDoc }) {
   if (du.writable) return null;
   return (
-    <section className="sect">
-      <h2>{CHU.chiDoc}</h2>
-      <p className="trongSect">{GIAI_THICH.caiDatChiDoc}</p>
-      {/* Nói ra điều CỐ Ý không có, để không ai đi tìm nó rồi tưởng bề mặt thiếu. */}
-      <p className="steerhint">{GIAI_THICH.caiDatKhongCoKhoa}</p>
+    <section className="vhChiDoc" aria-label={CHU.chiDoc}>
+      <span className="vien">{CHU.chiDoc}</span>
+      <div>
+        <p className="steerhint">{GIAI_THICH.caiDatChiDoc}</p>
+        {/* Nói ra điều CỐ Ý không có, để không ai đi tìm nó rồi tưởng bề mặt thiếu. */}
+        <p className="steerhint">{GIAI_THICH.caiDatKhongCoKhoa}</p>
+      </div>
     </section>
   );
 }

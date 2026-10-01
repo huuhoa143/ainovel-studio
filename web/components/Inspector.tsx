@@ -8,13 +8,13 @@ import { CHU, GIAI_THICH, TRANG_THAI_CHUONG, nhanHang } from '@/lib/nhan';
 import { mayDangChay } from '@/lib/song';
 import type {
   ChapterDetail,
-  ChapterRow,
   Character,
   Contract,
   Review,
   Selection,
   Snapshot,
 } from '@/lib/types';
+import { TD } from '@/lib/chu/tien-do';
 import { useHoSo } from '@/lib/useHoSo';
 import { useTruot } from '@/lib/truot';
 
@@ -57,13 +57,10 @@ export function Inspector({
   snapshot,
   tacPham,
   chuongChon,
-  onChonChuong,
 }: {
   snapshot: Snapshot | undefined;
   tacPham: string | undefined;
   chuongChon: number | undefined;
-  /** Chọn chương từ dải `●▶○` của chế độ ngữ cảnh truyện. */
-  onChonChuong: (n: number) => void;
 }) {
   const [tab, setTab] = useState<Tab>('kheuoc');
   /* Gạch chân TRƯỢT giữa ba tab. Ba nhãn tiếng Việt không bằng bề rộng nên phải đo vị trí
@@ -81,13 +78,6 @@ export function Inspector({
 
   const sel = snapshot?.selected;
   const cheDoChuong = chuongChon !== undefined && !xemNguCanh;
-
-  const moChuong = (n: number) => {
-    // Tắt chế độ ngữ cảnh TRƯỚC khi báo lên trên: `chuongChon` có thể không đổi (bấm đúng
-    // chương đang chọn), và lúc đó effect ở trên không chạy.
-    datXemNguCanh(false);
-    onChonChuong(n);
-  };
 
   return (
     <aside className="insp" aria-label={CHU.cotPhaiVung}>
@@ -132,9 +122,8 @@ export function Inspector({
       ) : (
         <NguCanhTruyen
           tacPham={tacPham}
-          hang={snapshot?.chapters ?? []}
           chuongChon={chuongChon}
-          onChon={moChuong}
+          onVeChuong={() => datXemNguCanh(false)}
         />
       )}
     </aside>
@@ -171,7 +160,8 @@ function TabNut({
  *
  * Ba khối theo đúng thứ tự spec §7.2 — và thứ tự đó là thứ tự câu hỏi: "đang tới đâu" (dải
  * chương) đứng trước "ai" (nhân vật) đứng trước "về cái gì" (tiền đề), vì hai câu đầu đổi
- * theo từng lượt còn câu cuối đứng yên cả cuốn.
+ * theo từng lượt còn câu cuối đứng yên cả cuốn. Tiền đề gọn về hai mục đầu, phần còn lại mở
+ * ra bằng một nút — nó dài nhất và được đọc ít nhất.
  *
  * Tiền đề và nhân vật đọc từ hai endpoint hồ sơ, và `useHoSo` chỉ nạp lại khi đổi tác phẩm —
  * chúng KHÔNG đổi theo từng sự kiện của dây chuyền, nên gộp vào nhịp làm mới 1,5s là nghiền
@@ -179,14 +169,13 @@ function TabNut({
  */
 function NguCanhTruyen({
   tacPham,
-  hang,
   chuongChon,
-  onChon,
+  onVeChuong,
 }: {
   tacPham: string | undefined;
-  hang: ChapterRow[];
+  /** Chương vẫn đang chọn trên URL — có thì có đường quay lại chi tiết của nó. */
   chuongChon: number | undefined;
-  onChon: (n: number) => void;
+  onVeChuong: () => void;
 }) {
   const danY = useHoSo(tacPham, layDanY);
   const nhanVat = useHoSo(tacPham, layNhanVat);
@@ -194,91 +183,54 @@ function NguCanhTruyen({
   return (
     <>
       <div className="ihead">
+        {/* Đường lui KHÔNG được là đường cụt: `chuongChon` do URL giữ, nên bấm lại đúng chương
+            ấy ở cột giữa không đổi prop nào và cột phải sẽ đứng yên. Nút này là đường về. */}
+        {chuongChon !== undefined ? (
+          <button type="button" className="ilui" onClick={onVeChuong}>
+            {TD.xemLaiChuong(chuongChon)}
+            <span aria-hidden="true"> →</span>
+          </button>
+        ) : null}
         <h2 className="chuachon">{CHU.nguCanhTruyen}</h2>
       </div>
 
       <div className="ibody">
-        <h3>{CHU.chuong}</h3>
-        <DaiChuong hang={hang} chuongChon={chuongChon} onChon={onChon} />
+        <section className="iKhoi">
+          <h3>{CHU.nhanVat}</h3>
+          {/* `loi` KHÔNG bị hạ xuống thành "chưa có dữ liệu": một lời gọi hỏng và một tác
+              phẩm chưa dựng nền là hai chuyện, và chỉ một trong hai có cách sửa. */}
+          {nhanVat.loi ? (
+            <p className="loiDoc">{nhanVat.loi}</p>
+          ) : nhanVat.du?.characters && nhanVat.du.characters.length > 0 ? (
+            <ul className="nvtom">
+              {nhanVat.du.characters.slice(0, 8).map((c) => (
+                <NguoiTom key={c.name} c={c} />
+              ))}
+            </ul>
+          ) : nhanVat.dangTai ? (
+            <p className="trong nvtom">{CHU.dangTai}</p>
+          ) : (
+            <div className="nvtom">
+              <MucRong mang={nhanVat.du?.characters ?? null} muc="nhân vật nào" />
+            </div>
+          )}
+        </section>
 
-        <h3>{CHU.nhanVat}</h3>
-        {/* `loi` KHÔNG bị hạ xuống thành "chưa có dữ liệu": một lời gọi hỏng và một tác
-            phẩm chưa dựng nền là hai chuyện, và chỉ một trong hai có cách sửa. */}
-        {nhanVat.loi ? (
-          <p className="loiDoc">{nhanVat.loi}</p>
-        ) : nhanVat.du?.characters && nhanVat.du.characters.length > 0 ? (
-          <ul className="nvtom">
-            {nhanVat.du.characters.slice(0, 8).map((c) => (
-              <NguoiTom key={c.name} c={c} />
-            ))}
-          </ul>
-        ) : nhanVat.dangTai ? (
-          <p className="trong nvtom">{CHU.dangTai}</p>
-        ) : (
-          <div className="nvtom">
-            <MucRong mang={nhanVat.du?.characters ?? null} muc="nhân vật nào" />
-          </div>
-        )}
-
-        <h3>{CHU.tienDe}</h3>
-        {danY.loi ? (
-          <p className="loiDoc">{danY.loi}</p>
-        ) : danY.dangTai ? (
-          <p className="trong">{CHU.dangTai}</p>
-        ) : (
-          <TienDeTom raw={danY.du?.premise ?? ''} />
-        )}
+        <section className="iKhoi">
+          <h3>{CHU.tienDe}</h3>
+          {danY.loi ? (
+            <p className="loiDoc">{danY.loi}</p>
+          ) : danY.dangTai ? (
+            <p className="trong">{CHU.dangTai}</p>
+          ) : (
+            <TienDeTom raw={danY.du?.premise ?? ''} />
+          )}
+        </section>
       </div>
     </>
   );
 }
 
-/**
- * Dải `●▶○` — một vạch một chương, bấm được.
- *
- * Ký hiệu VÀ chữ, không chỉ màu: đây là luật 5 của `PRODUCT.md`, và ở một dải dày đặc như
- * thế này nó là luật cứu được nhiều nhất — mắt không phân biệt nổi hai chấm 14px cạnh nhau
- * chỉ khác sắc độ, còn ảnh chụp đen trắng thì không phân biệt nổi gì cả.
- *
- * Dải này TRÙNG dữ liệu với lane chương ở cột giữa, và đó là chủ ý chứ không phải sót: lane
- * kia vẽ hình dạng cả cuốn theo tỉ lệ, dải này là một danh sách CHỌN ĐƯỢC ngay cạnh chỗ chi
- * tiết sẽ hiện ra. Cùng sự thật, hai việc.
- */
-function DaiChuong({
-  hang,
-  chuongChon,
-  onChon,
-}: {
-  hang: ChapterRow[];
-  chuongChon: number | undefined;
-  onChon: (n: number) => void;
-}) {
-  if (hang.length === 0) return <p className="trong">{GIAI_THICH.chuaCoChuong}</p>;
-  return (
-    <div className="dsvach">
-      {hang.map((r) => {
-        const tt = TRANG_THAI_CHUONG[r.stage];
-        return (
-          <button
-            key={r.chapter}
-            type="button"
-            className={`vach1 ${tt.mau}${r.chapter === chuongChon ? ' chon' : ''}`}
-            title={CHU.chuongVaCongDoan(r.chapter, tt.nhan)}
-            aria-current={r.chapter === chuongChon ? 'true' : undefined}
-            onClick={() => onChon(r.chapter)}
-          >
-            <span className="ky" aria-hidden="true">
-              {tt.ky}
-            </span>
-            <span className="so">{r.chapter}</span>
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-/** Một dòng nhân vật: tên · hạng · vai. Chi tiết đầy đủ ở bề mặt Nhân vật. */
 function NguoiTom({ c }: { c: Character }) {
   return (
     <li>
@@ -303,22 +255,64 @@ function NguoiTom({ c }: { c: Character }) {
  * là không.
  */
 function TienDeTom({ raw }: { raw: string }) {
-  const doan = raw
-    .split(/\n{2,}/)
-    .map((d) => d.replace(/\s*\n\s*/g, ' ').trim())
-    .filter(Boolean);
-
-  if (doan.length === 0) return <p className="trong">{GIAI_THICH.chuaCoTienDe}</p>;
+  const [moHet, datMoHet] = useState(false);
+  /* Tiền đề là markdown: `# Tên truyện`, rồi từng mục `## Thể loại…` kèm thân. In thô thì
+     panel thành một khối chữ rải dấu thăng. Tên truyện bỏ đi (đã ở rail và thanh trên);
+     mỗi mục thành một nhãn nhỏ cộng đoạn thân. */
+  const muc: { de?: string; than: string[] }[] = [];
+  for (const dong of raw.split('\n')) {
+    const t = dong.trim();
+    if (!t) {
+      muc.at(-1)?.than.push('');
+      continue;
+    }
+    const h = /^(#{1,6})\s+(.*)$/.exec(t);
+    if (h) {
+      if (h[1] === '#') continue;
+      muc.push({ de: h[2], than: [] });
+      continue;
+    }
+    if (muc.length === 0) muc.push({ than: [] });
+    muc.at(-1)!.than.push(t.replace(/^[-*+]\s+/, '· ').replace(/\*\*(.+?)\*\*/g, '$1'));
+  }
+  const coNoiDung = muc.some((m) => m.de || m.than.some(Boolean));
+  if (!coNoiDung) return <p className="trong">{GIAI_THICH.chuaCoTienDe}</p>;
+  const gon = !moHet && muc.length > GIOI_TIEN_DE;
   return (
-    <>
-      {doan.map((d, i) => (
-        <p className="tiendetom" key={i}>
-          {d}
-        </p>
-      ))}
-    </>
+    <div className={`tiende${moHet ? '' : ' gon'}`}>
+      {(gon ? muc.slice(0, GIOI_TIEN_DE) : muc).map((m, i) => {
+        const doan = m.than
+          .join('\n')
+          .split(/\n{2,}/)
+          .map((d) => d.replace(/\s*\n\s*/g, ' ').trim())
+          .filter(Boolean);
+        return (
+          <div className="tiendemuc" key={i}>
+            {m.de ? <h4>{m.de}</h4> : null}
+            {doan.map((d, j) => (
+              <p className="tiendetom" key={j}>
+                {d}
+              </p>
+            ))}
+          </div>
+        );
+      })}
+      {muc.length > GIOI_TIEN_DE ? (
+        <button
+          type="button"
+          className="ilui ihetca"
+          aria-expanded={moHet}
+          onClick={() => datMoHet((v) => !v)}
+        >
+          {moHet ? TD.thuGonTienDe : TD.xemDayDu}
+        </button>
+      ) : null}
+    </div>
   );
 }
+
+/** Tiền đề gọn hiện chừng này mục đầu. */
+const GIOI_TIEN_DE = 2;
 
 /** "Chương 47 · tập 3 · cung 2" — suy từ trục, không bịa khi chưa biết. */
 function viTri(snapshot: Snapshot | undefined, chuong: number): string {
@@ -331,7 +325,7 @@ function viTri(snapshot: Snapshot | undefined, chuong: number): string {
     const cung = snapshot.timeline.arcs?.find(
       (a) => a.from && a.to && chuong >= a.from && chuong <= a.to,
     );
-    if (cung) phan.push(`cung ${cung.index}`);
+    if (cung) phan.push(`hồi ${cung.index}`);
   }
   return phan.join(' · ');
 }

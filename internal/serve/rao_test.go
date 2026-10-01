@@ -148,6 +148,8 @@ func TestCheDoChiDocKhongMacRouteGhi(t *testing.T) {
 		{"POST", "/api/books/sach/close"},
 		{"GET", "/api/books/sach/live"},
 		{"GET", "/api/engine"},
+		{"POST", "/api/models/try"},
+		{"POST", "/api/books/sach/models/apply"},
 	}
 	for _, d := range duongGhi {
 		rec := httptest.NewRecorder()

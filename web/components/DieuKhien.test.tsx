@@ -212,7 +212,7 @@ test('runtime=pausing thì KHÓA nút hạng nhất — lệnh dừng đã nhậ
   // Bấm Chạy giữa lúc engine đang thu dọn là một lượt gọi chắc chắn thất bại hoặc tệ hơn là
   // một lượt chạy chồng lên một lượt đang tắt.
   ve({ runtime: 'pausing', advance: { ...AUTO } }, true);
-  const nut = screen.queryByRole('button', { name: `■ ${CHU.dung}` });
+  const nut = screen.queryByRole('button', { name: `‖ ${CHU.dung}` });
   expect(nut).not.toBeNull();
   expect((nut as HTMLButtonElement).disabled).toBe(true);
 });
@@ -237,7 +237,7 @@ test('nút hạng nhất luôn là nút CUỐI, ở cả bốn bộ nút', () =>
     ['engine đóng', {}, false, `▶ ${CHU.chay}`],
     ['mở · tự chạy', { advance: { ...AUTO } }, false, `▶ ${CHU.chay}`],
     ['mở · nghiệm thu', { advance: { ...REVIEW } }, false, `▶ ${CHU.chay}`],
-    ['đang chạy · nghiệm thu', { advance: { ...REVIEW } }, true, `■ ${CHU.dung}`],
+    ['đang chạy · nghiệm thu', { advance: { ...REVIEW } }, true, `‖ ${CHU.dung}`],
   ];
   for (const [ten, p, chay, cuoi] of boCanKiem) {
     cleanup();

@@ -265,6 +265,23 @@ func SaveProviderConfig(path string, provider string, pc ProviderConfig) error {
 	return SaveConfig(path, target)
 }
 
+// PatchConfigFile vá ĐÚNG một tệp cấu hình: đọc riêng tệp đó (không trộn tầng), áp `sua`, ghi lại.
+//
+// Đây là đường ghi cho mọi thay đổi lúc engine đang chạy. Ghi lại ảnh chụp `h.cfg` thay vì
+// vá sẽ đè mất những gì người dùng vừa lưu ở studio sau lúc mở engine, và chép cả tầng toàn
+// cục xuống tệp dự án. Tệp hỏng cú pháp thì từ chối, không ghi đè.
+func PatchConfigFile(path string, sua func(*Config)) error {
+	cfg, found, err := loadOptionalJSON(path)
+	if err != nil {
+		return err
+	}
+	if !found {
+		cfg = Config{}
+	}
+	sua(&cfg)
+	return SaveConfig(path, cfg)
+}
+
 // stripJSONComments 去除 JSON 中的 // 行注释，跟踪引号状态避免误删字符串内容。
 func stripJSONComments(data []byte) []byte {
 	out := make([]byte, 0, len(data))

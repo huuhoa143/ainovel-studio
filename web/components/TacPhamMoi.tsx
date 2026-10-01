@@ -3,8 +3,11 @@
 import { useEffect, useState } from 'react';
 
 import { LoiApi, layCauHinh, taoSach } from '@/lib/api';
-import { CHU, GIAI_THICH, nhanKenhVai } from '@/lib/nhan';
+import { TU_TRUYEN as T } from '@/lib/chu/tu-truyen';
+import { CHU, GIAI_THICH, nhanKenhVai, nhanVai } from '@/lib/nhan';
 import type { CauHinhDoc } from '@/lib/types';
+
+import { BieuTuong } from './BieuTuong';
 
 /**
  * Tạo tác phẩm mới — một câu yêu cầu là đủ.
@@ -34,8 +37,11 @@ export function TacPhamMoi({
   onChonKhu,
 }: {
   onXong: (book: string) => void;
-  /** Đưa người dùng sang Cấu hình máy khi model sắp dùng không phải cái họ muốn. */
-  onChonKhu?: (khu: 'cau-hinh') => void;
+  /**
+   * Đưa người dùng sang Cấu hình máy khi model sắp dùng không phải cái họ muốn, hoặc sang Bàn
+   * ý tưởng khi ý còn mơ hồ.
+   */
+  onChonKhu?: (khu: 'cau-hinh' | 'cung-dung') => void;
   /**
    * Bản yêu cầu chuyển sang từ Cùng dựng.
    *
@@ -45,6 +51,9 @@ export function TacPhamMoi({
   nhapSan?: string;
 }) {
   const [ten, datTen] = useState('');
+  /* Tên thư mục tự đi theo ý tưởng cho tới khi người dùng tự sửa nó: bắt họ nghĩ ra một
+     chuỗi không dấu trước khi được viết là một bước thừa, đúng lúc họ đang có hứng. */
+  const [tuDatTen, datTuDatTen] = useState(true);
   const [yeuCau, datYeuCau] = useState(nhapSan);
   const [dangGui, datDangGui] = useState(false);
   const [loi, datLoi] = useState<string | null>(null);
@@ -77,21 +86,27 @@ export function TacPhamMoi({
   // Gợi tên thư mục từ câu yêu cầu để người dùng không phải tự nghĩ: bỏ dấu, hạ chữ, thay
   // mọi thứ còn lại bằng gạch ngang. Chỉ GỢI Ý — họ sửa được, vì tên thư mục là thứ họ sẽ
   // thấy trên đĩa lâu hơn cả câu yêu cầu này.
-  const goiTen = () => {
-    if (ten.trim() !== '') return;
-    const t = yeuCau
+  const slug = (v: string) =>
+    v
       .normalize('NFD')
-      .replace(/[̀-ͯ]/g, '')
+      .replace(/[\u0300-\u036f]/g, '')
       .replace(/đ/gi, 'd')
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '')
       .split('-')
       .slice(0, 5)
-      .join('-');
-    if (t) datTen(t.slice(0, 64));
+      .join('-')
+      .slice(0, 64);
+  const doiYeuCau = (v: string) => {
+    datYeuCau(v);
+    if (tuDatTen) datTen(slug(v));
   };
-
+  useEffect(() => {
+    if (nhapSan && tuDatTen) datTen(slug(nhapSan));
+    // chỉ chạy lúc nhận bản nháp từ Bàn ý tưởng
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nhapSan]);
   const gui = () => {
     datDangGui(true);
     datLoi(null);
@@ -101,117 +116,180 @@ export function TacPhamMoi({
       .finally(() => datDangGui(false));
   };
 
+  // Chip thể loại chỉ hiện khi ô còn trống hoặc đang chứa đúng một câu mẫu: đè lên chữ của
+  // chính người dùng là xóa mất ý của họ mà không có đường hoàn tác.
+  const laCauMau = T.yTuongMau.some((m) => m.cau === yeuCau);
+  const hienChip = !dangGui && (!yeuCau.trim() || laCauMau);
+  // Ý tưởng toàn ký tự không chuyển được sang tên thư mục (vd. chỉ có dấu câu) để lại ô tên
+  // rỗng và nút chính bị khóa. Phần Tùy chọn phải tự mở ra lúc đó, nếu không người dùng thấy
+  // một nút xám mà không biết vì sao.
+  const thieuTen = !!yeuCau.trim() && !ten.trim();
+  const [moTuyChon, datMoTuyChon] = useState(false);
+
   return (
     <main className="canvas" id="tac-pham-moi">
       <div className="head">
         <h1>{CHU.taoTacPham}</h1>
       </div>
 
-      <p className="steerhint">{GIAI_THICH.taoSachGiaiThich}</p>
+      <div className="tpmLuoi">
+        <section className="tpmChinh">
+          <form
+            className="bieuMau tpmForm"
+            onSubmit={(e) => {
+              e.preventDefault();
+              gui();
+            }}
+          >
+            <label className="tpmY" htmlFor="tpm-y">
+              <span className="tpmCau">{CHU.yeuCauTruyen}</span>
+              <span className="tpmPhu">{GIAI_THICH.taoSachGiaiThich}</span>
+            </label>
+            <div className={`tpmO${dangGui ? ' dangGui' : ''}`}>
+              <textarea
+                id="tpm-y"
+                value={yeuCau}
+                onChange={(e) => doiYeuCau(e.target.value)}
+                autoFocus
+                rows={7}
+                required
+                disabled={dangGui}
+                placeholder="Ví dụ: truyện trinh thám điều tra dài, nhịp chậm. Nhân vật chính là một chấp pháp trẻ điều tra chuỗi mất tích ở một trấn ven sông. Giọng tiết chế, mỗi chương khép bằng một hình ảnh cụ thể."
+              />
+              {hienChip ? (
+                <div className="tpmChip" role="group" aria-label={T.thuMotY}>
+                  <span className="lbl">{T.thuMotY}</span>
+                  {T.yTuongMau.map((m) => (
+                    <button
+                      key={m.the}
+                      type="button"
+                      className={`chip${m.cau === yeuCau ? ' bat' : ''}`}
+                      aria-pressed={m.cau === yeuCau}
+                      onClick={() => doiYeuCau(m.cau)}
+                    >
+                      {m.the}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
 
-      {/* Ba bước nói TRƯỚC, không phải sau. Người dùng bấm "Bắt đầu viết" rồi không biết làm
-          gì tiếp; một phần vì họ chưa bao giờ được cho biết cái gì sẽ xảy ra. */}
-      <section className="sect">
-        <h2>{CHU.sauKhiBamGi}</h2>
-        <ol className="baBuoc">
-          <li>
-            <span className="vai">Arbiter</span>
-            {CHU.buocArbiter}
-          </li>
-          <li>
-            <span className="vai">Architect</span>
-            {CHU.buocArchitect}
-          </li>
-          <li>
-            <span className="vai">Writer</span>
-            {CHU.buocWriter}
-          </li>
-        </ol>
-        <p className="steerhint">{GIAI_THICH.batDauRoiKhongPhaiLamGi}</p>
-      </section>
-
-      <section className="sect">
-        <form
-          className="bieuMau"
-          onSubmit={(e) => {
-            e.preventDefault();
-            gui();
-          }}
-        >
-          <label className="oNhap oNhapCao">
-            <span>{CHU.yeuCauTruyen}</span>
-            <textarea
-              value={yeuCau}
-              onChange={(e) => datYeuCau(e.target.value)}
-              onBlur={goiTen}
-              rows={6}
-              required
-              disabled={dangGui}
-              placeholder="Viết truyện trinh thám điều tra dài, nhịp chậm. Nhân vật chính là một chấp pháp trẻ điều tra chuỗi mất tích ở một trấn ven sông. Giọng tiết chế, mỗi chương khép bằng một hình ảnh cụ thể."
-            />
-          </label>
-
-          <label className="oNhap">
-            <span>{CHU.tenThuMuc}</span>
-            <input
-              value={ten}
-              onChange={(e) => datTen(e.target.value)}
-              placeholder="tran-tham-ven-song"
-              pattern="[a-z0-9][a-z0-9_\-]{0,63}"
-              required
-              disabled={dangGui}
-            />
-          </label>
-          <p className="steerhint">{GIAI_THICH.taoSachTenThuMuc}</p>
-
-          {loi ? <p className="loiDoc">{loi}</p> : null}
-
-          {/* Model sẽ viết cuốn này, đặt TRƯỚC câu cam kết tiêu tiền.
-              Thứ tự có lý do: câu cam kết phải là dòng SÁT NÚT nhất — đó là chủ đích đã ghi
-              ngay dưới đây, và bản đầu của khối này chen vào giữa nó với nút, tức phá đúng
-              điều nó tồn tại để giữ. Đọc xuôi thành: sẽ viết bằng gì → tốn tiền thật → bấm. */}
-          {cauHinh ? <SeVietBang du={cauHinh} onChonKhu={onChonKhu} /> : null}
-
-          {/* Câu cam kết đứng NGAY TRÊN nút, không nằm ở đầu trang: người dùng đọc dòng
-              gần nút nhất trước khi bấm, và đây là dòng phải được đọc. */}
-          <p className="vphacap">
-            <span className="ky" aria-hidden="true">
-              ■
-            </span>
-            <span>{GIAI_THICH.taoSachSeTieuTien}</span>
-          </p>
-
-          <div className="nccNut">
-            <button
-              type="submit"
-              className="nutChinh"
-              disabled={dangGui || !ten.trim() || !yeuCau.trim()}
+            {/* Tên thư mục tự sinh từ ý tưởng, nên nó lùi vào Tùy chọn: phần lớn người dùng
+                không cần đụng tới. Tóm tắt luôn hiện tên đang dùng để không có gì bị giấu. */}
+            <details
+              className="tpmTuyChon"
+              open={moTuyChon || thieuTen}
+              onToggle={(e) => datMoTuyChon(e.currentTarget.open)}
             >
-              {dangGui ? CHU.dangGui : CHU.batDauViet}
-            </button>
-          </div>
+              <summary>
+                <BieuTuong ten="mui" co={13} />
+                <span>{T.tuyChon}</span>
+                <span className="tom">
+                  {ten.trim() ? (
+                    <>
+                      {T.luuO} <code>{ten}</code>
+                    </>
+                  ) : (
+                    <span className="thieu">{T.chuaCoTenThuMuc}</span>
+                  )}
+                </span>
+              </summary>
+              <label className="oNhap">
+                <span>{CHU.tenThuMuc}</span>
+                <input
+                  value={ten}
+                  onChange={(e) => {
+                    datTen(e.target.value);
+                    datTuDatTen(e.target.value === '');
+                  }}
+                  placeholder="tran-tham-ven-song"
+                  pattern="[a-z0-9][a-z0-9_\-]{0,63}"
+                  required
+                  disabled={dangGui}
+                  spellCheck={false}
+                />
+              </label>
+              <p className="steerhint">{GIAI_THICH.taoSachTenThuMuc}</p>
+            </details>
 
-          {/* Lượt chờ này DÀI: `POST /books` gọi `startup.PrepareQuick` ngay trong request,
-              tức một lượt Arbiter thật — nhật ký phán quyết của hai cuốn đã tạo ghi 10,6s và
-              14,5s. Một nút đổi chữ thành "Đang gửi…" trong mười lăm giây là bề mặt im lặng
-              đúng vào lúc người dùng cần biết nhất, và họ đọc nó thành treo.
-              Nói ra ai đang làm, làm gì, và mất khoảng bao lâu. */}
-          {dangGui ? (
-            <p className="dangCho" role="status">
-              <span className="q" aria-hidden="true" />
-              <span>
-                <b>{CHU.arbiterDangDoc}</b> {GIAI_THICH.arbiterDangDocLau}
-              </span>
+            {loi ? (
+              <p className="loiDoc" role="alert">
+                {loi}
+              </p>
+            ) : null}
+
+            {/* Đọc xuôi thành: sẽ viết bằng gì → tốn tiền thật → bấm. Câu cam kết là dòng SÁT
+                NÚT nhất, vì người dùng đọc dòng gần nút nhất trước khi bấm. */}
+            <div className="tpmChan">
+              {cauHinh ? <SeVietBang du={cauHinh} onChonKhu={onChonKhu} /> : null}
+              <div className="tpmGui">
+                <p className="tpmCamKet">{GIAI_THICH.taoSachSeTieuTien}</p>
+                <button
+                  type="submit"
+                  className="nutChinh tpmNut"
+                  disabled={dangGui || !ten.trim() || !yeuCau.trim()}
+                >
+                  {dangGui ? CHU.dangGui : CHU.batDauViet}
+                  {dangGui ? null : <BieuTuong ten="mui" co={15} />}
+                </button>
+              </div>
+            </div>
+
+            {/* Lượt chờ này DÀI: `POST /books` gọi `startup.PrepareQuick` ngay trong request,
+                tức một lượt Arbiter thật — đo được 10,6s và 14,5s. Một nút đổi chữ thành
+                "Đang gửi…" trong mười lăm giây đọc thành treo. Nói ra ai đang làm, làm gì, và
+                mất khoảng bao lâu. */}
+            {dangGui ? (
+              <p className="dangCho" role="status">
+                <span className="q" aria-hidden="true" />
+                <span>
+                  <b>{CHU.arbiterDangDoc}</b> {GIAI_THICH.arbiterDangDocLau}
+                </span>
+              </p>
+            ) : null}
+          </form>
+        </section>
+
+        <aside className="tpmBen" aria-labelledby="tpm-buoc">
+          <h2 id="tpm-buoc">{CHU.sauKhiBamGi}</h2>
+          <ol className="tpmBuoc">
+            {(
+              [
+                ['arbiter', CHU.buocArbiter],
+                ['architect', CHU.buocArchitect],
+                ['writer', CHU.buocWriter],
+              ] as const
+            ).map(([vai, mo], i) => (
+              <li key={vai} className={dangGui && i === 0 ? 'dang' : undefined}>
+                <span className="nut" aria-hidden="true">
+                  {i + 1}
+                </span>
+                <span className="dau">
+                  <b>{nhanVai(vai)}</b>
+                  <span className="lau">{T.buocLau[i]}</span>
+                </span>
+                <span className="mo">{hoaDau(mo.trim())}</span>
+              </li>
+            ))}
+          </ol>
+          <p className="tpmGhiChu">{GIAI_THICH.batDauRoiKhongPhaiLamGi}</p>
+          {onChonKhu ? (
+            <p className="tpmBan">
+              {T.chuaRoY}{' '}
+              <button type="button" className="lienKet" onClick={() => onChonKhu('cung-dung')}>
+                {T.banTruoc}
+              </button>
             </p>
           ) : null}
-        </form>
-      </section>
-
-      <div style={{ height: 8 }} />
+        </aside>
+      </div>
     </main>
   );
 }
 
+function hoaDau(s: string): string {
+  return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+}
 
 /**
  * "Sẽ viết bằng" — vai Chấp bút và vai Kiến trúc, hai vai tiêu gần hết token của một cuốn.
@@ -224,32 +302,30 @@ function SeVietBang({
   onChonKhu,
 }: {
   du: CauHinhDoc;
-  onChonKhu?: (khu: 'cau-hinh') => void;
+  onChonKhu?: (khu: 'cau-hinh' | 'cung-dung') => void;
 }) {
   const cua = (vai: string) => {
     const r = du.roles?.[vai];
     return `${r?.provider ?? du.provider} · ${r?.model ?? du.model}`;
   };
   return (
-    <>
-      {/* Khối này PHẢI có nhãn. Không có nó, hai dòng khóa-giá trị treo giữa câu cảnh báo tiêu
-          tiền và nút Bắt đầu mà không nói chúng là gì — người dùng thấy hai tên model không rõ
-          để làm gì. Đo được khi rà lại bề mặt: đúng loại "thiếu và không mượt". */}
-      <h3 className="deNho">{CHU.seVietBang}</h3>
-      <dl className="kv kvcd">
+    <div className="tpmSe">
+      {/* Khối này PHẢI có nhãn. Không có nó, hai tên model treo cạnh nút Bắt đầu mà không nói
+          chúng là gì. */}
+      <span className="tpmSeDe">{CHU.seVietBang}</span>
+      <dl>
         <dt>{nhanKenhVai('writer')}</dt>
         <dd className="m">{cua('writer')}</dd>
         <dt>{nhanKenhVai('architect')}</dt>
         <dd className="m">{cua('architect')}</dd>
       </dl>
-      {/* Nút đứng NGOÀI `<dl>`: nhét nó vào một cặp `<dt/><dd>` với thẻ `<dt>` rỗng để lại một
-          hàng thuật ngữ trống trong danh sách định nghĩa — vô nghĩa cho cả mắt lẫn trình đọc
-          màn hình. */}
+      {/* Nút đứng NGOÀI `<dl>`: một cặp `<dt/><dd>` rỗng là một hàng thuật ngữ trống, vô nghĩa
+          cho cả mắt lẫn trình đọc màn hình. */}
       {onChonKhu ? (
-        <button type="button" className="nutPhu" onClick={() => onChonKhu('cau-hinh')}>
+        <button type="button" className="lienKet" onClick={() => onChonKhu('cau-hinh')}>
           {CHU.doiOCauHinh}
         </button>
       ) : null}
-    </>
+    </div>
   );
 }

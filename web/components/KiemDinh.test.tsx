@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { expect, test } from 'vitest';
 
+import { DOC_DUYET } from '@/lib/chu/doc-duyet';
 import { CHU, GIAI_THICH } from '@/lib/nhan';
 import type { Snapshot } from '@/lib/types';
 
@@ -51,8 +52,9 @@ test('vẽ bản duyệt của ĐÚNG chương đang chọn', () => {
   expect(container.querySelector('.duyetthan')).not.toBeNull();
   // `getByRole('heading')` chứ không phải `getByText`: tiêu đề chương hiện ở HAI chỗ trên bề
   // mặt này (danh sách chọn bên trái và đầu bản duyệt bên phải), nên một phép tra theo chữ
-  // thấy hai phần tử và đỏ vì lý do không liên quan tới điều đang canh.
-  expect(screen.getByRole('heading', { name: 'Cửa đá' })).toBeDefined();
+  // thấy hai phần tử và đỏ vì lý do không liên quan tới điều đang canh. Tiêu đề mang cả số
+  // chương ("Chương 8 · Cửa đá") — cùng một chuỗi với bề mặt đọc.
+  expect(screen.getByRole('heading', { name: DOC_DUYET.tenChuong(8, 'Cửa đá') })).toBeDefined();
 });
 
 test('chương đang chọn chưa có bản duyệt thì nói ra, không vẽ một bản duyệt rỗng', () => {
@@ -147,4 +149,28 @@ test('dải ở Kiểm định được cho biết máy đang chạy hay nghỉ'
   fireEvent.click(screen.getByRole('button', { name: CHU.traChuongVeVietLai(8) }));
   expect(screen.getByRole('button', { name: CHU.danhThucLuotMoi })).toBeDefined();
   expect(screen.queryByRole('button', { name: CHU.tiemVaoLuotDangChay })).toBeNull();
+});
+
+/* ── chỉ một phần chương có nhận xét ─────────────────────────────────── */
+
+const NHIEU = [
+  { chapter: 1, stage: 'done', title: 'Một' },
+  { chapter: 2, stage: 'done', title: 'Hai', reviewed: true },
+  { chapter: 3, stage: 'done', title: 'Ba' },
+  { chapter: 4, stage: 'done', title: 'Bốn', reviewed: true },
+  { chapter: 5, stage: 'done', title: 'Năm' },
+] as Snapshot['chapters'];
+
+test('chưa chọn chương thì mở chương CÓ nhận xét mới nhất, không phải chương 1', () => {
+  const chon: number[] = [];
+  ve({ chapters: NHIEU }, { onChonChuong: (n) => chon.push(n) });
+  expect(chon).toEqual([4]);
+});
+
+test('mục lục mặc định chỉ hiện chương có nhận xét; bấm "Tất cả" thì hiện đủ', () => {
+  const { container } = ve({ chapters: NHIEU }, { chuongChon: 4 });
+  const so = () => [...container.querySelectorAll('.mucluc .so')].map((e) => e.textContent);
+  expect(so()).toEqual(['2', '4']);
+  fireEvent.click(screen.getByRole('button', { name: DOC_DUYET.locTatCa(5) }));
+  expect(so()).toEqual(['1', '2', '3', '4', '5']);
 });

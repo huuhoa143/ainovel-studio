@@ -97,6 +97,10 @@ test('lưu khóa API xong thì `Trang` HỎI LẠI cấu hình — không bắt 
 
   fireEvent.change(ten!, { target: { value: 'thu' } });
   if (khoa) fireEvent.change(khoa, { target: { value: 'sk-khoa-gia' } });
+  // Lần đầu, nhà cung cấp này thành mặc định — phải có một model thì mới lưu được.
+  const themModel = screen.getByPlaceholderText(/Gõ tên rồi nhấn Enter/);
+  fireEvent.change(themModel, { target: { value: 'm1' } });
+  fireEvent.keyDown(themModel, { key: 'Enter' });
   fireEvent.click(screen.getByRole('button', { name: /^Lưu$/ }));
 
   await waitFor(() => expect(LUU).toHaveBeenCalled());

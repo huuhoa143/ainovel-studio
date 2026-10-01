@@ -25,7 +25,7 @@ import { expect, test } from 'vitest';
  */
 
 const css = readFileSync(
-  fileURLToPath(new URL('../app/globals.css', import.meta.url)),
+  fileURLToPath(new URL('../app/man/tu-truyen.css', import.meta.url)),
   'utf8',
 );
 
@@ -41,17 +41,16 @@ function thuocTinh(thanLuat: string, ten: string): string | undefined {
   return thanLuat.match(new RegExp(`(?:^|[;{\\s])${ten}:\\s*([^;]+);`))?.[1]?.trim();
 }
 
-const NGHI = '.bangxuong td.lam .nutXoa';
-const CHI_VAO =
-  '.bangxuong td.lam .nutXoa:hover:not(:disabled),\n.bangxuong td.lam .nutXoa:focus-visible';
+/* Nút Xóa giờ nằm trong menu "…" của thẻ truyện (bảng xưởng cũ đã bỏ). Luật vẫn là luật cũ. */
+const NGHI = '#xuong .theMenuHop .nutXoa';
+const CHI_VAO = '#xuong .theMenuHop .nutXoa:hover,\n#xuong .theMenuHop .nutXoa:focus-visible';
 
 test('lúc NGHỈ không mang màu lỗi — đỏ là màu của lỗi, xóa có chủ ý thì không', () => {
   expect(than(NGHI)).not.toContain('--red');
 });
 
-test('lúc nghỉ không tô nền và không viền màu — một khối màu mỗi hàng làm mắt nhảy', () => {
-  expect(thuocTinh(than(NGHI), 'background')).toBe('none');
-  expect(thuocTinh(than(NGHI), 'border')).toBe('1px solid transparent');
+test('lúc nghỉ không tô nền — một khối màu trong menu làm mắt nhảy tới nút phá hủy', () => {
+  expect(thuocTinh(than(NGHI), 'background')).toBeUndefined();
 });
 
 /**
@@ -61,41 +60,6 @@ test('lúc nghỉ không tô nền và không viền màu — một khối màu 
  * tới nút này của người không dùng chuột, và một nút phá hủy không được im lặng khi nó đang
  * là thứ sắp bị Enter.
  */
-test('đỏ chỉ hiện ở hover và focus-visible, và vẫn không tô nền', () => {
+test('đỏ chỉ hiện ở hover và focus-visible', () => {
   expect(than(CHI_VAO)).toContain('--red');
-  expect(thuocTinh(than(CHI_VAO), 'background')).toBeUndefined();
-});
-
-/**
- * Hai nút cùng một hàng phải cùng hệ chữ.
- *
- * Bản đầu lệch `Chi tiết` ở bốn thuộc tính một lúc (11px/500 vs 12px/400, bo 3px vs 5px, đệm
- * 4px vs 3px, có nền vs không). Bốn chỗ lệch thì không đọc ra hai cấp bậc — nó đọc ra là hỏng.
- */
-test('khớp Chi tiết từng con số: cỡ chữ, độ đậm, bo góc, đệm', () => {
-  const xoa = than(NGHI);
-  const chiTiet = than('.nutChiTiet');
-  for (const ten of ['font', 'border-radius', 'padding']) {
-    expect(thuocTinh(xoa, ten), `${ten} của Xóa phải khớp Chi tiết`).toBe(
-      thuocTinh(chiTiet, ten),
-    );
-  }
-});
-
-/**
- * Khoảng cách NGOÀI nhóm phải rộng hơn khoảng cách TRONG nhóm.
- *
- * `Chi tiết` (điều hướng) và `Xóa` (phá hủy) là hai nhóm khác nhau. Cùng khe với các nút điều
- * hướng thì chúng đọc thành một cặp cùng loại, và tay đi theo thói quen vị trí.
- */
-test('Xóa tách khỏi nhóm điều hướng bằng khe rộng hơn', () => {
-  const kheTrongNhom = Number(
-    thuocTinh(than('.bangxuong td.lam .nutPhu'), 'margin')?.split(/\s+/)[1]?.replace('px', ''),
-  );
-  const leXoa = Number(
-    thuocTinh(than(NGHI), 'margin')?.split(/\s+/)[3]?.replace('px', ''),
-  );
-  expect(Number.isFinite(kheTrongNhom), 'không đọc được khe của nhóm điều hướng').toBe(true);
-  expect(Number.isFinite(leXoa), 'Xóa phải khai lề trái').toBe(true);
-  expect(leXoa).toBeGreaterThan(kheTrongNhom);
 });

@@ -1,0 +1,687 @@
+/* Màn: cau-hinh — xem .impeccable/brief-v2.md
+   Model & khóa API (#cau-hinh), dải model của phiên đang mở (.kenhVaiPhien), ô chọn model
+   (.chonModel) và hộp chuyển nhà cung cấp (.hopxn có .bangChuyen). Mọi selector có phạm vi
+   theo một trong bốn gốc đó. */
+
+/* ── khung màn ─────────────────────────────────────────────────────────── */
+#cau-hinh .chThan {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 920px;
+  padding: 18px var(--mang) 40px;
+}
+#cau-hinh .chGioiThieu {
+  margin: 0;
+  color: var(--ink-2);
+  font: 400 13px/1.6 var(--ui);
+  max-width: 70ch;
+}
+#cau-hinh .chTrong {
+  margin: 0;
+  color: var(--ink-3);
+  font: 400 13px/1.6 var(--ui);
+}
+#cau-hinh .chTep {
+  margin: 0;
+  color: var(--ink-3);
+  font: 400 11.5px/1.6 var(--ui);
+  overflow-wrap: anywhere;
+}
+
+/* Thẻ: bề mặt chung `.the` của he.css, chỉ thêm khoảng đệm. */
+#cau-hinh .the {
+  padding: 16px 18px;
+}
+#cau-hinh .chDauThe {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+#cau-hinh .chDauThe h2 {
+  margin: 0;
+  font: 600 14px/1.3 var(--ui);
+  letter-spacing: -0.005em;
+  color: var(--ink);
+}
+#cau-hinh .chDauThe .phu {
+  color: var(--ink-3);
+  font: 400 12px/1.4 var(--ui);
+}
+#cau-hinh .chDauThe > .nutPhu {
+  margin-left: auto;
+}
+
+/* ── dải báo (lỗi tải, phiên đang mở) ──────────────────────────────────── */
+#cau-hinh .chBao {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 16px;
+  font: 400 12.5px/1.55 var(--ui);
+  color: var(--ink);
+  box-shadow: none;
+}
+#cau-hinh .chBao.amber {
+  background: color-mix(in oklab, var(--amber) 9%, var(--panel));
+  border-color: color-mix(in oklab, var(--amber) 32%, var(--line));
+}
+#cau-hinh .chBao.red {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  background: color-mix(in oklab, var(--red) 8%, var(--panel));
+  border-color: color-mix(in oklab, var(--red) 30%, var(--line));
+  color: var(--red);
+}
+#cau-hinh .chBao .phu {
+  color: var(--ink-3);
+  font-size: 12px;
+}
+#cau-hinh .chPhien {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+#cau-hinh .chPhien > span:first-child {
+  flex: 1 1 320px;
+}
+#cau-hinh .chPhienNut {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* ── trạng thái thao tác ───────────────────────────────────────────────── */
+#cau-hinh .chTT,
+.kenhVaiPhien .chTT {
+  font: 500 12px/1.4 var(--ui);
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+#cau-hinh .chTT.xong,
+.kenhVaiPhien .chTT.xong {
+  color: var(--teal);
+}
+#cau-hinh .chTT.loi,
+.kenhVaiPhien .chTT.loi {
+  color: var(--red);
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}
+#cau-hinh .chDongLoi {
+  margin: 8px 0 0;
+  color: var(--red);
+  font: 400 12px/1.55 var(--ui);
+  overflow-wrap: anywhere;
+}
+#cau-hinh .chCanhDong {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 8px 0 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: color-mix(in oklab, var(--amber) 9%, transparent);
+  color: var(--ink);
+  font: 400 12px/1.55 var(--ui);
+}
+
+/* ── thẻ Đang dùng — điểm nhấn của màn ─────────────────────────────────── */
+#cau-hinh .chMacDinh {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 14px 16px;
+  margin-bottom: 6px;
+  border-radius: 10px;
+  background: var(--panel-2);
+}
+#cau-hinh .chMacDinhChu {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+#cau-hinh .chMacDinhChu .nhan {
+  font: 500 11.5px/1.3 var(--ui);
+  color: var(--ink-3);
+}
+#cau-hinh .chMacDinhChu .phu {
+  font: 400 12px/1.5 var(--ui);
+  color: var(--ink-3);
+}
+#cau-hinh .chMacDinhNut {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* Cặp nhà cung cấp · model. Tên model là MÃ nên mono; tên nhà cung cấp là chữ giao diện. */
+#cau-hinh .chCap,
+.kenhVaiPhien .chCap {
+  display: inline-flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0 6px;
+  min-width: 0;
+  font: 500 13px/1.45 var(--ui);
+  color: var(--ink);
+}
+#cau-hinh .chCap .ncc,
+.kenhVaiPhien .chCap .ncc {
+  color: var(--ink-2);
+}
+#cau-hinh .chCap .cham,
+.kenhVaiPhien .chCap .cham {
+  color: var(--ink-3);
+}
+#cau-hinh .chCap .model,
+.kenhVaiPhien .chCap .model {
+  font: 500 12.5px/1.45 var(--mono);
+  overflow-wrap: anywhere;
+}
+#cau-hinh .chCap .phu {
+  color: var(--ink-3);
+  font: 400 12px/1.45 var(--ui);
+}
+#cau-hinh .chCap.lon {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  gap: 0 8px;
+}
+#cau-hinh .chCap.lon .model {
+  font-size: 18px;
+  font-weight: 600;
+}
+#cau-hinh .chCap.trong {
+  color: var(--ink-3);
+  font-size: 15px;
+  font-weight: 500;
+}
+#cau-hinh .chCanh {
+  margin-left: 4px;
+  align-self: center;
+}
+
+/* Bảng vai — lưới bốn cột thay cho bốn thẻ kênh xếp cạnh nhau. */
+#cau-hinh .chBangVai,
+.kenhVaiPhien .chBangVai {
+  display: flex;
+  flex-direction: column;
+}
+#cau-hinh .chDongVai,
+.kenhVaiPhien .chDongVai {
+  display: grid;
+  grid-template-columns: 130px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px 14px;
+  min-height: 46px;
+  padding: 8px 4px 8px 16px;
+  border-bottom: 1px solid var(--line-2);
+}
+#cau-hinh .chDongVai:last-child,
+.kenhVaiPhien .chDongVai:last-child {
+  border-bottom: 0;
+}
+#cau-hinh .chTenVai,
+.kenhVaiPhien .chTenVai {
+  font: 500 13px/1.3 var(--ui);
+  color: var(--ink);
+}
+#cau-hinh .chNutVai,
+.kenhVaiPhien .chNutVai {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.kenhVaiPhien .chNutVai select {
+  min-height: 30px;
+  padding: 0 8px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--ink);
+  font: 400 12px var(--ui);
+}
+
+/* ── nhà cung cấp ──────────────────────────────────────────────────────── */
+#cau-hinh .nccList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+#cau-hinh .nccMuc {
+  border: 0;
+  border-top: 1px solid var(--line-2);
+  border-radius: 0;
+  padding: 12px 2px;
+  background: none;
+}
+#cau-hinh .nccMuc:first-child {
+  border-top: 0;
+}
+#cau-hinh .nccMuc.dangSua {
+  background: none;
+}
+#cau-hinh .nccDong {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px 16px;
+}
+#cau-hinh .nccChinh {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+#cau-hinh .nccDau {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 0;
+}
+#cau-hinh .nccTen {
+  font: 600 13.5px/1.4 var(--ui);
+  color: var(--ink);
+}
+#cau-hinh .nccPhu {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+  font: 400 12px/1.5 var(--ui);
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+#cau-hinh .nccPhu .m {
+  font: 400 11.5px/1.5 var(--mono);
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+#cau-hinh .nccKetNoi {
+  justify-self: end;
+  text-align: right;
+  white-space: nowrap;
+}
+#cau-hinh .nccNut {
+  display: flex;
+  gap: 6px;
+  margin: 0;
+  flex-wrap: nowrap;
+}
+/* Xóa xám lúc nghỉ, đỏ khi trỏ tới hoặc focus — một hàng nút đỏ thường trực là tiếng báo
+   động không có gì để báo (DESIGN.md: nút xóa giữ xám tới lúc được nhắm). */
+#cau-hinh .nccNut .nguyHiem:not(:disabled):is(:hover, :focus-visible) {
+  color: var(--red);
+}
+#cau-hinh .nccMuc > .chTT {
+  display: block;
+  margin-top: 6px;
+}
+
+/* Khung sửa/thêm mở ngay dưới dòng — một khối lõm, không phải thẻ lồng thẻ. */
+#cau-hinh .chPanel {
+  margin: 12px 0 4px;
+  padding: 16px;
+  border-radius: 10px;
+  background: var(--panel-2);
+  border: 1px solid var(--line-2);
+}
+#cau-hinh .chNcc > .chPanel {
+  margin-top: 0;
+}
+
+/* ── biểu mẫu nhà cung cấp ─────────────────────────────────────────────── */
+#cau-hinh .chForm {
+  max-width: none;
+  gap: 18px;
+}
+#cau-hinh .chBuoc {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+#cau-hinh .chBuoc legend {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  margin-bottom: 10px;
+  font: 600 13px/1.3 var(--ui);
+  color: var(--ink);
+}
+#cau-hinh .chBuoc legend .so {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  background: var(--raised);
+  color: var(--ink-2);
+  font: 600 11px/1 var(--ui);
+  font-variant-numeric: tabular-nums;
+}
+#cau-hinh .chBuoc legend .phu {
+  margin-left: 4px;
+  font: 400 12px/1 var(--ui);
+  color: var(--ink-3);
+}
+#cau-hinh .chMau {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+#cau-hinh .chMauNut {
+  min-height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--ink-2);
+  font: 500 12.5px/1 var(--ui);
+  cursor: pointer;
+  transition: background 0.14s var(--ease), color 0.14s var(--ease), border-color 0.14s var(--ease);
+}
+#cau-hinh .chMauNut:hover {
+  color: var(--ink);
+  border-color: color-mix(in oklab, var(--ink) 18%, transparent);
+}
+#cau-hinh .chMauNut.dang {
+  color: var(--ink);
+  border-color: color-mix(in oklab, var(--gold) 55%, transparent);
+  background: color-mix(in oklab, var(--gold-fill) 12%, var(--panel));
+}
+
+#cau-hinh .chLuoi {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 16px;
+}
+#cau-hinh .chLuoi .rong {
+  grid-column: 1 / -1;
+}
+#cau-hinh .chForm .oNhap,
+#cau-hinh .chKhac .oNhap {
+  grid-template-columns: 1fr;
+  gap: 5px;
+  align-items: start;
+}
+#cau-hinh .oNhap > span {
+  font: 500 12px/1.4 var(--ui);
+  color: var(--ink-2);
+}
+#cau-hinh .oNhap input,
+#cau-hinh .oNhap select {
+  min-height: 34px;
+  border-radius: 8px;
+  background: var(--panel);
+}
+#cau-hinh .oNhap small {
+  font: 400 11.5px/1.45 var(--ui);
+  color: var(--ink-3);
+}
+#cau-hinh .chHangNut {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+#cau-hinh .chHangNut.cuoi {
+  padding-top: 14px;
+  border-top: 1px solid var(--line-2);
+}
+#cau-hinh .chLuoi .chHangNut.rong {
+  grid-column: 1 / -1;
+}
+#cau-hinh .chGoiY {
+  margin: 0;
+  color: var(--ink-3);
+  font: 400 12px/1.55 var(--ui);
+}
+#cau-hinh .chLoc {
+  min-height: 32px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--ink);
+  font: 400 12.5px var(--ui);
+}
+#cau-hinh .chDsChon {
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  max-height: 260px;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 2px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--line-2);
+  background: var(--panel);
+}
+#cau-hinh .chDsChon label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+#cau-hinh .chDsChon label:hover {
+  background: var(--panel-2);
+}
+#cau-hinh .chDsChon .m {
+  font: 400 12px/1.4 var(--mono);
+  color: var(--ink);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+#cau-hinh .chDsChon .phu {
+  margin-left: auto;
+  font: 400 11px/1 var(--ui);
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+#cau-hinh .chDsChon input[type='checkbox'] {
+  accent-color: var(--gold-fill);
+}
+
+/* ── thiết lập khác ────────────────────────────────────────────────────── */
+#cau-hinh .chKhac .chLuoi {
+  max-width: none;
+}
+
+/* ── ô chọn model ──────────────────────────────────────────────────────── */
+.chonModel {
+  position: relative;
+  display: inline-flex;
+}
+.chonModelPop {
+  position: absolute;
+  z-index: var(--z-pop);
+  top: calc(100% + 6px);
+  right: 0;
+  width: min(420px, 86vw);
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: var(--shadow-pop);
+  overflow: hidden;
+}
+.chonModelTim {
+  min-height: 40px;
+  padding: 0 14px;
+  border: 0;
+  border-bottom: 1px solid var(--line-2);
+  background: transparent;
+  color: var(--ink);
+  font: 400 13px var(--ui);
+}
+.chonModelTim:focus {
+  outline: none;
+}
+.chonModelDs {
+  max-height: 360px;
+  overflow-y: auto;
+  padding: 6px;
+}
+.chonModelNhom + .chonModelNhom {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--line-2);
+}
+.chonModelDauNhom {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+}
+.chonModelDauNhom .ten {
+  font: 600 11.5px/1.3 var(--ui);
+  color: var(--ink-3);
+}
+.chonModelTai {
+  margin-left: auto;
+  border: 0;
+  background: none;
+  padding: 2px 6px;
+  border-radius: 6px;
+  color: var(--ink-2);
+  font: 500 11.5px/1.3 var(--ui);
+  cursor: pointer;
+}
+.chonModelTai:hover:not(:disabled) {
+  background: var(--raised);
+  color: var(--ink);
+}
+.chonModelDong {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 4px 10px;
+  border-radius: 7px;
+  cursor: pointer;
+  color: var(--ink);
+}
+.chonModelDong.tro {
+  background: var(--raised);
+}
+.chonModelDong .m {
+  font: 400 12.5px/1.35 var(--mono);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.chonModelDong .nhan {
+  font: 400 11px/1 var(--ui);
+  color: var(--ink-3);
+}
+.chonModelDong .dau {
+  margin-left: auto;
+  color: var(--teal);
+}
+.chonModelDong.dang .m {
+  font-weight: 600;
+}
+.chonModelCon,
+.chonModelTrong,
+.chonModelLoi {
+  margin: 2px 10px 6px;
+  font: 400 11.5px/1.5 var(--ui);
+  color: var(--ink-3);
+}
+.chonModelLoi {
+  color: var(--red);
+}
+.chonModelTrong {
+  padding: 10px 0;
+}
+
+/* ── hộp chuyển nhà cung cấp ───────────────────────────────────────────── */
+.hopxn:has(.bangChuyen) {
+  max-width: min(640px, 94vw);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-pop);
+}
+.hopxn:has(.bangChuyen) .bangChuyen input {
+  border-radius: 6px;
+  min-height: 28px;
+}
+.hopxn:has(.bangChuyen) .bangChuyen .phu {
+  color: var(--ink-3);
+  font-weight: 400;
+}
+
+/* ── phiên đang mở (màn Phiên chạy) ────────────────────────────────────── */
+.kenhVaiPhien .chBangVai {
+  margin-top: 8px;
+  border: 1px solid var(--line-2);
+  border-radius: 10px;
+  background: var(--panel);
+}
+.kenhVaiPhien .chDongVai {
+  padding-left: 14px;
+}
+
+/* ── khung hẹp ─────────────────────────────────────────────────────────── */
+@media (max-width: 860px) {
+  #cau-hinh .chThan {
+    padding: 14px 14px 32px;
+  }
+  #cau-hinh .chDongVai,
+  .kenhVaiPhien .chDongVai {
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding-left: 4px;
+  }
+  #cau-hinh .chDongVai .chCap,
+  .kenhVaiPhien .chDongVai .chCap {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+  #cau-hinh .chNutVai,
+  .kenhVaiPhien .chNutVai {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+  #cau-hinh .nccDong {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  #cau-hinh .nccKetNoi {
+    justify-self: start;
+    text-align: left;
+    white-space: normal;
+  }
+  #cau-hinh .nccNut {
+    flex-wrap: wrap;
+  }
+  #cau-hinh .chLuoi {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .chonModelPop {
+    right: auto;
+    left: 0;
+  }
+}

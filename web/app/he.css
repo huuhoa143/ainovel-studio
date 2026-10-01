@@ -1,0 +1,551 @@
+/* ══ ainovel studio · hệ giao diện 2 ════════════════════════════════════════
+   Chuẩn: Linear / Raycast × Arc / Things 3. Tệp này nạp SAU globals.css: nó giữ khung app,
+   rail, thanh trạng thái và các thành phần dùng chung. Mỗi màn có tệp riêng trong
+   `app/man/*.css` để nhiều người sửa song song không giẫm lên nhau.
+
+   Quy ước:
+   - Bề mặt: --bg (nền), --panel (thẻ, khối), --panel-2 / --raised (ô nhập, hover, chip).
+   - Thẻ: bo --r-lg, viền --line, bóng --shadow. Không lồng thẻ trong thẻ.
+   - Màu chỉ dành cho bìa truyện, hành động chính (--gold-fill làm nền nút, --gold làm chữ)
+     và trạng thái dữ liệu.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+body {
+  font: 400 13px/1.55 var(--ui);
+  font-feature-settings: "cv11", "ss01";
+  background: var(--bg);
+}
+
+::selection {
+  background: color-mix(in oklab, var(--gold) 28%, transparent);
+}
+
+/* ── khung ─────────────────────────────────────────────────────────────── */
+.khung,
+.khung.rong {
+  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-columns: 236px minmax(0, 1fr) 320px;
+  grid-template-areas:
+    "rail canvas insp"
+    "rail trans trans";
+}
+.khung.rong {
+  grid-template-columns: 236px minmax(0, 1fr);
+  grid-template-areas:
+    "rail canvas"
+    "rail trans";
+}
+.khung.khongTrans,
+.khung.rong.khongTrans {
+  grid-template-rows: minmax(0, 1fr);
+}
+@media (max-width: 1240px) {
+  .khung,
+  .khung.rong {
+    grid-template-columns: 236px minmax(0, 1fr);
+    grid-template-areas:
+      "rail canvas"
+      "rail trans";
+  }
+}
+@media (max-width: 860px) {
+  .khung,
+  .khung.rong {
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "rail" "canvas" "trans";
+  }
+  .khung.khongTrans,
+  .khung.rong.khongTrans {
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+}
+
+.canvas {
+  background: var(--bg);
+}
+
+/* ── rail ──────────────────────────────────────────────────────────────── */
+.rail {
+  background: var(--bg);
+  border-right: 1px solid var(--line-2);
+  padding: 10px 10px 10px;
+  gap: 1px;
+}
+.rail .railDau {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 4px 12px 8px;
+}
+.rail .railLogo {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font: 600 14px/1 var(--ui);
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+.rail .railLogo svg {
+  width: 20px;
+  height: 20px;
+}
+.rail .railNutNho {
+  margin-left: auto;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+  border: 0;
+  background: none;
+  color: var(--ink-3);
+  cursor: pointer;
+  transition: background 0.14s var(--ease), color 0.14s var(--ease);
+}
+.rail .railNutNho:hover {
+  background: var(--raised);
+  color: var(--ink);
+}
+
+.rail .mucdi,
+.rail a,
+.rail .muc {
+  min-height: 30px;
+  padding: 5px 8px;
+  border-radius: 7px;
+  gap: 9px;
+  font: 500 13px/1.3 var(--ui);
+  color: var(--ink-2);
+}
+.rail .mucdi:hover {
+  background: var(--panel-2);
+  color: var(--ink);
+}
+.rail .mucdi[aria-current="page"] {
+  background: var(--raised);
+  color: var(--ink);
+  font-weight: 500;
+}
+.rail .mucdi[aria-current="page"] .g {
+  color: var(--ink);
+}
+.rail .g {
+  color: var(--ink-3);
+}
+.rail .n {
+  font: 500 11px var(--ui);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-3);
+}
+.rail .grp,
+.rail .railGrpSach {
+  font: 500 11.5px/1 var(--ui);
+  color: var(--ink-3);
+  padding: 16px 8px 7px;
+}
+
+.rail .railSach {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  gap: 1px;
+}
+.rail .railSachDau {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  min-height: 32px;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+.rail .railSachDau:hover {
+  background: var(--panel-2);
+}
+.rail .railSachTen {
+  font: 600 13px/1.3 var(--ui);
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rail .biaNho {
+  width: 14px;
+  height: 18px;
+  border-radius: 2px 4px 4px 2px;
+  flex: none;
+  background: var(--raised);
+  box-shadow: inset 2px 0 0 rgba(0, 0, 0, 0.22);
+}
+.rail .railCon .mucdi,
+.rail .railSach .nhomrail:not(.railCon) .mucdi {
+  padding-left: 31px;
+}
+.rail .railSach .nhomrail:not(.railCon) .grpnut {
+  padding-left: 31px;
+  font: 500 13px/1.3 var(--ui);
+  color: var(--ink-2);
+  min-height: 30px;
+  padding-top: 5px;
+  padding-bottom: 5px;
+}
+.rail .railSach .nhomrail:not(.railCon) .grpnut:hover {
+  background: var(--panel-2);
+  color: var(--ink);
+}
+.rail .railSach .nhomrail:not(.railCon) .mucnhom .mucdi {
+  padding-left: 47px;
+}
+.rail .railSach .nhomrail:not(.railCon) .mucnhom .mucdi .g {
+  display: none;
+}
+.rail .railCon .mucdi .g {
+  display: none;
+}
+.rail .railSachKhac {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-top: 2px;
+}
+.rail .mucSach .nhan {
+  font-weight: 500;
+}
+.rail .dangChayDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--teal);
+  margin-left: auto;
+  flex: none;
+}
+.rail .dauton {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--amber);
+  flex: none;
+}
+.rail .railDay {
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 0;
+}
+.rail .railKetNoi {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 8px 8px 2px;
+  font: 400 11.5px/1.3 var(--ui);
+  color: var(--ink-3);
+}
+.rail .railKetNoi .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ink-3);
+}
+.rail .railKetNoi[data-tt="song"] .dot {
+  background: var(--teal);
+}
+.rail .railKetNoi[data-tt="mat"] .dot {
+  background: var(--red);
+}
+.rail .railKetNoi[data-tt="dang-mo"] .dot {
+  background: var(--gold);
+}
+
+@media (max-width: 860px) {
+  .rail .railDau,
+  .rail .railGrpSach,
+  .rail .railKetNoi {
+    display: none;
+  }
+  .rail .railSachDau {
+    width: auto;
+    flex: none;
+  }
+  .rail .railSachKhac {
+    display: contents;
+  }
+  .rail .railCon .mucdi,
+  .rail .railSach .nhomrail:not(.railCon) .mucdi {
+    padding-left: 8px;
+  }
+}
+
+/* ── thành phần dùng chung ─────────────────────────────────────────────── */
+.head {
+  align-items: center;
+  min-height: 56px;
+  padding: 12px 24px;
+  border-bottom: 1px solid var(--line-2);
+  gap: 12px;
+}
+.head h1 {
+  font: 600 15px/1.3 var(--ui);
+  letter-spacing: -0.01em;
+}
+.head .sub {
+  color: var(--ink-3);
+  font-size: 12.5px;
+}
+
+.nutChinh,
+.nutPhu,
+.nutChiTiet,
+.vttChinh {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 30px;
+  padding: 0 12px;
+  border-radius: 8px;
+  font: 500 12.5px/1 var(--ui);
+  cursor: pointer;
+  transition: background 0.14s var(--ease), border-color 0.14s var(--ease), color 0.14s var(--ease);
+}
+.nutPhu,
+.nutChiTiet,
+.vttChinh {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  color: var(--ink);
+}
+.nutPhu:hover:not(:disabled),
+.nutChiTiet:hover:not(:disabled),
+.vttChinh:hover:not(:disabled) {
+  background: var(--panel-2);
+  border-color: color-mix(in oklab, var(--ink) 18%, transparent);
+}
+.nutChinh {
+  background: var(--gold-fill);
+  border: 1px solid transparent;
+  color: var(--tren-fill);
+  font-weight: 600;
+}
+.nutChinh:hover:not(:disabled) {
+  background: color-mix(in oklab, var(--gold-fill) 88%, var(--ink));
+}
+
+input,
+textarea,
+select {
+  font-family: inherit;
+}
+.oNhap input,
+.oNhap textarea,
+.oNhap select,
+.bieuMau input,
+.bieuMau textarea,
+.bieuMau select {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  transition: border-color 0.14s var(--ease), box-shadow 0.14s var(--ease);
+}
+.oNhap input:focus,
+.oNhap textarea:focus,
+.oNhap select:focus,
+.bieuMau input:focus,
+.bieuMau textarea:focus,
+.bieuMau select:focus {
+  outline: none;
+  border-color: color-mix(in oklab, var(--gold) 60%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--gold) 18%, transparent);
+}
+
+:focus-visible {
+  outline: 2px solid color-mix(in oklab, var(--gold) 80%, transparent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* Thanh cuộn mảnh theo bảng màu, cho mọi vùng cuộn. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklab, var(--ink) 16%, transparent) transparent;
+}
+
+/* Thẻ chuẩn — mọi khối nội dung cấp một. */
+.the {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow);
+}
+
+/* Huy hiệu trạng thái dạng viên thuốc. */
+.vien {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font: 500 11.5px/1.5 var(--ui);
+  white-space: nowrap;
+  background: var(--raised);
+  color: var(--ink-2);
+}
+.vien.teal {
+  background: color-mix(in oklab, var(--teal) 15%, transparent);
+  color: var(--teal);
+}
+.vien.gold {
+  background: color-mix(in oklab, var(--gold) 16%, transparent);
+  color: var(--gold);
+}
+.vien.amber {
+  background: color-mix(in oklab, var(--amber) 15%, transparent);
+  color: var(--amber);
+}
+.vien.red {
+  background: color-mix(in oklab, var(--red) 15%, transparent);
+  color: var(--red);
+}
+.vien.violet {
+  background: color-mix(in oklab, var(--violet) 15%, transparent);
+  color: var(--violet);
+}
+
+.daiBanDung {
+  border-radius: 0 0 12px 12px;
+  box-shadow: var(--shadow-pop);
+}
+
+/* ── thanh trạng thái ──────────────────────────────────────────────────── */
+.trans {
+  background: var(--bg);
+  border-top: 1px solid var(--line-2);
+  min-height: 46px;
+  font: 400 12px var(--ui);
+  color: var(--ink-3);
+}
+.trans .dai {
+  gap: 2px;
+  padding: 0 8px;
+  align-items: center;
+}
+.trans .cell {
+  border-right: 0;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 7px;
+  gap: 6px;
+}
+.trans .cell .lbl {
+  color: var(--ink-3);
+}
+.trans .cell .m,
+.trans .cell .model,
+.trans .cell > span:not(.lbl):not(.ky) {
+  color: var(--ink);
+  font: 500 12px var(--ui);
+  font-variant-numeric: tabular-nums;
+}
+.trans .cell.ghim {
+  background: var(--raised);
+  margin-right: 4px;
+}
+.trans .cell.ghim .m {
+  font-weight: 600;
+}
+.trans .cell.seDung .model {
+  /* Mực thường, không vàng: vàng dành cho hành động chính và chương đang viết. */
+  color: var(--ink);
+}
+.trans .dieukhien {
+  padding: 0 8px 0 4px;
+  gap: 6px;
+  align-items: center;
+}
+.dkNut {
+  min-height: 30px;
+  border-radius: 8px;
+  padding: 0 12px;
+  font: 500 12.5px/1 var(--ui);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  color: var(--ink);
+}
+.dkNut.dkChay {
+  background: var(--gold-fill);
+  border-color: transparent;
+  color: var(--tren-fill);
+  font-weight: 600;
+}
+.dkNut.dkChay:hover:not(:disabled) {
+  background: color-mix(in oklab, var(--gold-fill) 88%, var(--ink));
+}
+.dkNut.dkDung {
+  background: var(--panel);
+  border-color: color-mix(in oklab, var(--amber) 55%, transparent);
+  color: var(--amber);
+}
+.dkNut.dkPhu {
+  background: none;
+  border-color: transparent;
+  color: var(--ink-3);
+  text-decoration: none;
+}
+.dkNut.dkPhu:hover:not(:disabled) {
+  background: var(--panel-2);
+  color: var(--ink);
+}
+.dkChon {
+  background: var(--raised);
+  border-radius: 8px;
+  padding: 2px;
+  gap: 2px;
+}
+.dkChonNut {
+  border-radius: 6px;
+  border: 0;
+  min-height: 26px;
+  padding: 0 10px;
+  font: 500 12px var(--ui);
+  background: none;
+  color: var(--ink-3);
+}
+.dkChonNut.dkBat {
+  background: var(--panel);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+}
+.dkChonDe {
+  display: none;
+}
+.rail .railChoDuyet {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 2px 0 4px 23px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in oklab, var(--violet) 40%, transparent);
+  background: color-mix(in oklab, var(--violet) 12%, transparent);
+  color: var(--violet);
+  font: 500 12px/1.3 var(--ui);
+  text-align: left;
+  cursor: pointer;
+}
+.rail .railChoDuyet .dauton {
+  background: var(--violet);
+}
+.rail .railChoDuyet:hover {
+  background: color-mix(in oklab, var(--violet) 18%, transparent);
+}
+.rail .mucSach .thuMuc {
+  font: 400 11.5px var(--mono);
+  color: var(--ink-3);
+}

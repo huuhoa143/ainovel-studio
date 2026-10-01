@@ -1,39 +1,44 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { expect, test, vi } from 'vitest';
 
-import { CHU } from '@/lib/nhan';
+import { TU_TRUYEN } from '@/lib/chu/tu-truyen';
+import { CHU, DH } from '@/lib/nhan';
 
 import { Xuong } from './Xuong';
 import { sach, tongGia } from './mau.test-helper';
 
 /**
- * Bề mặt Xưởng: dải tổng và bảng một dòng một cuốn.
+ * Bề mặt Tủ truyện: lời chào + ba ô số, khối "cần bạn", và kệ một thẻ một cuốn.
  *
  * # Mỗi khẳng định "chưa đo được" đi kèm khẳng định NGƯỢC LẠI
  *
- * Bốn bài dưới đây hỏi "cuốn chưa chạy thì ô này để trống". Một bề mặt vẽ dấu `—` cho MỌI
- * cuốn cũng thỏa cả bốn — và lúc đó nó giấu đúng những con số mà cả màn hình này tồn tại để
- * hiện. Nên mỗi bài đều dựng HAI cuốn: một cuốn chưa đo được và một cuốn có số thật, rồi đòi
- * cả hai điều cùng lúc. Đây là bài học "bảng đột biến chỉ canh chiều nghịch là bảng nói dối"
- * của cụm B, dịch sang bộ kiểm.
+ * Bài hỏi "cuốn chưa chạy thì không in số này" được thỏa bởi một bề mặt giấu số đó cho MỌI
+ * cuốn — và lúc đó nó giấu đúng những con số mà màn hình này tồn tại để hiện. Nên mỗi bài đều
+ * dựng HAI cuốn: một cuốn chưa đo được và một cuốn có số thật, rồi đòi cả hai điều cùng lúc.
  */
 function ve(...s: Parameters<typeof sach>[0][]) {
   return render(<Xuong sach={s.map((p) => sach(p))} tong={tongGia()} onChonKhu={() => {}} onMoTacPham={() => {}} onXoaXong={() => {}} />);
 }
 
-/** Chữ của từng ô trong dải tổng, theo đúng thứ tự vẽ. */
+/** Chữ của từng ô số cạnh lời chào, theo đúng thứ tự vẽ. */
 function oTong(container: HTMLElement): (string | null)[] {
   return [...container.querySelectorAll('.xtong .o')].map((e) => e.textContent);
 }
 
-/** Một dòng của bảng, tra theo mã cuốn. */
-function dong(container: HTMLElement, ma: string): HTMLElement {
-  const tr = container.querySelector<HTMLElement>(`tbody tr[data-ma="${ma}"]`);
-  if (!tr) throw new Error(`không có dòng nào cho cuốn ${ma}`);
-  return tr;
+/** Thẻ của một cuốn, tra theo mã cuốn. */
+function the(container: HTMLElement, ma: string): HTMLElement {
+  const li = container.querySelector<HTMLElement>(`.keLuoi [data-ma="${ma}"]`);
+  if (!li) throw new Error(`không có thẻ nào cho cuốn ${ma}`);
+  return li;
 }
 
-test('dải tổng hiện năm con số của cả xưởng', () => {
+/** Mở menu "…" của một thẻ, trả về nhãn các mục theo thứ tự. */
+function moMenu(container: HTMLElement, ma: string): HTMLElement[] {
+  fireEvent.click(the(container, ma).querySelector('.theMenuNut')!);
+  return [...the(container, ma).querySelectorAll<HTMLElement>('[role="menuitem"]')];
+}
+
+test('ba ô số của cả tủ: chương đã xong, số từ, đã tiêu', () => {
   const { container } = ve(
     { id: 'a', completed_chapters: 3, total_words: 5305, cost_usd: 1.67, engine_open: true },
     { id: 'b', completed_chapters: 2, total_words: 3000, cost_usd: 0.9 },
@@ -42,50 +47,52 @@ test('dải tổng hiện năm con số của cả xưởng', () => {
   // Viết THẲNG chuỗi mong đợi, không dựng lại bằng `tongXuong` hay `so()`: một bài kiểm gọi
   // đúng hàm mà bề mặt gọi thì nó chỉ chứng minh hai lời gọi giống nhau, kể cả khi cả hai
   // cùng sai. Con số ở đây tính tay: 3+2 chương, 5305+3000 từ, 167+90 xu.
-  expect(oTong(container)).toEqual([
-    '2 tác phẩm',
-    '5 chương đã chốt',
-    '8.305 từ',
-    '$2,57 đã tiêu',
-    '1 engine đang mở',
-  ]);
+  expect(oTong(container)).toEqual(['5 chương đã xong', '8.305 từ', '$2,57 đã tiêu']);
+
+  // Hai con số còn lại của bản cũ (số truyện, phiên đang mở) không mất — chúng lùi xuống khối
+  // "Toàn tủ" ở cuối màn.
+  const toan = container.querySelector('.tuToan')!.textContent ?? '';
+  expect(toan).toContain(`${TU_TRUYEN.soTruyen}2`);
+  expect(toan).toContain(`${TU_TRUYEN.phienDangMo}1`);
 });
 
-test('mỗi cuốn đúng MỘT dòng, và mã cuốn hiện ra kể cả khi hai cuốn trùng tên', () => {
+test('ô tiền mang MẪU SỐ khi chỉ đo được một phần tủ', () => {
+  const { container } = render(
+    <Xuong
+      sach={[sach({ id: 'a', cost_usd: 7.37 }), sach({ id: 'b' }), sach({ id: 'c' })]}
+      tong={tongGia({ books: [{ id: 'a' }, { id: 'b' }, { id: 'c' }] as never, counted: 1 })}
+      onChonKhu={() => {}}
+      onMoTacPham={() => {}}
+      onXoaXong={() => {}}
+    />,
+  );
+  expect(container.querySelector('.xtong .o:last-child .mauSo')?.textContent).toBe(CHU.doDuocO(1, 3));
+});
+
+test('mỗi cuốn đúng MỘT thẻ, và mã cuốn hiện ra kể cả khi hai cuốn trùng tên', () => {
   // `id` là tên thư mục và cũng là khóa trong URL (`?tp=`), nên nó là thứ duy nhất phân biệt
-  // được hai dòng. Bỏ nó đi thì hai cuốn ở hai thư mục khác nhau hiện y hệt nhau và người
-  // vận hành mở sai cuốn mà không có cách nào biết — cùng lý do đã ghi ở `ThanhTren.tsx`.
+  // được hai thẻ. Bỏ nó đi thì hai cuốn ở hai thư mục khác nhau hiện y hệt nhau.
   const { container } = ve({ id: 'mac-the', name: 'Mặc Thế' }, { id: 'mac-the-2', name: 'Mặc Thế' });
 
-  expect(container.querySelectorAll('tbody tr')).toHaveLength(2);
-  expect(screen.getAllByText('Mặc Thế')).toHaveLength(2);
-  expect(screen.getByText('mac-the')).toBeDefined();
-  expect(screen.getByText('mac-the-2')).toBeDefined();
+  expect(container.querySelectorAll('.keLuoi [data-ma]')).toHaveLength(2);
+  expect(the(container, 'mac-the').querySelector('.tenNut .ma')?.textContent).toBe('mac-the');
+  expect(the(container, 'mac-the-2').querySelector('.tenNut .ma')?.textContent).toBe('mac-the-2');
+  expect(screen.getAllByRole('button', { name: /Mặc Thế/ }).filter((b) => b.classList.contains('tenNut'))).toHaveLength(2);
 });
 
 test('cuốn chưa đặt tên hiện MÃ thay cho tên, không hiện một ô trống', () => {
   const { container } = ve({ id: 'chua-dat-ten', name: '' });
-  expect(dong(container, 'chua-dat-ten').querySelector('.ten')?.textContent).toBe(
-    'chua-dat-ten',
-  );
+  expect(the(container, 'chua-dat-ten').querySelector('.tenNut')?.textContent).toBe('chua-dat-ten');
 });
 
-test('nhịp: cuốn chưa chạy để TRỐNG, cuốn đã chạy hiện số — không phải `0 ch/giờ`', () => {
+test('nhịp: cuốn chưa chạy KHÔNG in `0 chương/giờ`, cuốn đã chạy hiện số', () => {
   // `0 ch/giờ` nói cuốn đó CÓ chạy mà chưa xong nổi một chương trong một giờ. Cuốn chưa chạy
   // lần nào thì không có nhịp để nói.
-  const { container } = ve(
-    { id: 'im', chapters_per_hour: 0 },
-    { id: 'chay', chapters_per_hour: 4.4 },
-  );
+  const { container } = ve({ id: 'im', chapters_per_hour: 0 }, { id: 'chay', chapters_per_hour: 4.4 });
 
-  const o = dong(container, 'im').querySelector('.nhip');
-  expect(o?.textContent).toBe(CHU.khongCo);
-  // Dấu trống phải nói ra VÌ SAO trống; không thì người vận hành không biết đó là chưa chạy
-  // hay studio hỏng.
-  expect(o?.querySelector('[title]')).not.toBeNull();
-  expect(dong(container, 'im').textContent).not.toContain('0 chương/giờ');
-
-  expect(dong(container, 'chay').querySelector('.nhip')?.textContent).toContain('4,4');
+  expect(the(container, 'im').querySelector('.nhip')).toBeNull();
+  expect(the(container, 'im').textContent).not.toContain('0 chương/giờ');
+  expect(the(container, 'chay').querySelector('.nhip')?.textContent).toContain('4,4');
 });
 
 test('giá thành mỗi chương: cùng luật đó — 0 là chưa đo được, không phải $0,000', () => {
@@ -94,45 +101,49 @@ test('giá thành mỗi chương: cùng luật đó — 0 là chưa đo được
     { id: 'chay', cost_usd: 1.2, cost_per_chapter: 0.835 },
   );
 
-  const o = dong(container, 'im').querySelector('.donGia');
-  expect(o?.textContent).toBe(CHU.khongCo);
-  expect(o?.querySelector('[title]')).not.toBeNull();
-
-  expect(dong(container, 'chay').querySelector('.donGia')?.textContent).toContain('$0,835');
+  expect(the(container, 'im').querySelector('.donGia')).toBeNull();
+  expect(the(container, 'im').textContent).not.toContain('$0,000');
+  expect(the(container, 'chay').querySelector('.donGia')?.textContent).toContain('$0,835');
 });
 
 test('chi phí TỔNG bằng 0 vẫn in ra $0,00 — đó là một phép đo, không phải chỗ trống', () => {
-  // Ranh giới với hai bài trên, và nó là ranh giới thật: xưởng ĐÃ đo được là cuốn này chưa
-  // tốn gì. Gộp nó vào "chưa đo được" là vứt đi một câu trả lời có thật.
   const { container } = ve({ id: 'moi', cost_usd: 0 });
-  expect(dong(container, 'moi').querySelector('.tong')?.textContent).toBe('$0,00');
+  expect(the(container, 'moi').querySelector('.tong')?.textContent).toBe('$0,00');
 });
 
-test('sửa lần cuối: vắng thì để trống, có thì hiện ngày — không bao giờ hiện Invalid Date', () => {
+test('trạng thái: đang viết nói chương nào, tạm nghỉ nói từ bao giờ, hoàn thành nói hoàn thành', () => {
+  const gioTruoc = new Date(Date.now() - 3 * 3600 * 1000).toISOString();
   const { container } = ve(
-    { id: 'khong' },
-    { id: 'co', updated_at: '2026-07-31T16:11:20Z' },
-    // Một mốc hỏng ở dữ liệu không được biến thành chữ "Invalid Date" trên màn hình.
-    { id: 'hong', updated_at: 'khong-phai-ngay' },
+    { id: 'chay', activity: 'running', phase: 'writing', completed_chapters: 725 },
+    { id: 'nghi', activity: 'idle', phase: 'writing', updated_at: gioTruoc },
+    { id: 'xong', activity: 'idle', phase: 'complete' },
+    // Mốc hỏng ở dữ liệu không được biến thành "Invalid Date" hay "NaN" trên màn hình.
+    { id: 'hong', activity: 'idle', phase: 'writing', updated_at: 'khong-phai-ngay' },
   );
 
-  expect(dong(container, 'khong').querySelector('.sua')?.textContent).toBe(CHU.khongCo);
-  expect(dong(container, 'hong').querySelector('.sua')?.textContent).toBe(CHU.khongCo);
+  expect(the(container, 'chay').querySelector('.theTT')?.textContent).toBe(TU_TRUYEN.dangVietChuong(726));
+  expect(the(container, 'chay').querySelector('.cham.gold')).not.toBeNull();
 
-  const co = dong(container, 'co').querySelector('.sua')?.textContent ?? '';
-  expect(co).not.toBe(CHU.khongCo);
-  expect(co).not.toContain('Invalid');
-  expect(co).toContain('2026');
+  const nghi = the(container, 'nghi').querySelector('.theTT')?.textContent ?? '';
+  expect(nghi).toContain(TU_TRUYEN.tamNghi);
+  expect(nghi).toContain('3 giờ trước');
+
+  expect(the(container, 'xong').querySelector('.theTT')?.textContent).toBe(TU_TRUYEN.hoanThanh);
+  expect(the(container, 'xong').querySelector('.cham.teal')).not.toBeNull();
+
+  const hong = the(container, 'hong').querySelector('.theTT')?.textContent ?? '';
+  expect(hong).toBe(TU_TRUYEN.tamNghi);
+  expect(hong).not.toMatch(/Invalid|NaN/);
 });
 
-test('dòng của cuốn đang mở engine mang chữ và lớp riêng; dòng khác KHÔNG mang', () => {
+test('thẻ của cuốn đang mở engine mang chữ và lớp riêng; thẻ khác KHÔNG mang', () => {
   const { container } = ve({ id: 'mo', engine_open: true }, { id: 'dong', engine_open: false });
 
-  const mo = dong(container, 'mo');
+  const mo = the(container, 'mo');
   expect(mo.className).toContain('engmo');
   expect(mo.textContent).toContain(CHU.engineDangMo);
 
-  const d = dong(container, 'dong');
+  const d = the(container, 'dong');
   expect(d.className).not.toContain('engmo');
   expect(d.textContent).not.toContain(CHU.engineDangMo);
 });
@@ -145,96 +156,90 @@ test('tiến độ: số đi kèm thanh, và thanh KHÔNG vẽ khi chưa biết 
     { id: 'chua', completed_chapters: 3, total_chapters: 0 },
   );
 
-  const biet = dong(container, 'biet').querySelector('.tiendo');
-  expect(biet?.textContent).toContain('3/12');
-  expect(biet?.querySelector('.thanh .day')).not.toBeNull();
+  const biet = the(container, 'biet').querySelector('.tiendo');
+  expect(biet?.textContent).toContain('3 / 12 chương');
+  expect(biet?.textContent).toContain('25%');
+  expect(biet?.querySelector<HTMLElement>('.thanh .day')?.style.width).toBe('25%');
 
-  const chua = dong(container, 'chua').querySelector('.tiendo');
+  const chua = the(container, 'chua').querySelector('.tiendo');
   expect(chua?.textContent).toContain('3');
+  expect(chua?.textContent).toContain(TU_TRUYEN.chuaBietTong);
   expect(chua?.querySelector('.thanh .day')).toBeNull();
 });
 
-test('lời giải "vì sao không có nút chạy" vẫn còn, nhưng ở CHÚ GIẢI của nút Chi tiết', () => {
-  // Không tìm thấy nút chạy mà không có lời giải thích là một khoảng lặng người vận hành
-  // phải tự lấp bằng phỏng đoán. Lời giải đó vẫn bắt buộc phải tồn tại — bài này giữ nguyên
-  // yêu cầu ấy, chỉ đổi chỗ nó phải nằm.
-  //
-  // Vì sao đổi chỗ: ĐO ĐƯỢC ở 1512×900, bản trước in hai đoạn văn biện giải cao 110px ngay
-  // dưới một bảng cao 182px — lời giải thích nặng bằng hơn nửa thứ nó giải thích, ở giữa màn
-  // mở đầu. Nó về `title` của đúng chỗ người dùng sẽ hỏi (nút đi vào một cuốn), chứ không
-  // biến mất.
-  const { container } = ve({ id: 'a' });
-  const nut = container.querySelector('.nutChiTiet');
-  expect(nut?.getAttribute('title')).toContain('một đường tiêu tiền duy nhất');
-  // Và nó KHÔNG còn nằm trong thân màn: một màn quản lý đang xin lỗi vì chính nó thì không
-  // còn là màn quản lý.
+test('bấm thẻ (nút tên) mở đúng truyện đó ở Tiến độ', () => {
+  const mo = vi.fn();
+  const { container } = render(
+    <Xuong sach={[sach({ id: 'a' }), sach({ id: 'b' })]} tong={tongGia()} onChonKhu={() => {}} onMoTacPham={mo} onXoaXong={() => {}} />,
+  );
+  // Nút đầu tiên trong thẻ PHẢI là nút mở: nó căng phủ cả thẻ, và `app/page.test.tsx` dựa vào
+  // thứ tự này để nối đúng hành động thật.
+  expect(the(container, 'b').querySelector('button')).toBe(the(container, 'b').querySelector('.tenNut'));
+  fireEvent.click(the(container, 'b').querySelector('.tenNut')!);
+  // Mã cuốn phải là mã của THẺ, không phải cuốn đang xem. Đây là chỗ lỗi ref-trễ đã đo được
+  // hai lần trong dự án này rơi vào.
+  expect(mo).toHaveBeenCalledWith('b', 'dong-san-xuat');
   expect(container.textContent).not.toContain('một đường tiêu tiền duy nhất');
 });
 
-/* ── hành động trên mỗi dòng ──────────────────────────────────────────── */
+/* ── menu "…" ───────────────────────────────────────────────────────────── */
 
-test('cuốn chưa xong chỉ có `Chi tiết`, và nó đi tới xưởng sản xuất của ĐÚNG cuốn đó', () => {
-  const mo = vi.fn();
-  const { container } = render(
-    <Xuong sach={[sach({ id: 'a' }), sach({ id: 'b', phase: 'writing' })]} tong={tongGia()} onChonKhu={() => {}} onMoTacPham={mo} onXoaXong={() => {}} />,
-  );
-
-  const nut = [...dong(container, 'b').querySelectorAll('button')].map((n) => n.textContent);
-  expect(nut).toEqual([CHU.chiTiet, CHU.xoaTacPham]);
-
-  fireEvent.click(dong(container, 'b').querySelector('button')!);
-  // Mã cuốn phải là mã của DÒNG, không phải cuốn đang xem. Đây là chỗ lỗi ref-trễ đã đo được
-  // hai lần trong dự án này rơi vào.
-  expect(mo).toHaveBeenCalledWith('b', 'dong-san-xuat');
+test('thao tác phụ KHÔNG phơi trên thẻ: Đọc, Xuất bản, Xóa chỉ hiện khi mở menu', () => {
+  const { container } = ve({ id: 'xong', phase: 'complete', completed_chapters: 4 });
+  const nhan = [...the(container, 'xong').querySelectorAll('button')].map((n) => n.textContent);
+  expect(nhan).not.toContain(TU_TRUYEN.docTruyen);
+  expect(nhan).not.toContain(TU_TRUYEN.xoaTruyen);
+  expect(the(container, 'xong').querySelector('[role="menu"]')).toBeNull();
 });
 
-test('cuốn đã hoàn thành có đủ ba: Chi tiết · Đọc · Xuất bản', () => {
+test('cuốn chưa có chương nào: menu chỉ có Xóa', () => {
+  const { container } = ve({ id: 'b', phase: 'writing' });
+  expect(moMenu(container, 'b').map((n) => n.textContent)).toEqual([TU_TRUYEN.xoaTruyen]);
+});
+
+test('cuốn đã hoàn thành: menu có đủ Đọc · Xuất bản · Xóa, và mỗi mục đi đúng chỗ', () => {
   const mo = vi.fn();
   const { container } = render(
     <Xuong sach={[sach({ id: 'xong', phase: 'complete' })]} tong={tongGia()} onChonKhu={() => {}} onMoTacPham={mo} onXoaXong={() => {}} />,
   );
 
-  const nut = [...dong(container, 'xong').querySelectorAll('button')];
-  expect(nut.map((n) => n.textContent)).toEqual([
-    CHU.chiTiet,
-    CHU.docTacPham,
-    CHU.xuatBan,
-    CHU.xoaTacPham,
-  ]);
+  const muc = moMenu(container, 'xong');
+  expect(muc.map((n) => n.textContent)).toEqual([TU_TRUYEN.docTruyen, TU_TRUYEN.xuatBan, TU_TRUYEN.xoaTruyen]);
 
-  fireEvent.click(nut[1]!);
+  fireEvent.click(muc[0]!);
   // Chương 1 đi CÙNG lời gọi, không phải một lời gọi thứ hai: hai lần ghi URL thì lần sau
   // xóa tham số của lần trước, và `?ch=` là thứ bị mất.
   expect(mo).toHaveBeenLastCalledWith('xong', 'ban-thao', 1);
+  // Chọn xong thì menu đóng.
+  expect(the(container, 'xong').querySelector('[role="menu"]')).toBeNull();
 
-  fireEvent.click(nut[2]!);
+  fireEvent.click(moMenu(container, 'xong')[1]!);
   expect(mo).toHaveBeenLastCalledWith('xong', 'nhap-xuat');
 });
 
-test('KHÔNG có nút Chạy, Dừng, Xóa hay Đổi tên trên bề mặt này', () => {
+test('Escape đóng menu và trả focus về nút "…"', () => {
+  const { container } = ve({ id: 'a', completed_chapters: 1 });
+  const muc = moMenu(container, 'a');
+  expect(document.activeElement).toBe(muc[0]);
+  fireEvent.keyDown(muc[0]!, { key: 'Escape' });
+  expect(the(container, 'a').querySelector('[role="menu"]')).toBeNull();
+  expect(document.activeElement).toBe(the(container, 'a').querySelector('.theMenuNut'));
+});
+
+test('KHÔNG có nút Chạy, Dừng hay Đổi tên trên bề mặt này', () => {
   // Hàng rào chống một lần "tiện tay thêm nút" trong tương lai. Nó canh quyết định 4 của
-  // spec §4, và CỐ Ý không còn canh quyết định 8:
-  //
-  //   4 — chạy chỉ có ở transport, một đường tiêu tiền duy nhất. Hai nút cùng gọi POST /run
-  //       thì trạng thái khóa-lúc-đang-gửi của chúng không thấy nhau, nên bấm cả hai là trả
-  //       tiền hai lần. Và đây là bề mặt người ta QUÉT MẮT, không phải bề mặt để quyết định.
-  //   8 — ĐÃ ĐẢO. Xem chú thích đầu Xuong.tsx: tiền đề "mọi cuốn đều là hàng giờ chạy và
-  //       hàng chục đô" sai — ba cuốn 0 chương do tạo hỏng đã nằm lại trên bảng này và chỉ
-  //       gỡ được bằng `rm -rf` ngoài terminal. Xóa giờ CÓ, và bài kiểm ngay dưới canh nó.
-  //
-  // Đổi tên vẫn không: tên thư mục đi vào đường dẫn của mọi tệp trong cuốn.
-  //
-  // Dựng đủ cả cuốn đang chạy lẫn cuốn đã xong: nút chạy, nếu ai đó thêm, nhiều khả năng chỉ
-  // hiện ở một trong hai ca.
-  render(
+  // spec §4: chạy chỉ có ở thanh dưới, một đường tiêu tiền duy nhất. Đổi tên vẫn không: tên
+  // thư mục đi vào đường dẫn của mọi tệp trong cuốn. Mở cả menu để đếm luôn các mục trong đó.
+  const { container } = render(
     <Xuong
       sach={[
-        sach({ id: 'a', phase: 'writing', engine_open: true }),
+        sach({ id: 'a', phase: 'writing', engine_open: true, activity: 'running' }),
         sach({ id: 'b', phase: 'complete' }),
       ]}
       tong={tongGia()} onChonKhu={() => {}} onMoTacPham={() => {}} onXoaXong={() => {}}
     />,
   );
+  moMenu(container, 'b');
 
   const nhan = screen.getAllByRole('button').map((n) => n.textContent ?? '');
   expect(nhan.length).toBeGreaterThan(0);
@@ -244,94 +249,122 @@ test('KHÔNG có nút Chạy, Dừng, Xóa hay Đổi tên trên bề mặt này
 });
 
 /**
- * Xóa phải đứng CUỐI hàng, sau mọi nút điều hướng.
- *
- * Không phải chuyện thẩm mỹ: tay người ta đi theo thói quen vị trí, nên một hành động không
- * hoàn tác được nằm xen giữa `Chi tiết` và `Đọc` là mời bấm nhầm. Bài này khóa vị trí đó lại.
+ * Xóa phải đứng CUỐI menu, sau mọi mục điều hướng: tay người ta đi theo thói quen vị trí, nên
+ * một hành động không hoàn tác được nằm xen giữa `Đọc` và `Xuất bản` là mời bấm nhầm.
  */
-test('nút Xóa đứng cuối hàng, sau mọi nút điều hướng', () => {
-  const { container } = render(
-    <Xuong
-      sach={[sach({ id: 'xong', phase: 'complete' })]}
-      tong={tongGia()}
-      onChonKhu={() => {}}
-      onMoTacPham={() => {}}
-      onXoaXong={() => {}}
-    />,
-  );
-  const nhan = [...dong(container, 'xong').querySelectorAll('button')].map((n) => n.textContent);
-  expect(nhan.at(-1)).toBe(CHU.xoaTacPham);
+test('Xóa đứng cuối menu, sau mọi mục điều hướng', () => {
+  const { container } = ve({ id: 'xong', phase: 'complete' });
+  expect(moMenu(container, 'xong').at(-1)?.textContent).toBe(TU_TRUYEN.xoaTruyen);
 });
 
 /**
- * Bấm Xóa MỞ hộp xác nhận, không xóa ngay.
- *
- * Đây là lớp chặn gần người dùng nhất. Server còn đòi gõ lại đúng tên nữa, nhưng một giao diện
- * xóa ngay khi bấm là giao diện sai kể cả khi server cứu được.
- *
- * Bài này thay bài cũ rình `window.confirm`: hộp gốc của trình duyệt đã bị thay bằng
- * `<dialog>` vì nó dựng một hộp nền sáng mang tiêu đề `127.0.0.1:8420 says` giữa giao diện
- * nền tối — xem chú thích đầu components/HopXacNhan.tsx.
+ * Bấm Xóa MỞ hộp xác nhận, không xóa ngay. Server còn đòi gõ lại đúng tên nữa, nhưng một giao
+ * diện xóa ngay khi bấm là giao diện sai kể cả khi server cứu được.
  */
 test('bấm Xóa mở hộp xác nhận, và hộp nói ra CÁI MẤT', () => {
-  const { container } = render(
-    <Xuong
-      sach={[sach({ id: 'a', completed_chapters: 2, cost_usd: 1.5 })]}
-      tong={tongGia()}
-      onChonKhu={() => {}}
-      onMoTacPham={() => {}}
-      onXoaXong={() => {}}
-    />,
-  );
+  const { container } = ve({ id: 'a', completed_chapters: 2, cost_usd: 1.5 });
   const hop = container.querySelector('dialog.hopxn')!;
   expect(hop).not.toBeNull();
   expect(hop.hasAttribute('open')).toBe(false);
 
-  fireEvent.click([...dong(container, 'a').querySelectorAll('td.lam button')].at(-1)!);
+  fireEvent.click(moMenu(container, 'a').at(-1)!);
 
   expect(hop.hasAttribute('open')).toBe(true);
-  // Số chương và số tiền là hai con số BUỘC phải đọc trước khi xóa.
   expect(hop.textContent).toContain('2 chương');
   expect(hop.textContent).toMatch(/1[.,]50/);
 });
 
-/**
- * Focus mặc định vào HỦY, không vào Xóa.
- *
- * Người ta bấm Enter theo phản xạ khi một hộp bật lên, nên Enter phải rơi vào nút KHÔNG làm gì.
- */
+/** Người ta bấm Enter theo phản xạ khi một hộp bật lên, nên Enter phải rơi vào nút KHÔNG làm gì. */
 test('hộp xác nhận đặt focus vào Hủy', () => {
-  const { container } = render(
-    <Xuong
-      sach={[sach({ id: 'a' })]}
-      tong={tongGia()}
-      onChonKhu={() => {}}
-      onMoTacPham={() => {}}
-      onXoaXong={() => {}}
-    />,
-  );
-  fireEvent.click([...dong(container, 'a').querySelectorAll('td.lam button')].at(-1)!);
+  const { container } = ve({ id: 'a' });
+  fireEvent.click(moMenu(container, 'a').at(-1)!);
   expect(document.activeElement?.textContent).toBe(CHU.huy);
 });
 
-test('mỗi ô số mang NHÃN CỘT của nó, và nhãn đó đúng bằng nhãn ở `thead`', () => {
-  // Dưới 860px bảng đổi sang thẻ xếp dọc và `thead` biến mất; nhãn cột lúc đó chỉ còn tồn tại
-  // ở `data-nhan` của từng ô, mà CSS đọc lại bằng `attr()`. Bỏ một `data-nhan` thì ô đó thành
-  // một con số không tên trên điện thoại — và KHÔNG có gì đỏ: bộ kiểm này chạy trong jsdom,
-  // nơi không có bố cục nên không có điểm ngắt nào, và bảng ở đây luôn là bảng.
-  //
-  // Bài này canh cả hai chiều: ô nào cũng phải có nhãn, VÀ nhãn phải là nhãn của đúng cột đó
-  // (một `data-nhan` chép nhầm khóa `CHU` vẫn có mặt, vẫn hiện ra, và vẫn sai).
-  const { container } = ve({ id: 'a', chapters_per_hour: 3.4, updated_at: '2026-07-30T10:41:07Z' });
-  const cot = [...container.querySelectorAll('thead th')].map((e) => e.textContent);
-  const o = [...dong(container, 'a').querySelectorAll('td')];
-  expect(o).toHaveLength(cot.length);
+/* ── lời chào, tóm tắt, khối cần bạn ───────────────────────────────────── */
 
-  // Cột 1 (tên) là tiêu đề của thẻ và cột cuối (hành động) là hàng nút — hai ô đó tự nói ra
-  // chúng là gì, nên chúng cố ý KHÔNG mang nhãn. Sáu ô giữa thì phải mang.
-  expect(o[0]!.getAttribute('data-nhan')).toBeNull();
-  expect(o[cot.length - 1]!.getAttribute('data-nhan')).toBeNull();
-  for (let i = 1; i < cot.length - 1; i++) {
-    expect(o[i]!.getAttribute('data-nhan')).toBe(cot[i]);
-  }
+test('dòng tóm tắt nói truyện đang viết, và tên đó bấm được để mở', () => {
+  const mo = vi.fn();
+  const { container } = render(
+    <Xuong
+      sach={[sach({ id: 'a', name: 'Ông Trùm', activity: 'running', engine_open: true }), sach({ id: 'b' })]}
+      tong={tongGia()}
+      onChonKhu={() => {}}
+      onMoTacPham={mo}
+      onXoaXong={() => {}}
+    />,
+  );
+  const tt = container.querySelector('.tuTomTat')!;
+  expect(tt.textContent).toBe(`${TU_TRUYEN.tomTatDangViet}Ông Trùm, ${TU_TRUYEN.tomTatKhongViec}`);
+  fireEvent.click(tt.querySelector('button')!);
+  expect(mo).toHaveBeenCalledWith('a', 'dong-san-xuat');
+});
+
+test('khối "Cần bạn xem" ẩn khi không có việc, hiện kèm lý do khi có', () => {
+  const khong = ve({ id: 'a' });
+  expect(khong.container.querySelector('.daicanban')).toBeNull();
+  expect(khong.container.querySelector('.tuTomTat')?.textContent).toBe('Chưa có việc nào cần bạn.');
+  khong.unmount();
+
+  const mo = vi.fn();
+  const { container } = render(
+    <Xuong
+      sach={[sach({ id: 'a', name: 'Truyện A' }), sach({ id: 'b' })]}
+      tong={tongGia({
+        books: [
+          {
+            id: 'a',
+            cost_state: 'ready',
+            cost_usd: 0,
+            saved_usd: 0,
+            advance_mode: 'review',
+            advance_hold: true,
+            advance_hold_reason: 'đọc lại hồi 2',
+            pending_steer: false,
+          },
+        ],
+      })}
+      onChonKhu={() => {}}
+      onMoTacPham={mo}
+      onXoaXong={() => {}}
+    />,
+  );
+  const khoi = container.querySelector('.daicanban.cocho')!;
+  expect(khoi).not.toBeNull();
+  expect(khoi.textContent).toContain('Truyện A');
+  expect(khoi.textContent).toContain(CHU.daKyTamDung);
+  expect(khoi.textContent).toContain('đọc lại hồi 2');
+  expect(container.querySelector('.tuTomTat')?.textContent).toBe('Một truyện có việc cần bạn.');
+  // Thẻ của cuốn đó cũng mang viên amber, để quét kệ vẫn thấy.
+  expect(the(container, 'a').querySelector('.vien.amber')?.textContent).toBe(CHU.daKyTamDungNgan);
+  expect(the(container, 'b').querySelector('.vien.amber')).toBeNull();
+
+  fireEvent.click(khoi.querySelector('button')!);
+  expect(mo).toHaveBeenCalledWith('a', 'dong-san-xuat');
+});
+
+test('thẻ cuối kệ là "+ Viết truyện mới", và nó dẫn tới màn viết mới', () => {
+  const chon = vi.fn();
+  const { container } = render(
+    <Xuong sach={[sach({ id: 'a' })]} tong={tongGia()} onChonKhu={chon} onMoTacPham={() => {}} onXoaXong={() => {}} />,
+  );
+  const cuoi = container.querySelector('.keLuoi > li:last-child')!;
+  expect(cuoi.classList.contains('theMoi')).toBe(true);
+  expect(cuoi.textContent).toContain(DH.vietTruyenMoi);
+  fireEvent.click(cuoi.querySelector('button')!);
+  expect(chon).toHaveBeenCalledWith('tac-pham-moi');
+});
+
+test('Gần đây xếp theo lần sửa mới nhất, và chỉ hiện khi có từ hai cuốn có mốc', () => {
+  const mot = ve({ id: 'a', updated_at: '2026-07-31T16:11:20Z' }, { id: 'b' });
+  expect(mot.container.querySelector('.tuGanDay')).toBeNull();
+  mot.unmount();
+
+  const { container } = ve(
+    { id: 'cu', name: 'Cũ', updated_at: '2026-07-01T10:00:00Z' },
+    { id: 'moi', name: 'Mới', updated_at: '2026-07-31T16:11:20Z' },
+    { id: 'khong', name: 'Không mốc' },
+  );
+  const ten = [...container.querySelectorAll('.tuGanDay .ten')].map((e) => e.textContent);
+  expect(ten).toEqual(['Mới', 'Cũ']);
 });

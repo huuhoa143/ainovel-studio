@@ -1,0 +1,794 @@
+/* Màn: van-hanh — xem .impeccable/brief-v2.md
+   Chi phí · Chi phí tổng · Nhóm AI · Thông số phiên · Xuất bản & nhập.
+   Mọi selector bắt đầu bằng `.vh…` (lớp gốc của nhóm màn này), nên không lan sang màn khác. */
+
+/* ── khung chung ──────────────────────────────────────────────────────── */
+.vh {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px 24px 40px;
+  max-width: 1120px;
+  min-width: 0;
+}
+.vh h2 {
+  margin: 0;
+  font: 600 13px/1.4 var(--ui);
+  letter-spacing: -0.005em;
+  color: var(--ink);
+}
+.vh .the {
+  min-width: 0;
+}
+.vh .ma {
+  font: 400 12px/1.5 var(--mono);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.vh .trong {
+  color: var(--ink-3);
+}
+.vh .steerhint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.65;
+}
+.vh .vien > span[aria-hidden] {
+  font-size: 8px;
+}
+.vhTrong {
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.vhTrong.trongSect {
+  max-width: none;
+}
+.vhMan .head,
+.khuhoso:has(> .vh) .head {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+  background: var(--bg);
+}
+
+/* ── ô số ─────────────────────────────────────────────────────────────── */
+.vhSo {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.vhO {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 14px 16px 15px;
+}
+.vhONhan {
+  font: 500 12px/1.5 var(--ui);
+  color: var(--ink-2);
+}
+.vhOSo {
+  font: 600 24px/1.25 var(--ui);
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  margin-top: 2px;
+}
+.vhO[data-mau="teal"] .vhOSo {
+  color: var(--teal);
+}
+.vhOPhu {
+  font: 400 12px/1.5 var(--ui);
+  color: var(--ink-3);
+}
+
+/* ── độ tin số liệu ───────────────────────────────────────────────────── */
+.vhTin {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 16px;
+}
+.vhTin[data-thieu] {
+  border-color: color-mix(in oklab, var(--amber) 32%, var(--line));
+}
+.vhTinDong {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+}
+.vhTinCau {
+  font: 400 12.5px/1.6 var(--ui);
+  color: var(--ink-2);
+}
+.vhTinPhu {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin: 0;
+  font: 400 12px/1.5 var(--ui);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-3);
+}
+
+/* ── phân bổ dạng thanh ngang ─────────────────────────────────────────── */
+.vhDoi {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.vhBo {
+  padding: 14px 16px 12px;
+}
+.vhBo > h2 {
+  margin-bottom: 10px;
+}
+.vhBoDs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+/* Tên · thanh · tiền · phần của tổng. Cột tên 132px: "Biên tập viên" và tên model dài cần
+   chỗ mà không ngắt dòng; tên quá dài thì cắt và để `title` nói phần còn lại. */
+.vhBoHang {
+  display: grid;
+  grid-template-columns: minmax(132px, 190px) minmax(48px, 1fr) 72px 62px;
+  align-items: center;
+  gap: 12px;
+  min-height: 34px;
+  border-top: 1px solid var(--line-2);
+  font-variant-numeric: tabular-nums;
+}
+.vhBoHang:first-child {
+  border-top: 0;
+}
+.vhBoTen {
+  font: 500 12.5px/1.4 var(--ui);
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.vhBoTen.ma {
+  font: 400 12px/1.4 var(--mono);
+  overflow-wrap: normal;
+}
+.vhBoThanh {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--raised);
+  overflow: hidden;
+}
+/* Một màu cho mọi thanh: thanh đo cùng một đại lượng (tiền), nên màu không được nói thêm
+   điều gì. Mực trung tính, đủ đậm để đọc rõ trên cả hai giao diện. */
+.vhBoThanh > span {
+  display: block;
+  height: 100%;
+  min-width: 2px;
+  border-radius: inherit;
+  background: color-mix(in oklab, var(--ink) 58%, transparent);
+}
+.vhBoTien {
+  font: 500 12.5px/1.4 var(--ui);
+  color: var(--ink);
+  text-align: right;
+}
+.vhBoPhan {
+  font: 400 12px/1.4 var(--ui);
+  color: var(--ink-3);
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* ── chi tiết token (gập) ─────────────────────────────────────────────── */
+.vhChiTiet {
+  padding: 0;
+  overflow: hidden;
+}
+.vhChiTiet > summary,
+.vhGapLon > summary,
+.vhGap > summary {
+  list-style: none;
+  cursor: pointer;
+}
+.vhChiTiet > summary::-webkit-details-marker,
+.vhGapLon > summary::-webkit-details-marker,
+.vhGap > summary::-webkit-details-marker {
+  display: none;
+}
+.vhChiTiet > summary {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  padding: 13px 16px;
+  border-radius: var(--r-lg);
+  transition: background 0.14s var(--ease);
+}
+.vhChiTiet > summary:hover {
+  background: var(--panel-2);
+}
+/* Dấu mở/đóng tự vẽ: chevron xoay, cùng nét với bộ biểu tượng. */
+.vhChiTiet > summary::before,
+.vhGapLon > summary::before,
+.vhGap > summary::before {
+  content: "";
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-right: 1.6px solid var(--ink-3);
+  border-bottom: 1.6px solid var(--ink-3);
+  transform: translateY(-2px) rotate(-45deg);
+  transition: transform 0.18s var(--ease);
+}
+.vhChiTiet[open] > summary::before,
+.vhGapLon[open] > summary::before,
+.vhGap[open] > summary::before {
+  transform: translateY(-3px) rotate(45deg);
+}
+.vhChiTietTen {
+  font: 600 13px/1.4 var(--ui);
+  color: var(--ink);
+}
+.vhChiTietPhu {
+  font: 400 12px/1.4 var(--ui);
+  color: var(--ink-3);
+}
+.vhChiTiet[open] > summary {
+  border-bottom: 1px solid var(--line-2);
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
+}
+.vhChiTiet .sect {
+  padding: 14px 16px;
+}
+.vhChiTiet .sect > h2 {
+  font: 500 12px/1.4 var(--ui);
+  color: var(--ink-2);
+  margin: 0 0 8px;
+}
+.vhChiTiet .bang th,
+.vhChiTiet .bang td {
+  font-variant-numeric: tabular-nums;
+}
+.vhChiTiet .bangcp td.num,
+.vhChiTiet .bangcp tfoot td.num {
+  font-family: var(--ui);
+}
+.vhChiTiet .bangcp td.model .ma {
+  color: var(--ink);
+}
+
+/* ── nhóm AI: thẻ từng vai ────────────────────────────────────────────── */
+.vhVaiLuoi {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+}
+.vhVai {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px;
+}
+.vhVai[data-lam="dang"] {
+  border-color: color-mix(in oklab, var(--gold) 45%, var(--line));
+}
+.vhVaiDau {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.vhVaiBt {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: var(--raised);
+  color: var(--ink-2);
+}
+.vhVai[data-lam="dang"] .vhVaiBt {
+  background: color-mix(in oklab, var(--gold-fill) 16%, transparent);
+  color: var(--gold);
+}
+.vhVai[data-lam="chua"] .vhVaiBt {
+  color: var(--ink-3);
+}
+.vhVaiTen {
+  flex: 1;
+  min-width: 0;
+}
+.vhVaiTen p {
+  margin: 1px 0 0;
+  font: 400 12px/1.5 var(--ui);
+  color: var(--ink-3);
+}
+.vhVaiDau > .st,
+.vhVaiDau > .vien {
+  flex: none;
+}
+.vhVaiModel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  padding: 8px 10px;
+  border-radius: var(--r);
+  background: var(--panel-2);
+  font: 400 12px/1.5 var(--ui);
+}
+.vhVaiModelNhan {
+  color: var(--ink-3);
+}
+.vhVaiModel .ma {
+  white-space: nowrap;
+}
+.vhVaiSo {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+.vhVaiSo > div {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 1px;
+}
+.vhVaiSo dt {
+  font: 400 11.5px/1.4 var(--ui);
+  color: var(--ink-3);
+}
+.vhVaiSo dd {
+  margin: 0;
+  font: 600 17px/1.3 var(--ui);
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+.vhVaiSo > div[data-loi] dd,
+.vhVaiSo > div[data-loi] dt {
+  color: var(--red);
+}
+.vhChu {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 2px;
+}
+
+/* ── thông số phiên: khóa–giá trị theo nhóm ───────────────────────────── */
+.vhPhien {
+  max-width: 880px;
+}
+.vhNhom {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 18px 16px;
+}
+.vhNhom > h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.vhKvDs {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+}
+/* Nhãn kèm câu giải thích bên trái, giá trị bên phải. Cột nhãn 240px vì nhãn và câu giải
+   thích tiếng Việt dài; giá trị căn trái để mắt đọc dọc một mép. */
+.vhKv {
+  display: grid;
+  grid-template-columns: minmax(0, 240px) minmax(0, 1fr);
+  gap: 4px 24px;
+  align-items: baseline;
+  padding: 9px 0;
+  border-top: 1px solid var(--line-2);
+}
+.vhKv:first-child {
+  border-top: 0;
+  padding-top: 2px;
+}
+.vhKv dt {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.vhKv dt > span {
+  font: 500 12.5px/1.5 var(--ui);
+  color: var(--ink);
+}
+.vhKv dt > small {
+  font: 400 12px/1.5 var(--ui);
+  color: var(--ink-3);
+}
+.vhKv dd {
+  margin: 0;
+  min-width: 0;
+  font: 400 13px/1.5 var(--ui);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.vhKv dd.ma {
+  font: 400 12.5px/1.5 var(--mono);
+}
+.vhNhom .vphacap {
+  margin: 0;
+}
+.vhGiai {
+  margin: 0;
+  font: 400 12px/1.6 var(--ui);
+  color: var(--ink-3);
+}
+.vhNhom .cdvan {
+  padding: 10px 12px;
+  border-radius: var(--r);
+  background: var(--panel-2);
+  color: var(--ink);
+}
+.vhGap > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font: 500 12.5px/1.5 var(--ui);
+  color: var(--ink-2);
+  border-radius: 6px;
+}
+.vhGap > summary:hover {
+  color: var(--ink);
+}
+.vhGap[open] > .cdvan {
+  margin-top: 8px;
+  font-size: 12.5px;
+}
+.vhChiDoc {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 2px 4px;
+}
+.vhChiDoc > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+/* KenhVai (component chung, không thuộc nhóm này) vẽ một `.sect`; trong màn này nó đứng như
+   mọi nhóm khác, nên khoác lên nó hình thẻ. */
+.vhPhien > .sect {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow);
+  padding: 14px 18px 16px;
+}
+.vhPhien > .sect > h2 {
+  font: 600 13px/1.4 var(--ui);
+  color: var(--ink);
+  margin: 0 0 10px;
+}
+
+/* ── xuất bản & nhập ──────────────────────────────────────────────────── */
+.vhNx {
+  max-width: 820px;
+}
+.vhThe {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 18px 20px 20px;
+}
+.vhTheDau {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.vhTheDau h2 {
+  font-size: 14px;
+}
+.vhTheDau p {
+  margin: 2px 0 0;
+  max-width: 64ch;
+  font: 400 12.5px/1.6 var(--ui);
+  color: var(--ink-3);
+}
+.vhTheBt {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--raised);
+  color: var(--ink-2);
+}
+.vhTheBt[data-chinh] {
+  background: color-mix(in oklab, var(--gold-fill) 16%, transparent);
+  color: var(--gold);
+}
+.vhNhomChon {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.vhNhomChon > legend {
+  padding: 0;
+  margin-bottom: 8px;
+  font: 500 12.5px/1.5 var(--ui);
+  color: var(--ink-2);
+}
+.vhDdDs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.vhDd {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 11px 14px 12px 38px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  cursor: pointer;
+  transition: border-color 0.14s var(--ease), background 0.14s var(--ease),
+    box-shadow 0.14s var(--ease);
+}
+.vhDd:hover {
+  background: var(--panel-2);
+}
+/* Radio thật, vẽ lại thành chấm tròn: bàn phím (mũi tên) và trình đọc màn hình vẫn coi nhóm
+   này là một nhóm radio. */
+.vhDd > input {
+  appearance: none;
+  position: absolute;
+  left: 14px;
+  top: 14px;
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  border-radius: 50%;
+  border: 1.5px solid color-mix(in oklab, var(--ink) 35%, transparent);
+  background: var(--panel);
+  cursor: pointer;
+  transition: border-color 0.14s var(--ease), box-shadow 0.14s var(--ease);
+}
+.vhDd > input:checked {
+  border-color: var(--gold);
+  box-shadow: inset 0 0 0 3px var(--panel), inset 0 0 0 8px var(--gold-fill);
+}
+.vhDd > input:focus-visible {
+  outline: 2px solid color-mix(in oklab, var(--gold) 80%, transparent);
+  outline-offset: 2px;
+}
+.vhDd:has(> input:checked) {
+  border-color: color-mix(in oklab, var(--gold) 55%, transparent);
+  background: color-mix(in oklab, var(--gold-fill) 6%, var(--panel));
+}
+.vhDdTen {
+  font: 600 13px/1.4 var(--ui);
+  color: var(--ink);
+}
+.vhDdGiai {
+  font: 400 12px/1.5 var(--ui);
+  color: var(--ink-3);
+}
+.vhKhoang {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font: 400 12.5px/1.5 var(--ui);
+  color: var(--ink-3);
+}
+.vhKhoang input {
+  width: 128px;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--ink);
+  font: 400 13px/1.4 var(--ui);
+  font-variant-numeric: tabular-nums;
+  transition: border-color 0.14s var(--ease), box-shadow 0.14s var(--ease);
+}
+.vhKhoang input::placeholder {
+  color: var(--ink-3);
+}
+.vhKhoang input:focus {
+  outline: none;
+  border-color: color-mix(in oklab, var(--gold) 60%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--gold-fill) 18%, transparent);
+}
+.vhXong {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 10px;
+  margin: 0;
+}
+.vhXong .vien {
+  white-space: normal;
+}
+.vhXongBoQua {
+  font: 400 12px/1.6 var(--ui);
+  color: var(--amber);
+}
+.vhTheNut {
+  display: flex;
+  gap: 8px;
+}
+.vhTheNut .nutChinh {
+  min-height: 34px;
+  padding: 0 16px;
+  font-size: 13px;
+}
+.vh .nutChinh:disabled,
+.vh .nutPhu:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.vhNhap {
+  gap: 0;
+}
+.vhNhap > .vhTheDau {
+  padding-bottom: 14px;
+}
+.vhGapLon {
+  border-top: 1px solid var(--line-2);
+}
+.vhGapLon > summary {
+  display: grid;
+  grid-template-columns: 6px minmax(0, 1fr);
+  column-gap: 14px;
+  align-items: baseline;
+  padding: 12px 4px;
+  border-radius: 8px;
+  transition: background 0.14s var(--ease);
+}
+.vhGapLon > summary:hover {
+  background: var(--panel-2);
+}
+.vhGapLon > summary::before {
+  grid-row: 1;
+  align-self: center;
+  margin-left: 2px;
+}
+.vhGapTen {
+  font: 600 13px/1.5 var(--ui);
+  color: var(--ink);
+}
+.vhGapGiai {
+  grid-column: 2;
+  font: 400 12px/1.55 var(--ui);
+  color: var(--ink-3);
+  max-width: 68ch;
+}
+.vhGapLon > .bieuMau {
+  padding: 4px 4px 14px 24px;
+  max-width: 640px;
+}
+.vhGapLon .oNhap input,
+.vhGapLon .oNhap select {
+  border-radius: 8px;
+  background: var(--panel);
+}
+.vhGapLon .oNhap input[type="file"] {
+  padding: 6px 8px;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+.vhGapLon .oNhap input[type="file"]::file-selector-button {
+  margin-right: 10px;
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel-2);
+  color: var(--ink);
+  font: 500 12px/1.4 var(--ui);
+  cursor: pointer;
+}
+.vhGapLon > .nkLuong,
+.vhGapLon > .trongSect {
+  margin: 0 4px 14px 24px;
+}
+.vhGapLon .nkLuong {
+  border-radius: var(--r);
+  background: var(--panel-2);
+}
+.vhGapLon .loiDoc {
+  font-family: var(--ui);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vhBoThanh > span,
+  .vhChiTiet > summary::before,
+  .vhGapLon > summary::before,
+  .vhGap > summary::before {
+    transition: none;
+  }
+}
+
+/* ── hẹp ──────────────────────────────────────────────────────────────── */
+@media (max-width: 1100px) {
+  .vhDoi {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 860px) {
+  .vh {
+    padding: 16px 14px 32px;
+    gap: 12px;
+  }
+  .vhSo {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+  .vhO {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: baseline;
+    column-gap: 12px;
+    padding: 12px 14px;
+  }
+  .vhOSo {
+    grid-row: 1 / span 2;
+    grid-column: 2;
+    font-size: 20px;
+  }
+  .vhBoHang {
+    grid-template-columns: minmax(0, 1fr) 68px 56px;
+    grid-template-areas: "ten tien phan" "thanh thanh thanh";
+    row-gap: 6px;
+    padding: 8px 0;
+  }
+  .vhBoTen {
+    grid-area: ten;
+  }
+  .vhBoThanh {
+    grid-area: thanh;
+  }
+  .vhBoTien {
+    grid-area: tien;
+  }
+  .vhBoPhan {
+    grid-area: phan;
+  }
+  .vhKv {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .vhDdDs {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .vhKhoang input {
+    flex: 1;
+    width: auto;
+    min-width: 0;
+  }
+  .vhGapLon > .bieuMau,
+  .vhGapLon > .nkLuong,
+  .vhGapLon > .trongSect {
+    padding-left: 4px;
+    margin-left: 0;
+  }
+  .vhGapLon .oNhap {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+}

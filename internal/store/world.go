@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -389,6 +390,29 @@ func (s *WorldStore) LoadLastReview(fromChapter int) (*domain.ReviewEntry, error
 		return &r, nil
 	}
 	return nil, nil
+}
+
+// ReviewedChapters 返回有单章审阅文件（reviews/NN.json）的章节集合。只看文件名，不解析内容：
+// 用于在章节列表上标出"哪一章有审阅"，避免逐章读文件。
+func (s *WorldStore) ReviewedChapters() (map[int]bool, error) {
+	entries, err := os.ReadDir(s.io.path("reviews"))
+	if os.IsNotExist(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[int]bool, len(entries))
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || !strings.HasSuffix(name, ".json") {
+			continue
+		}
+		if n, err := strconv.Atoi(strings.TrimSuffix(name, ".json")); err == nil && n > 0 {
+			out[n] = true
+		}
+	}
+	return out, nil
 }
 
 // LoadReviewsAffectingChapter 返回所有明确把 chapter 纳入返工队列的评审，

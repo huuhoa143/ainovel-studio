@@ -142,7 +142,7 @@ test('dải mang TÊN VÙNG và một ký hiệu hình học, không chỉ có m
   // Hai kênh thứ hai của cùng một dải, và cả hai đều không có bài nào giữ lúc đầu (đã thử đột
   // biến: bỏ `aria-label`, bỏ ký hiệu — cả hai đều xanh 7/7).
   //
-  // Ký hiệu: dải này là amber, và sau Task 7 màu sẽ là thứ đập vào mắt trước. Ảnh đen trắng
+  // Ký hiệu: dải này là violet ("chờ duyệt" của hệ giao diện 2), và sau Task 7 màu sẽ là thứ đập vào mắt trước. Ảnh đen trắng
   // và người mù màu chỉ còn ký hiệu — luật của `PRODUCT.md`, khuôn ở `TrangThai.tsx`.
   // Tên vùng: đây là component DUY NHẤT vẽ ở hai bề mặt, nên tên vùng cũng là thứ duy nhất
   // nói cho trình đọc màn hình biết hai chỗ đó là một việc.
@@ -150,7 +150,7 @@ test('dải mang TÊN VÙNG và một ký hiệu hình học, không chỉ có m
   const dai = container.querySelector('.cuanghiemthu')!;
 
   expect(dai.getAttribute('aria-label')).toBe(CHU.cuaNghiemThuVung);
-  expect(dai.querySelector('.ky')!.textContent).toBe(kyTheoTone('amber'));
+  expect(dai.querySelector('.ky')!.textContent).toBe(kyTheoTone('violet'));
 });
 
 test('choGhi chưa biết (undefined) thì khóa nút, nhưng KHÔNG nói studio chỉ đọc', () => {

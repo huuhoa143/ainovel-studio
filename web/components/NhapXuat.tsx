@@ -2,15 +2,12 @@
 
 import { useState } from 'react';
 
-import {
-  LoiApi,
-  chayMoPhong,
-  nhapHoSoMoPhong,
-  nhapTruyen,
-  xuatBan,
-} from '@/lib/api';
+import { LoiApi, chayMoPhong, nhapHoSoMoPhong, nhapTruyen, xuatBan } from '@/lib/api';
+import { CHU_VH } from '@/lib/chu/van-hanh';
 import { CHU, GIAI_THICH } from '@/lib/nhan';
 import type { DongNhatKy } from '@/lib/types';
+
+import { BieuTuong } from './BieuTuong';
 
 /**
  * Nhập & Xuất — ba luồng cần tệp.
@@ -32,31 +29,53 @@ import type { DongNhatKy } from '@/lib/types';
  */
 export function NhapXuat({ tacPham }: { tacPham: string | undefined }) {
   return (
-    <main className="canvas" id="nhap-xuat">
+    <main className="canvas vhMan" id="nhap-xuat">
       <div className="head">
         <h1>{CHU.nhapXuat}</h1>
       </div>
 
-      {!tacPham ? (
-        <p className="trongSect">{GIAI_THICH.nhapXuatCanTacPham}</p>
-      ) : (
-        <>
-          <XuatBan tacPham={tacPham} />
-          <NhapTruyen tacPham={tacPham} />
-          <MoPhong tacPham={tacPham} />
-        </>
-      )}
-
-      <div style={{ height: 8 }} />
+      <div className="vh vhNx">
+        {!tacPham ? (
+          <p className="the vhTrong trongSect">{GIAI_THICH.nhapXuatCanTacPham}</p>
+        ) : (
+          <>
+            <XuatBan tacPham={tacPham} />
+            {/* Nhập và học văn phong là việc làm một lần cho mỗi truyện, nên cùng một thẻ và
+                gập lại mặc định: không chiếm chỗ của Xuất bản, thứ người dùng bấm nhiều lần. */}
+            <section className="the vhThe vhNhap">
+              <div className="vhTheDau">
+                <span className="vhTheBt" aria-hidden="true">
+                  <BieuTuong ten="doc" co={18} />
+                </span>
+                <div>
+                  <h2>{CHU_VH.nhapVaHoc}</h2>
+                  <p>{CHU_VH.nhapVaHocPhu}</p>
+                </div>
+              </div>
+              <NhapTruyen tacPham={tacPham} />
+              <MoPhong tacPham={tacPham} />
+            </section>
+          </>
+        )}
+      </div>
     </main>
   );
 }
 
 /* ── xuất bản ──────────────────────────────────────────────────────────── */
 
+const DINH_DANG = [
+  { ma: 'TXT', giai: CHU_VH.dinhDangTxt },
+  { ma: 'EPUB', giai: CHU_VH.dinhDangEpub },
+] as const;
+
 /**
- * Xuất bản đứng ĐẦU bề mặt vì nó là việc hay làm nhất trong ba luồng, và là việc duy nhất
- * không có hệ quả lên store — người dùng bấm nó nhiều lần mà không sợ gì.
+ * Xuất bản là thẻ lớn ĐẦU bề mặt vì nó là việc hay làm nhất trong ba luồng, và là việc duy
+ * nhất không có hệ quả lên store — người dùng bấm nó nhiều lần mà không sợ gì.
+ *
+ * Định dạng là hai thẻ chọn (radio thật bên dưới, nên bàn phím và trình đọc màn hình dùng
+ * được như một nhóm), không phải ô thả xuống: chỉ có hai lựa chọn, và câu giải thích dưới mỗi
+ * cái là thứ một `<select>` không chứa được.
  */
 function XuatBan({ tacPham }: { tacPham: string }) {
   const [dinhDang, datDinhDang] = useState<'TXT' | 'EPUB'>('TXT');
@@ -64,9 +83,7 @@ function XuatBan({ tacPham }: { tacPham: string }) {
   const [den, datDen] = useState('');
   const [dangGui, datDangGui] = useState(false);
   const [loi, datLoi] = useState<string | null>(null);
-  const [xong, datXong] = useState<{ ten: string; boQua: number[]; soChuong: number } | null>(
-    null,
-  );
+  const [xong, datXong] = useState<{ ten: string; boQua: number[]; soChuong: number } | null>(null);
 
   const gui = () => {
     datDangGui(true);
@@ -83,55 +100,83 @@ function XuatBan({ tacPham }: { tacPham: string }) {
   };
 
   return (
-    <section className="sect">
-      <h2>{CHU.xuatBan}</h2>
-      <p className="steerhint">{GIAI_THICH.xuatBanGiaiThich}</p>
+    <section className="the vhThe vhXuat">
+      <div className="vhTheDau">
+        <span className="vhTheBt" data-chinh aria-hidden="true">
+          <BieuTuong ten="xuatBan" co={18} />
+        </span>
+        <div>
+          <h2>{CHU.xuatBan}</h2>
+          <p>{GIAI_THICH.xuatBanGiaiThich}</p>
+        </div>
+      </div>
 
-      <div className="bieuMau">
-        <label className="oNhap">
-          <span>{CHU.dinhDang}</span>
-          <select value={dinhDang} onChange={(e) => datDinhDang(e.target.value as 'TXT' | 'EPUB')}>
-            <option value="TXT">TXT</option>
-            <option value="EPUB">EPUB</option>
-          </select>
-        </label>
-        <label className="oNhap">
-          <span>{CHU.tuChuong}</span>
+      <fieldset className="vhNhomChon">
+        <legend>{CHU.dinhDang}</legend>
+        <div className="vhDdDs">
+          {DINH_DANG.map((d) => (
+            <label key={d.ma} className="vhDd">
+              <input
+                type="radio"
+                name={`dinh-dang-${tacPham}`}
+                value={d.ma}
+                checked={dinhDang === d.ma}
+                onChange={() => datDinhDang(d.ma)}
+              />
+              <span className="vhDdTen">{d.ma}</span>
+              <span className="vhDdGiai">{d.giai}</span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
+
+      <fieldset className="vhNhomChon">
+        <legend>{CHU_VH.khoangChuong}</legend>
+        <div className="vhKhoang">
           <input
             type="number"
             min={1}
+            inputMode="numeric"
+            aria-label={CHU.tuChuong}
             value={tu}
             onChange={(e) => datTu(e.target.value)}
             placeholder="1"
           />
-        </label>
-        <label className="oNhap">
-          <span>{CHU.denChuong}</span>
+          <span aria-hidden="true">{CHU_VH.denNgan}</span>
           <input
             type="number"
             min={1}
+            inputMode="numeric"
+            aria-label={CHU.denChuong}
             value={den}
             onChange={(e) => datDen(e.target.value)}
             placeholder={CHU.chuongCuoi}
           />
-        </label>
-
-        {loi ? <p className="loiDoc">{loi}</p> : null}
-        {xong ? (
-          <p className="steerhint">
-            {CHU.daTaiVe(xong.ten, xong.soChuong)}
-            {/* Chương bị bỏ qua KHÔNG phải lỗi — chương chưa viết xong thì exp.Run bỏ qua có
-                chủ ý. Nhưng người dùng phải biết bản họ vừa tải thiếu gì, nếu không họ gửi
-                đi một bản thiếu chương mà tưởng là đủ. */}
-            {xong.boQua.length > 0 ? ` — ${CHU.boQuaChuong(xong.boQua)}` : ''}
-          </p>
-        ) : null}
-
-        <div className="nccNut">
-          <button type="button" className="nutChinh" disabled={dangGui} onClick={gui}>
-            {dangGui ? CHU.dangGui : CHU.taiVe}
-          </button>
         </div>
+        <p className="steerhint">{CHU_VH.khoangChuongPhu}</p>
+      </fieldset>
+
+      {loi ? <p className="loiDoc">{loi}</p> : null}
+      {xong ? (
+        <p className="vhXong" role="status">
+          <span className="vien teal">
+            <span aria-hidden="true">●</span>
+            {CHU.daTaiVe(xong.ten, xong.soChuong)}
+          </span>
+          {/* Chương bị bỏ qua KHÔNG phải lỗi — chương chưa viết xong thì exp.Run bỏ qua có
+              chủ ý. Nhưng người dùng phải biết bản họ vừa tải thiếu gì, nếu không họ gửi
+              đi một bản thiếu chương mà tưởng là đủ. */}
+          {xong.boQua.length > 0 ? (
+            <span className="vhXongBoQua">{CHU.boQuaChuong(xong.boQua)}</span>
+          ) : null}
+        </p>
+      ) : null}
+
+      <div className="vhTheNut">
+        <button type="button" className="nutChinh" disabled={dangGui} onClick={gui}>
+          <BieuTuong ten="xuatBan" co={14} />
+          {dangGui ? CHU.dangGui : CHU.taiVe}
+        </button>
       </div>
     </section>
   );
@@ -159,9 +204,11 @@ function NhapTruyen({ tacPham }: { tacPham: string }) {
   };
 
   return (
-    <section className="sect">
-      <h2>{CHU.nhapTruyenNgoai}</h2>
-      <p className="steerhint">{GIAI_THICH.nhapTruyenGiaiThich}</p>
+    <details className="vhGapLon">
+      <summary>
+        <span className="vhGapTen">{CHU.nhapTruyenNgoai}</span>
+        <span className="vhGapGiai">{GIAI_THICH.nhapTruyenGiaiThich}</span>
+      </summary>
 
       <div className="bieuMau">
         <label className="oNhap">
@@ -177,7 +224,7 @@ function NhapTruyen({ tacPham }: { tacPham: string }) {
           <input
             value={huongDan}
             onChange={(e) => datHuongDan(e.target.value)}
-            placeholder="ví dụ: mỗi phần bắt đầu bằng dòng chỉ có số"
+            placeholder="Ví dụ: mỗi chương bắt đầu bằng một dòng chỉ có số"
           />
         </label>
         <label className="oNhap oNhapCheck">
@@ -202,7 +249,7 @@ function NhapTruyen({ tacPham }: { tacPham: string }) {
       </div>
 
       <NhatKyLuong nhatKy={nhatKy} dangChay={chay} />
-    </section>
+    </details>
   );
 }
 
@@ -226,9 +273,11 @@ function MoPhong({ tacPham }: { tacPham: string }) {
   };
 
   return (
-    <section className="sect">
-      <h2>{CHU.moPhongVanPhong}</h2>
-      <p className="steerhint">{GIAI_THICH.moPhongGiaiThich}</p>
+    <details className="vhGapLon">
+      <summary>
+        <span className="vhGapTen">{CHU.moPhongVanPhong}</span>
+        <span className="vhGapGiai">{GIAI_THICH.moPhongGiaiThich}</span>
+      </summary>
 
       <div className="bieuMau">
         <label className="oNhap">
@@ -276,7 +325,7 @@ function MoPhong({ tacPham }: { tacPham: string }) {
       </div>
 
       <NhatKyLuong nhatKy={nhatKy} dangChay={chay !== null} />
-    </section>
+    </details>
   );
 }
 
@@ -289,13 +338,7 @@ function MoPhong({ tacPham }: { tacPham: string }) {
  * đầu internal/serve/tep.go). Nên trong lúc chạy chỉ có một dòng "đang chạy" — và dòng đó
  * phải nói rõ là có thể lâu, nếu không người dùng tưởng nó treo và bấm lại.
  */
-function NhatKyLuong({
-  nhatKy,
-  dangChay,
-}: {
-  nhatKy: DongNhatKy[] | null;
-  dangChay: boolean;
-}) {
+function NhatKyLuong({ nhatKy, dangChay }: { nhatKy: DongNhatKy[] | null; dangChay: boolean }) {
   if (dangChay) return <p className="trongSect">{GIAI_THICH.luongCoTheLau}</p>;
   if (!nhatKy || nhatKy.length === 0) return null;
   return (

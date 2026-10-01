@@ -1,0 +1,1369 @@
+/* Màn: tien-do — xem .impeccable/brief-v2.md
+   Bề mặt `?khu=dong-san-xuat` (BuongLai.tsx) và cột phải của nó (Inspector.tsx).
+
+   Mọi quy tắc ở đây có phạm vi `#dong-san-xuat …` hoặc `.insp …`: tệp nạp SAU globals.css,
+   nên độ đặc hiệu của id là thứ thắng các quy tắc cũ của buồng lái (khung đứng yên, bàn chia
+   bốn ô, dải nền amber…) mà không phải sửa tệp chung.
+
+   Hình dạng: một thẻ điểm nhấn ("Việc đang làm" + "Phiên này"), dưới là các thẻ bằng chứng
+   gọn. Trang cuộn, ô góp ý ghim đáy. Màu chỉ ở trạng thái dữ liệu và hành động chính. */
+
+/* ── chữ ẩn cho trình đọc màn hình ─────────────────────────────────────── */
+.td-an {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ══ khung ═══════════════════════════════════════════════════════════════ */
+#dong-san-xuat.canvas.buonglai {
+  display: grid;
+  /* Cột NGẦM của lưới là `auto`, tức rộng theo nội dung rộng nhất — ở 390px nó thành 424px
+     và cả màn bị cắt mép phải. `minmax(0, 1fr)` buộc cột theo bề rộng khung. */
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  overflow: hidden;
+  min-height: 0;
+}
+
+#dong-san-xuat > .head {
+  padding: 12px 28px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line-2);
+  flex-wrap: wrap;
+  row-gap: 6px;
+}
+#dong-san-xuat > .head .sub {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+#dong-san-xuat .mucxem {
+  border: 0;
+  background: var(--raised);
+  border-radius: 9px;
+  padding: 2px;
+}
+#dong-san-xuat .mucxem .lbl {
+  font: 500 11.5px var(--ui);
+}
+#dong-san-xuat .mucxem button {
+  border-radius: 7px;
+  font: 500 12px var(--ui);
+  padding: 5px 11px;
+}
+#dong-san-xuat .mucxem button[aria-pressed="true"] {
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+#dong-san-xuat .mucxem.truot button[aria-pressed="true"] {
+  background: none;
+  box-shadow: none;
+}
+#dong-san-xuat .mucxem.truot::after {
+  background: var(--panel);
+  border-radius: 7px;
+  box-shadow: var(--shadow);
+}
+#dong-san-xuat .mucxem button:disabled {
+  border: 0;
+  padding: 5px 11px;
+  opacity: 0.55;
+}
+
+#dong-san-xuat .tdCuon {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+#dong-san-xuat .tdTrang {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px 28px 28px;
+  max-width: 1360px;
+  min-width: 0;
+}
+
+/* ══ cửa duyệt — dải violet, việc PHẢI làm ═══════════════════════════════ */
+:is(#dong-san-xuat, #kiem-dinh) .cuanghiemthu {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 20px;
+  padding: 14px 18px 14px 20px;
+  background: color-mix(in oklab, var(--violet) 11%, var(--panel));
+  border: 1px solid color-mix(in oklab, var(--violet) 32%, transparent);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow);
+}
+:is(#dong-san-xuat, #kiem-dinh) .cuanghiemthu .cnthead {
+  font: 600 14px/1.4 var(--ui);
+  color: color-mix(in oklab, var(--violet) 72%, var(--ink));
+  gap: 8px;
+}
+:is(#dong-san-xuat, #kiem-dinh) .cuanghiemthu .ky {
+  color: var(--violet);
+  font: 400 11px/1.4 var(--ui);
+}
+:is(#dong-san-xuat, #kiem-dinh) .cuanghiemthu .cntlydo {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--ink-2);
+}
+:is(#dong-san-xuat, #kiem-dinh) .cuanghiemthu .cntlydo .lbl {
+  color: var(--ink-3);
+}
+:is(#dong-san-xuat, #kiem-dinh) .cuanghiemthu .cntnut {
+  gap: 8px;
+}
+:is(#dong-san-xuat, #kiem-dinh) .cuanghiemthu .cntnut .nutChinh,
+:is(#dong-san-xuat, #kiem-dinh) .cuanghiemthu .cntnut .nutPhu {
+  min-height: 34px;
+  padding: 0 16px;
+  font-size: 13px;
+}
+:is(#dong-san-xuat, #kiem-dinh) .cuanghiemthu .cntO {
+  margin-top: 10px;
+}
+:is(#dong-san-xuat, #kiem-dinh) .cuanghiemthu .steerhint,
+:is(#dong-san-xuat, #kiem-dinh) .cuanghiemthu .loiDoc {
+  margin: 6px 0 0;
+}
+
+/* ══ cảnh báo dữ liệu lệch — một dòng, mở ra khi cần ═════════════════════ */
+#dong-san-xuat .canhbao {
+  padding: 0;
+  max-height: none;
+  overflow: visible;
+  background: color-mix(in oklab, var(--amber) 8%, var(--panel));
+  border: 1px solid color-mix(in oklab, var(--amber) 26%, transparent);
+  border-radius: 10px;
+}
+#dong-san-xuat .canhbao summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  font: 500 12.5px/1.4 var(--ui);
+  color: color-mix(in oklab, var(--amber) 78%, var(--ink));
+  cursor: pointer;
+  list-style: none;
+  border-radius: 10px;
+}
+#dong-san-xuat .canhbao summary::-webkit-details-marker {
+  display: none;
+}
+#dong-san-xuat .canhbao .ky {
+  font-size: 8px;
+  color: var(--amber);
+}
+#dong-san-xuat .canhbao .cbMo {
+  margin-left: auto;
+  font-weight: 400;
+  color: var(--ink-3);
+}
+#dong-san-xuat .canhbao[open] .cbMo {
+  visibility: hidden;
+}
+#dong-san-xuat .canhbao ul {
+  margin: 0;
+  padding: 0 14px 10px 34px;
+  max-height: 160px;
+  overflow-y: auto;
+}
+#dong-san-xuat .canhbao li {
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--ink-2);
+}
+
+/* ══ hàng đầu: thẻ đang làm + phiên này ══════════════════════════════════ */
+#dong-san-xuat .tdHangDau {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(232px, 288px);
+  gap: 16px;
+  align-items: stretch;
+}
+
+#dong-san-xuat .tdDangLam {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 18px 22px 18px;
+}
+
+#dong-san-xuat .tdTt {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  font: 500 12.5px/1.4 var(--ui);
+  color: var(--ink-2);
+}
+#dong-san-xuat .tdTtPhu {
+  color: var(--ink-3);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+#dong-san-xuat .tdDot {
+  position: relative;
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--ink-3);
+}
+#dong-san-xuat .tdDot.gold {
+  background: var(--gold-fill);
+}
+#dong-san-xuat .tdDot.teal {
+  background: var(--teal);
+}
+#dong-san-xuat .tdDot.amber {
+  background: var(--amber);
+}
+#dong-san-xuat .tdDot.violet {
+  background: var(--violet);
+}
+/* Nhịp đập — chuyển động DUY NHẤT mang thông tin ở đây ("đang chạy thật"). Vòng sáng lan ra
+   từ chấm, không phải hào quang đứng yên. */
+#dong-san-xuat .tdDot.dap::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 1.5px solid var(--gold);
+  opacity: 0;
+  animation: tdLan 2.2s var(--ease) infinite;
+}
+@keyframes tdLan {
+  0% {
+    transform: scale(0.5);
+    opacity: 0.7;
+  }
+  70%,
+  100% {
+    transform: scale(1.35);
+    opacity: 0;
+  }
+}
+
+#dong-san-xuat .tdChuong {
+  margin: 8px 0 3px;
+  font: 600 21px/1.3 var(--serif);
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  text-wrap: balance;
+  font-variant-numeric: lining-nums;
+}
+#dong-san-xuat .tdMoTa {
+  margin: 0 0 14px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--ink-2);
+  max-width: 72ch;
+}
+
+/* Năm bước của chương: xong = teal, đang làm = gold, chưa tới = nền trung tính.
+   Màu chữ trộn với --ink để đủ tương phản ở CẢ hai giao diện. */
+#dong-san-xuat .tdBuoc {
+  list-style: none;
+  margin: 0 0 18px;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+}
+#dong-san-xuat .tdBuoc li {
+  padding: 7px 8px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: var(--panel-2);
+  color: var(--ink-3);
+  font: 500 12px/1.3 var(--ui);
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background-color 0.3s var(--ease), color 0.3s var(--ease);
+}
+#dong-san-xuat .tdBuoc li.xong {
+  background: color-mix(in oklab, var(--teal) 13%, var(--panel));
+  color: color-mix(in oklab, var(--teal) 78%, var(--ink));
+}
+#dong-san-xuat .tdBuoc li.dang {
+  background: color-mix(in oklab, var(--gold-fill) 13%, var(--panel));
+  border-color: color-mix(in oklab, var(--gold) 50%, transparent);
+  color: color-mix(in oklab, var(--gold) 82%, var(--ink));
+  font-weight: 600;
+}
+
+/* Câu việc tiếp theo (lúc nghỉ) — nằm trong thẻ, không còn là một dải riêng. */
+#dong-san-xuat .tdDangLam .vtt {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  margin: 8px 0 18px;
+  padding: 0;
+  background: none;
+  border: 0;
+}
+#dong-san-xuat .tdDangLam .vttDot {
+  display: none;
+}
+#dong-san-xuat .tdDangLam .vttChu {
+  flex: 1 1 280px;
+}
+#dong-san-xuat .tdDangLam .vttCau {
+  font: 500 14px/1.5 var(--ui);
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+#dong-san-xuat .tdDangLam .vttHint {
+  margin-top: 2px;
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+#dong-san-xuat .tdDangLam .vttNut {
+  gap: 8px;
+  justify-content: flex-start;
+}
+#dong-san-xuat .tdDangLam .vttChinh,
+#dong-san-xuat .tdDangLam .vttPhu {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: auto;
+  min-height: 32px;
+  padding: 0 14px;
+  border-radius: 8px;
+  font: 500 12.5px/1 var(--ui);
+}
+/* Nút đọc là nút phụ có viền: hành động chính (vàng) của lúc nghỉ là "Viết tiếp" ở thanh
+   dưới, và hai nút cùng nổi bật thì người dùng phải đọc nhãn mới biết bấm cái nào. */
+#dong-san-xuat .tdDangLam .vttChinh,
+#dong-san-xuat .tdDangLam .vttPhu {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  color: var(--ink);
+}
+#dong-san-xuat .tdDangLam .vttChinh:hover,
+#dong-san-xuat .tdDangLam .vttPhu:hover {
+  background: var(--panel-2);
+  border-color: color-mix(in oklab, var(--ink) 18%, transparent);
+}
+#dong-san-xuat .tdDangLam .vttCanh {
+  color: color-mix(in oklab, var(--amber) 80%, var(--ink));
+  border-color: color-mix(in oklab, var(--amber) 40%, transparent);
+  background: color-mix(in oklab, var(--amber) 8%, var(--panel));
+}
+#dong-san-xuat .tdDangLam .vttCanh:hover {
+  background: color-mix(in oklab, var(--amber) 14%, var(--panel));
+}
+
+/* ── trục toàn truyện, trong thẻ ── */
+#dong-san-xuat .tdTruc {
+  min-width: 0;
+}
+#dong-san-xuat .lanes {
+  --khoi-min: 30px;
+  grid-template-columns: 58px minmax(0, 1fr);
+  gap: 7px 12px;
+}
+#dong-san-xuat .lane-lbl {
+  font: 500 12px/1.4 var(--ui);
+  color: var(--ink-3);
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#dong-san-xuat .lane-lbl.neo-dau {
+  padding-top: 2px;
+}
+#dong-san-xuat .lane {
+  gap: 4px;
+  height: 22px;
+}
+#dong-san-xuat .blk {
+  border-radius: 6px;
+  border: 0;
+  padding: 0 8px;
+  gap: 4px;
+  font: 500 11px/1 var(--ui);
+  font-variant-numeric: tabular-nums;
+  justify-content: flex-start;
+}
+#dong-san-xuat .blk .ky {
+  font-size: 8px;
+}
+#dong-san-xuat .blk .txt {
+  font-weight: 400;
+}
+#dong-san-xuat .blk.done {
+  background-color: color-mix(in oklab, var(--teal) 34%, var(--panel));
+  color: color-mix(in oklab, var(--teal) 45%, var(--ink));
+}
+#dong-san-xuat .blk.done .ky {
+  display: none;
+}
+#dong-san-xuat .blk.running {
+  background-color: var(--gold-fill);
+  color: var(--tren-fill);
+}
+#dong-san-xuat .blk.planned {
+  background-color: var(--panel-2);
+  color: var(--ink-3);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+#dong-san-xuat .blk.unplanned {
+  background: var(--panel-2);
+  color: var(--ink-3);
+  box-shadow: inset 0 0 0 1px var(--line-2);
+  opacity: 0.8;
+}
+#dong-san-xuat .blk.chuabiet {
+  box-shadow: inset 0 0 0 1px var(--line);
+  outline: 1px dashed var(--line);
+  outline-offset: -1px;
+}
+/* Lane dày: khối không đang mở chỉ còn màu (xem `day` trong Truc.tsx). */
+#dong-san-xuat .lane.day .blk:not(.running) {
+  padding: 0;
+}
+#dong-san-xuat .lane.day .blk:not(.running) > * {
+  display: none;
+}
+
+#dong-san-xuat .chlane {
+  height: 20px;
+  gap: 2px;
+}
+#dong-san-xuat .chlane i {
+  border-radius: 4px;
+  cursor: pointer;
+  background-color: var(--panel-2);
+  transition: filter 0.14s var(--ease);
+}
+#dong-san-xuat .chlane i:hover {
+  filter: brightness(1.08) saturate(1.1);
+}
+#dong-san-xuat .chlane i.done {
+  background-color: color-mix(in oklch, var(--teal) 62%, var(--panel));
+}
+#dong-san-xuat .chlane i.running {
+  background-color: var(--gold-fill);
+}
+#dong-san-xuat .chlane i.rewrite {
+  background-color: color-mix(in oklch, var(--amber) 68%, var(--panel));
+}
+#dong-san-xuat .chlane i.gate {
+  background-color: var(--violet);
+}
+#dong-san-xuat .chlane i.pending {
+  box-shadow: inset 0 0 0 1px var(--line-2);
+}
+
+#dong-san-xuat .ruler {
+  height: 14px;
+  margin-top: 5px;
+  font: 400 10.5px/1 var(--ui);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-3);
+}
+
+/* Chú giải + dòng cửa sổ: một hàng nhỏ dưới trục. */
+#dong-san-xuat .tdTruc .keys {
+  gap: 6px 14px;
+  margin-top: 10px;
+  font-size: 11.5px;
+}
+#dong-san-xuat .tdTruc .keys b {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+#dong-san-xuat .tdTruc .keys .ky {
+  display: none;
+}
+#dong-san-xuat .tdTruc .phamvihint {
+  margin-top: 6px;
+  font-size: 11.5px;
+}
+
+/* ── chi tiết lúc chạy: vai · việc tồn · ngữ cảnh ── */
+#dong-san-xuat .tdDangLam .daitrangthai {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 12px 28px;
+  margin-top: 16px;
+  padding: 14px 0 0;
+  background: none;
+  border: 0;
+  border-top: 1px solid var(--line-2);
+}
+#dong-san-xuat .tdDangLam .daitrangthai .dtvai {
+  flex: 1.4 1 260px;
+}
+#dong-san-xuat .tdDangLam .daitrangthai .dtton {
+  flex: 1 1 200px;
+  max-width: none;
+}
+#dong-san-xuat .tdDangLam .daitrangthai .dtngucanh {
+  flex: 0 1 200px;
+  width: auto;
+  min-width: 150px;
+}
+#dong-san-xuat .tdDangLam .daitrangthai .dtnhan {
+  font: 500 11.5px/1.4 var(--ui);
+  color: var(--ink-3);
+  margin-bottom: 4px;
+}
+#dong-san-xuat .tdDangLam .cayvai .vaiten {
+  font: 500 12.5px var(--ui);
+}
+#dong-san-xuat .tdDangLam .cayvai .vaicongcu {
+  color: color-mix(in oklab, var(--gold) 82%, var(--ink));
+}
+#dong-san-xuat .tdDangLam .daitrangthai .thuoc {
+  height: 6px;
+  border-radius: 999px;
+}
+#dong-san-xuat .tdDangLam .daitrangthai .kim {
+  border-radius: 999px;
+}
+#dong-san-xuat .tdDangLam .daitrangthai .dtso {
+  font: 400 11.5px var(--ui);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── phiên này: khóa–giá trị ── */
+#dong-san-xuat .tdPhien {
+  padding: 16px 18px;
+  min-width: 0;
+}
+#dong-san-xuat .tdPhien h2 {
+  margin: 0 0 10px;
+  font: 500 12.5px/1.4 var(--ui);
+  color: var(--ink-3);
+}
+#dong-san-xuat .tdKv {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 9px 12px;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+}
+#dong-san-xuat .tdKv dt {
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+#dong-san-xuat .tdKv dd {
+  margin: 0;
+  text-align: right;
+  color: var(--ink);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#dong-san-xuat .tdKv .mo {
+  color: var(--ink-3);
+  font-weight: 400;
+}
+#dong-san-xuat .tdKv code {
+  font: 400 12px var(--mono);
+  color: var(--ink);
+}
+
+/* ══ văn đang viết ═══════════════════════════════════════════════════════ */
+#dong-san-xuat .tdVan {
+  position: relative;
+  min-width: 0;
+}
+#dong-san-xuat .tdVan .vansong {
+  display: grid;
+  grid-template-rows: auto minmax(0, auto);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+#dong-san-xuat .tdVan .vshead {
+  padding: 13px 22px 0;
+  border: 0;
+  background: none;
+}
+#dong-san-xuat .tdVan .vshead h2 {
+  font: 500 12.5px/1.4 var(--ui);
+  color: var(--ink-3);
+}
+#dong-san-xuat .tdVan .vsthan {
+  max-height: 340px;
+  padding: 8px 22px 18px;
+}
+/* Văn truyện: serif, khổ đọc ~68ch. Lượt là dữ liệu máy thì mono nhỏ (xem `laMa`). */
+#dong-san-xuat .tdVan .vsthan .chu {
+  max-width: 68ch;
+  font: 400 15px/1.8 var(--serif);
+  color: var(--ink);
+  font-variant-numeric: lining-nums;
+}
+#dong-san-xuat .tdVan .vsthan .chu.ma {
+  max-width: none;
+  font: 400 12px/1.7 var(--mono);
+  color: var(--ink-2);
+}
+#dong-san-xuat .tdVan .vach {
+  max-width: 68ch;
+  font: 400 11.5px/1 var(--ui);
+}
+#dong-san-xuat .tdVan .vecuoi {
+  right: 18px;
+  bottom: 14px;
+  height: 28px;
+  border-radius: 999px;
+  padding: 0 14px;
+  box-shadow: var(--shadow-pop);
+}
+#dong-san-xuat .tdVan.dangSong .vansong {
+  border-color: color-mix(in oklab, var(--gold) 34%, var(--line));
+}
+#dong-san-xuat .tdVan.dangSong .vshead h2::after {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-left: 8px;
+  vertical-align: middle;
+  border-radius: 50%;
+  background: var(--gold-fill);
+}
+
+/* Chưa có chữ: thu về MỘT dòng, không giữ một ô trống lớn giữa màn. */
+#dong-san-xuat .tdVan.rong .vansong {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  column-gap: 10px;
+  padding: 10px 18px;
+  background: transparent;
+  border: 1px dashed var(--line);
+  box-shadow: none;
+  border-radius: 12px;
+}
+#dong-san-xuat .tdVan.rong .vshead {
+  padding: 0;
+}
+#dong-san-xuat .tdVan.rong .vshead h2 {
+  color: var(--ink-2);
+}
+#dong-san-xuat .tdVan.rong .vsthan {
+  padding: 0;
+  overflow: visible;
+  max-height: none;
+  min-width: 0;
+  flex: 1 1 260px;
+}
+#dong-san-xuat .tdVan.rong .vstrong {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ink-3);
+}
+
+/* ══ thẻ bằng chứng ══════════════════════════════════════════════════════ */
+#dong-san-xuat .tdLuoi {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+#dong-san-xuat .tdO {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+#dong-san-xuat .tdODau {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 14px 18px 8px;
+  min-width: 0;
+}
+#dong-san-xuat .tdODau h2 {
+  margin: 0;
+  font: 600 13.5px/1.4 var(--ui);
+  letter-spacing: -0.005em;
+  color: var(--ink);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#dong-san-xuat .tdODau h2 .phu {
+  margin-left: 4px;
+  font-weight: 400;
+  color: var(--ink-3);
+}
+#dong-san-xuat .tdODau .dem {
+  margin-left: auto;
+  flex: none;
+  font: 400 12px var(--ui);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-3);
+}
+/* Thẻ vừa nhận tin: một chấm vàng cạnh tiêu đề. Ảnh tĩnh vẫn đọc được — khác với vệt viền
+   chạy vòng của bản trước. */
+#dong-san-xuat .tdO.dangSong .tdODau h2::after {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-left: 8px;
+  vertical-align: middle;
+  border-radius: 50%;
+  background: var(--gold-fill);
+}
+#dong-san-xuat .tdOThan {
+  min-width: 0;
+  padding: 0 18px 14px;
+}
+#dong-san-xuat .tdO-sukien .tdOThan,
+#dong-san-xuat .tdO-nhatky .tdOThan {
+  max-height: 360px;
+  overflow-y: auto;
+}
+#dong-san-xuat .tdO .trongSect {
+  font-size: 12.5px;
+  line-height: 1.55;
+  padding: 2px 0 2px;
+}
+#dong-san-xuat .tdO .steerhint {
+  margin: 10px 0 0;
+  font-size: 11.5px;
+  line-height: 1.55;
+}
+
+/* ── bảng chương gọn ── */
+#dong-san-xuat .tdO-chuong .tdOThan {
+  padding: 0 10px 12px;
+}
+#dong-san-xuat .tdO-chuong .phamvihint,
+#dong-san-xuat .tdO-chuong .steerhint {
+  padding: 0 8px;
+}
+#dong-san-xuat .bang {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+#dong-san-xuat .bang thead th {
+  padding: 4px 8px 8px;
+  font: 500 11.5px/1.4 var(--ui);
+  color: var(--ink-3);
+}
+#dong-san-xuat .bang tbody td {
+  padding: 8px 8px;
+  vertical-align: middle;
+}
+#dong-san-xuat .bang tbody tr:last-child td {
+  border-bottom: 0;
+}
+#dong-san-xuat .bang tbody tr td:first-child {
+  border-radius: 8px 0 0 8px;
+}
+#dong-san-xuat .bang tbody tr td:last-child {
+  border-radius: 0 8px 8px 0;
+}
+#dong-san-xuat .bang tbody tr:hover {
+  background: var(--panel-2);
+}
+#dong-san-xuat .bang tbody tr[aria-selected="true"] {
+  background: color-mix(in oklab, var(--gold-fill) 9%, var(--panel));
+}
+#dong-san-xuat .bang tbody tr[aria-selected="true"] td:first-child {
+  box-shadow: none;
+}
+#dong-san-xuat .bang td.ch {
+  width: 44px;
+  font: 500 12.5px var(--ui);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-3);
+}
+#dong-san-xuat .bang td.title {
+  font: 500 14px/1.4 var(--serif);
+  color: var(--ink);
+}
+#dong-san-xuat .bang td.title .draft {
+  font: italic 400 12.5px var(--ui);
+}
+#dong-san-xuat .bang td.num {
+  font: 400 12.5px var(--ui);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
+}
+#dong-san-xuat .bang td.who {
+  font-size: 12px;
+  color: var(--ink-3);
+}
+#dong-san-xuat .bang .st.vien {
+  align-items: center;
+  gap: 5px;
+  padding: 2px 9px 2px 8px;
+  font: 500 11.5px/1.5 var(--ui);
+}
+#dong-san-xuat .bang .st.vien .ky {
+  font-size: 7px;
+}
+#dong-san-xuat .bang .st.vien.teal {
+  color: color-mix(in oklab, var(--teal) 82%, var(--ink));
+}
+#dong-san-xuat .bang .st.vien.gold {
+  color: color-mix(in oklab, var(--gold) 82%, var(--ink));
+}
+#dong-san-xuat .bang .st.vien.amber {
+  color: color-mix(in oklab, var(--amber) 82%, var(--ink));
+}
+#dong-san-xuat .bang .st.vien.muted {
+  background: var(--panel-2);
+  color: var(--ink-3);
+}
+#dong-san-xuat .tdThem {
+  display: block;
+  margin: 6px 8px 0;
+  padding: 4px 0;
+  background: none;
+  border: 0;
+  font: 500 12px var(--ui);
+  color: var(--ink-2);
+  cursor: pointer;
+}
+#dong-san-xuat .tdThem:hover {
+  color: var(--ink);
+}
+
+/* ── diễn biến ── */
+#dong-san-xuat .dong {
+  max-height: none;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+}
+#dong-san-xuat .dong .sk {
+  grid-template-columns: 42px minmax(0, 1fr);
+  grid-template-areas: "t n" "t l";
+  gap: 1px 12px;
+  padding: 8px 0;
+  font-size: 13px;
+}
+#dong-san-xuat .dong time {
+  grid-area: t;
+  font: 400 12px/1.5 var(--ui);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-3);
+}
+#dong-san-xuat .dong .tt {
+  grid-area: n;
+  line-height: 1.5;
+  color: var(--ink);
+}
+#dong-san-xuat .dong .tt .vai {
+  color: var(--ink-3);
+}
+#dong-san-xuat .dong .loai {
+  grid-area: l;
+  font: 400 11.5px/1.4 var(--ui);
+  color: var(--ink-3);
+}
+#dong-san-xuat .dong .sk.loi .tt,
+#dong-san-xuat .dong .sk.loi .loai {
+  color: var(--red);
+}
+
+/* ── nhật ký quyết định ── */
+#dong-san-xuat .log .entry {
+  padding: 10px 0;
+  gap: 3px 12px;
+  font-size: 13px;
+}
+#dong-san-xuat .log .entry:hover {
+  background: none;
+}
+#dong-san-xuat .log .entry time {
+  font: 400 12px var(--ui);
+  font-variant-numeric: tabular-nums;
+}
+#dong-san-xuat .log .entry .kind .giai {
+  font: 500 13px/1.5 var(--ui);
+}
+#dong-san-xuat .log .entry .why {
+  line-height: 1.55;
+}
+#dong-san-xuat .log .entry .replay {
+  border-radius: 7px;
+  padding: 3px 10px;
+  font-size: 12px;
+}
+#dong-san-xuat .log .entry .replay[hidden] {
+  display: none;
+}
+
+/* ══ ô góp ý — ghim đáy, ô nhập bo tròn có nút gửi ═══════════════════════ */
+#dong-san-xuat .blcanthiep {
+  display: block;
+  padding: 10px 28px 12px;
+  background: var(--bg);
+  border-top: 1px solid var(--line-2);
+}
+#dong-san-xuat .blcanthiep .steerbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 1304px;
+  padding: 4px 4px 4px 14px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  box-shadow: var(--shadow);
+  color: var(--ink-3);
+  transition: border-color 0.14s var(--ease), box-shadow 0.14s var(--ease);
+}
+#dong-san-xuat .blcanthiep .steerbox:focus-within {
+  border-color: color-mix(in oklab, var(--gold) 55%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--gold) 16%, transparent), var(--shadow);
+}
+#dong-san-xuat .blcanthiep .steerbox .bt {
+  flex: none;
+}
+#dong-san-xuat .blcanthiep .steerbox input {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 2px;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  font: 400 13.5px/1.4 var(--ui);
+  color: var(--ink);
+}
+#dong-san-xuat .blcanthiep .steerbox input:focus,
+#dong-san-xuat .blcanthiep .steerbox input:focus-visible {
+  outline: none;
+}
+#dong-san-xuat .blcanthiep .steerbox input:disabled {
+  background: transparent;
+  border: 0;
+}
+#dong-san-xuat .blcanthiep .steerbox button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  min-height: 32px;
+  padding: 0 12px 0 16px;
+  border-radius: 999px;
+  font: 600 12.5px/1 var(--ui);
+  background: var(--gold-fill);
+  color: var(--tren-fill);
+  border: 0;
+}
+#dong-san-xuat .blcanthiep .steerbox button:hover:not(:disabled) {
+  filter: none;
+  background: color-mix(in oklab, var(--gold-fill) 88%, var(--ink));
+}
+#dong-san-xuat .blcanthiep .steerbox button:disabled {
+  background: var(--raised);
+  color: var(--ink-3);
+  border: 0;
+}
+#dong-san-xuat .blcanthiep .steerhint,
+#dong-san-xuat .blcanthiep .loiDoc {
+  max-width: 1304px;
+  margin: 6px 0 0 16px;
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+#dong-san-xuat .blcanthiep .steerhint[hidden] {
+  display: none;
+}
+
+/* Ô nhập trả chương về viết lại trong dải duyệt: cùng ngôn ngữ, nhưng nằm trong dải. */
+:is(#dong-san-xuat, #kiem-dinh) .cuanghiemthu .steerbox input {
+  border-radius: 8px;
+  background: var(--panel);
+}
+:is(#dong-san-xuat, #kiem-dinh) .cuanghiemthu .steerbox button {
+  border-radius: 8px;
+}
+
+/* ══ bề rộng ═════════════════════════════════════════════════════════════
+   Đo theo bề rộng CANVAS (container `canvas` khai ở `.canvas.buonglai`), không theo cửa sổ:
+   cột phải có hiện hay không làm canvas rộng khác nhau ở cùng một cửa sổ. */
+@container canvas (max-width: 980px) {
+  #dong-san-xuat .bang .who {
+    display: none;
+  }
+}
+@container canvas (max-width: 860px) {
+  #dong-san-xuat .tdHangDau,
+  #dong-san-xuat .tdLuoi {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@container canvas (max-width: 620px) {
+  #dong-san-xuat > .head,
+  #dong-san-xuat .blcanthiep {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+  #dong-san-xuat .tdTrang {
+    padding: 14px 14px 20px;
+    gap: 12px;
+  }
+  #dong-san-xuat .tdDangLam {
+    padding: 16px;
+  }
+  #dong-san-xuat .tdChuong {
+    font-size: 18px;
+  }
+  #dong-san-xuat .tdBuoc {
+    gap: 4px;
+  }
+  #dong-san-xuat .tdBuoc li {
+    padding: 6px 2px;
+    font-size: 11px;
+    white-space: normal;
+    line-height: 1.25;
+  }
+  #dong-san-xuat .lanes {
+    grid-template-columns: 46px minmax(0, 1fr);
+    gap: 6px 8px;
+  }
+  #dong-san-xuat .blk .txt {
+    display: none;
+  }
+  :is(#dong-san-xuat, #kiem-dinh) .cuanghiemthu {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  :is(#dong-san-xuat, #kiem-dinh) .cuanghiemthu .cntnut {
+    grid-column: 1;
+    grid-row: auto;
+    justify-content: flex-start;
+    margin-top: 8px;
+  }
+  #dong-san-xuat .blcanthiep .steerbox button {
+    padding: 0 12px;
+  }
+  #dong-san-xuat .bang td.num:last-child,
+  #dong-san-xuat .bang th.num:last-child {
+    display: none;
+  }
+}
+
+/* Dưới 860px cửa sổ, globals.css biến buồng lái thành một khối cuộn; ở đây khung ba hàng
+   (đầu · trang cuộn · góp ý) vẫn đúng, nên giữ nó. */
+@media (max-width: 860px) {
+  #dong-san-xuat.canvas.buonglai {
+    display: grid;
+    overflow: hidden;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #dong-san-xuat .tdDot.dap::after {
+    animation: none;
+    opacity: 0.6;
+    transform: scale(1.1);
+  }
+  #dong-san-xuat .tdBuoc li,
+  #dong-san-xuat .chlane i {
+    transition: none;
+  }
+}
+
+/* ══ cột phải (Inspector) ════════════════════════════════════════════════
+   Chỉ hiện ở màn này (`dungInspector`). Một cột lặng: nền --bg, các khối là thẻ nhỏ, tab là
+   một bộ chọn phân đoạn rõ ràng thay cho gạch chân mảnh. */
+.insp {
+  background: var(--bg);
+  border-left: 1px solid var(--line-2);
+  padding: 14px 14px 24px;
+}
+.insp .ihead {
+  padding: 4px 4px 12px;
+  border-bottom: 0;
+}
+.insp .ihead h2.chuachon {
+  font: 600 13.5px/1.4 var(--ui);
+  color: var(--ink);
+}
+.insp .ihead .ilui {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 0 10px;
+  padding: 3px 8px 3px 6px;
+  border-radius: 7px;
+  font: 500 12px var(--ui);
+  color: var(--ink-2);
+}
+.insp .ihead .ilui:hover {
+  background: var(--panel-2);
+  color: var(--ink);
+}
+.insp .ihead .no {
+  font: 400 12px var(--ui);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-3);
+}
+.insp .ihead h2 {
+  margin: 4px 0 8px;
+  font: 600 17px/1.35 var(--serif);
+  letter-spacing: -0.005em;
+  color: var(--ink);
+}
+.insp .ihead h2 .draft {
+  font: italic 400 13.5px var(--ui);
+}
+.insp .ihead .st {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 9px 2px 8px;
+  border-radius: 999px;
+  font: 500 11.5px/1.5 var(--ui);
+  background: var(--raised);
+}
+.insp .ihead .st .ky {
+  font-size: 7px;
+}
+.insp .ihead .st.teal {
+  background: color-mix(in oklab, var(--teal) 14%, transparent);
+}
+.insp .ihead .st.gold {
+  background: color-mix(in oklab, var(--gold-fill) 15%, transparent);
+}
+.insp .ihead .st.amber {
+  background: color-mix(in oklab, var(--amber) 14%, transparent);
+}
+
+.insp .tabs {
+  display: flex;
+  gap: 2px;
+  margin: 0 0 12px;
+  padding: 3px;
+  background: var(--raised);
+  border: 0;
+  border-radius: 10px;
+}
+.insp .tabs button {
+  position: relative;
+  z-index: 1;
+  flex: 1 1 0;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 8px;
+  font: 500 12.5px/1.2 var(--ui);
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+.insp .tabs button:hover {
+  color: var(--ink);
+}
+.insp .tabs button[aria-selected="true"] {
+  background: var(--panel);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+}
+.insp .tabs.truot button[aria-selected="true"] {
+  background: none;
+  box-shadow: none;
+}
+.insp .tabs.truot::after {
+  top: 3px;
+  bottom: 3px;
+  height: auto;
+  background: var(--panel);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  z-index: 0;
+}
+
+.insp .ibody {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px 16px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+}
+/* Chế độ ngữ cảnh: mỗi khối là một thẻ riêng, nên thân không tự mang khung. */
+.insp .ibody:has(> .iKhoi) {
+  padding: 0;
+  background: none;
+  border: 0;
+  box-shadow: none;
+}
+.insp .iKhoi {
+  padding: 12px 14px 14px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  min-width: 0;
+}
+.insp .ibody h3,
+.insp .ibody h3:not(:first-child) {
+  margin: 0 0 8px;
+  font: 600 12.5px/1.4 var(--ui);
+  color: var(--ink);
+}
+.insp .ibody > h3:not(:first-child) {
+  margin-top: 8px;
+}
+.insp .ibody .trong {
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+.insp .tomdem {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.insp .dsvach {
+  gap: 4px;
+}
+.insp .dsvach .vach1 {
+  border-radius: 6px;
+}
+.insp .ihetca {
+  margin-top: 8px;
+  padding: 0;
+  background: none;
+  border: 0;
+  font: 500 12px var(--ui);
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.insp .ihetca:hover {
+  color: var(--ink);
+}
+
+.insp .nvtom {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.insp .nvtom li {
+  padding: 5px 0;
+  border-bottom: 1px solid var(--line-2);
+}
+.insp .nvtom li:last-child {
+  border-bottom: 0;
+}
+.insp .nvtom .nvten {
+  font: 500 13px var(--ui);
+  color: var(--ink);
+}
+
+/* Tiền đề gọn: hai mục đầu, mỗi đoạn tối đa bốn dòng; phần còn lại sau nút "Xem đầy đủ". */
+.insp .tiende .tiendemuc {
+  margin-bottom: 10px;
+}
+.insp .tiende .tiendemuc h4 {
+  margin: 0 0 3px;
+  font: 500 11.5px/1.4 var(--ui);
+  color: var(--ink-3);
+}
+.insp .tiende .tiendetom {
+  margin: 0 0 6px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--ink-2);
+}
+.insp .tiende.gon .tiendetom {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+  overflow: hidden;
+}
+.insp .tiende .ihetca {
+  margin-top: 0;
+}
+
+.insp .excerpt {
+  font: 400 14px/1.75 var(--serif);
+  color: var(--ink);
+}
+.insp .banthao {
+  padding: 16px 18px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+}
+.insp .docthem {
+  align-self: flex-start;
+  border-radius: 8px;
+}
+
+/* Tên model dài (provider · model) không vừa nửa phải của hàng — cho nó cả một dòng riêng
+   dưới nhãn, xuống dòng được, thay vì cắt còn "cx/gpt-…". */
+#dong-san-xuat .tdKv dd.tdModel {
+  grid-column: 1 / -1;
+  margin-top: -5px;
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* Hẹp: lane tập dày có 14 khối, mỗi khối giữ `--khoi-min` nên cả lane tràn mép phải.
+   Khối không đang mở chỉ còn là một vệt màu, nên cho chúng co hết cỡ; khối đang chạy vẫn
+   giữ chỗ cho nhãn. Nút "Đọc chương mới nhất" bỏ thụt trái của bố cục rộng (ở đó nó đứng
+   cạnh khối chữ, ở đây nó đứng dưới). */
+@media (max-width: 860px) {
+  #dong-san-xuat .lane.day .blk:not(.running) {
+    min-width: 0;
+  }
+  #dong-san-xuat .tdDangLam .vttNut {
+    padding-left: 0;
+    border-left: 0;
+  }
+}
+
+/* Khối đang mở là chỗ duy nhất trên lane mang chữ ("T14", "H1 · hiện tại"), nên nó không được
+   co: ở lane tập dày, 13 khối đã xong chia nhau phần còn lại, còn khối đang mở giữ đủ chỗ cho
+   nhãn — bản trước cắt "T14" ở mép phải. `line-height` cao hơn 1 để dấu nặng của "tại" không
+   bị phần cắt ellipsis xén mất. */
+#dong-san-xuat .blk.running {
+  flex-shrink: 0 !important;
+  min-width: max-content;
+  line-height: 1.35;
+}
+#dong-san-xuat .blk .txt {
+  line-height: 1.35;
+}
+/* Ở lane tập dày chỉ còn "▸ T14" — phần "· hiện tại" đã có ở `title`, và giữ nó làm khối
+   rộng tới mức tràn khỏi thẻ. */
+#dong-san-xuat .lane.day .blk.running .txt {
+  display: none;
+}
+#dong-san-xuat .lane.day .blk:not(.running) {
+  min-width: 4px;
+}

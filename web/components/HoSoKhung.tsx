@@ -1,5 +1,7 @@
 'use client';
 
+import { mauBia } from '@/lib/bia';
+import { CHU_TG } from '@/lib/chu/the-gioi';
 import { CHU, GIAI_THICH } from '@/lib/nhan';
 import type { TaiVe } from '@/lib/useHoSo';
 
@@ -22,17 +24,24 @@ import type { TaiVe } from '@/lib/useHoSo';
 export function HoSoKhung({
   tieuDe,
   motTa,
+  lop,
+  hanhDong,
   children,
 }: {
   tieuDe: string;
   motTa?: string;
+  /** Lớp gốc của màn, để CSS riêng của màn có phạm vi và không lan sang màn khác. */
+  lop?: string;
+  /** Nút hoặc bộ lọc đứng ở mép phải thanh đầu. */
+  hanhDong?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
-    <main className="canvas khuhoso">
+    <main className={lop ? `canvas khuhoso ${lop}` : 'canvas khuhoso'}>
       <div className="head">
         <h1>{tieuDe}</h1>
         {motTa ? <span className="sub">{motTa}</span> : null}
+        {hanhDong ? <div className="headPhai">{hanhDong}</div> : null}
       </div>
       {children}
     </main>
@@ -59,12 +68,15 @@ export function HoSoKhung({
 export function HopGap({
   tieuDe,
   phu,
+  tomTat,
   moSan,
   children,
 }: {
   tieuDe: string;
   /** Số đo của khối, hiện ngay trên dòng tóm — nó là lý do để mở hoặc để bỏ qua. */
   phu?: string;
+  /** Vài dòng xem trước khi khối đóng: đủ để biết trong đó có gì mà không phải mở. */
+  tomTat?: React.ReactNode;
   moSan?: boolean;
   children: React.ReactNode;
 }) {
@@ -73,6 +85,7 @@ export function HopGap({
       <summary>
         <h2>{tieuDe}</h2>
         {phu ? <span className="hopPhu">{phu}</span> : null}
+        {tomTat ? <div className="hopTomTat">{tomTat}</div> : null}
       </summary>
       <div className="hopThan">{children}</div>
     </details>
@@ -170,4 +183,71 @@ export function MucRong({
     return <p className="trongSect">{GIAI_THICH.chuaDungNen(muc)}</p>;
   }
   return <p className="trongSect">{GIAI_THICH.dungNenMaRong(muc)}</p>;
+}
+
+/**
+ * Chuẩn hoá chuỗi để tìm: bỏ dấu, `đ` → `d`, chữ thường.
+ *
+ * Người dùng gõ "ha van tinh" phải ra "Hạ Vãn Tình": gõ đủ dấu tiếng Việt trong một ô tìm
+ * là việc chậm nhất trên bàn phím, và một ô tìm đòi đúng dấu thì gần như không dùng được.
+ */
+export function chuanHoaTim(s: string): string {
+  return s
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'd')
+    .toLowerCase()
+    .trim();
+}
+
+/**
+ * Nút "Hiện thêm" cho danh sách dài, kèm số còn lại.
+ *
+ * Phân trang bằng nút thay vì ảo hoá: danh sách ở đây là văn mô tả nhiều dòng, cao không
+ * đều, và tìm-trong-trang của trình duyệt phải tìm được mọi mục đang hiện. Mỗi lần thêm
+ * một khúc vừa đọc, không đổ cả 701 mục ra một lúc.
+ */
+export function NutHienThem({
+  con,
+  buoc,
+  onThem,
+  nhan,
+}: {
+  con: number;
+  buoc: number;
+  onThem: () => void;
+  nhan: (n: number) => string;
+}) {
+  if (con <= 0) return null;
+  return (
+    <div className="tgHienThem">
+      <button type="button" className="nutPhu" onClick={onThem}>
+        {nhan(Math.min(buoc, con))}
+      </button>
+      <span className="tgHienThemCon">{CHU_TG.conLai(con)}</span>
+    </div>
+  );
+}
+
+/** "Hạ Vãn Tình" → "HT": chữ đầu của họ và của tên, như cách người Việt viết tắt tên. */
+function chuDau(ten: string): string {
+  const tu = ten.trim().split(/\s+/).filter(Boolean);
+  if (tu.length === 0) return '?';
+  const dau = tu[0]![0]!;
+  const cuoi = tu.length > 1 ? tu[tu.length - 1]![0]! : '';
+  return (dau + cuoi).toLocaleUpperCase('vi');
+}
+
+/** Vòng tròn chữ cái đầu. Màu suy từ tên, như màu bìa suy từ mã truyện: cố định, riêng. */
+export function VongTen({ ten, lon }: { ten: string; lon?: boolean }) {
+  return (
+    <span
+      className={lon ? 'tgVong lon' : 'tgVong'}
+      style={{ background: mauBia(ten).chinh }}
+      aria-hidden="true"
+    >
+      {chuDau(ten)}
+    </span>
+  );
 }

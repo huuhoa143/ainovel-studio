@@ -124,6 +124,9 @@ type ChapterRow struct {
 	DurationMs *int64 `json:"duration_ms,omitempty"`
 	// Owner là các vai đã tham gia chu kỳ gần nhất, suy ra từ bước checkpoint.
 	Owner []string `json:"owner,omitempty"`
+	// Reviewed = chương có bản nhận xét riêng (reviews/NN.json). Không phải mọi chương đều
+	// được nhận xét, nên màn Nhận xét biên tập cần biết chương nào mở ra có nội dung.
+	Reviewed bool `json:"reviewed,omitempty"`
 }
 
 // Dimension là một chiều trong bản duyệt của Editor.
@@ -220,6 +223,22 @@ type Transport struct {
 	// ChaptersPerHour nil khi phiên quá ngắn để con số có nghĩa.
 	ChaptersPerHour *float64 `json:"chapters_per_hour,omitempty"`
 	ElapsedMs       *int64   `json:"elapsed_ms,omitempty"`
+	// LastCall là lượt gọi LLM gần nhất, đọc từ usage.json: vai nào, bằng cặp provider/model ĐÃ
+	// CẤU HÌNH nào (provider là tên trong `providers`, không phải loại giao thức), lúc nào.
+	//
+	// Khác `Model` ở trên: `Model` là model MẶC ĐỊNH lúc mở phiên (meta/run.json), không phải
+	// model của vai nào. Ghép `Agent` với `Model` từng cho ra "Người viết · cx/gpt-5.6-luna"
+	// trong khi Người viết chạy model khác. nil khi chưa có lượt nào được ghi.
+	LastCall *LuotGoi `json:"last_call,omitempty"`
+}
+
+// LuotGoi là một lượt gọi LLM đã ghi nhận.
+type LuotGoi struct {
+	Agent    string `json:"agent"`
+	Provider string `json:"provider"`
+	Model    string `json:"model"`
+	// At theo RFC 3339.
+	At string `json:"at"`
 }
 
 // Snapshot là toàn bộ dữ liệu cho một lần tải bề mặt studio.

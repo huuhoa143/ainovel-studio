@@ -36,7 +36,7 @@ test('trục sản xuất KHÔNG mượn chữ của trạng thái máy', () => 
   // `timeline.volumes[].status` đến từ store và nó vẫn `running` khi engine đã tắt, nên chữ
   // "đang chạy" ở đây là một lời khẳng định về máy mà nguồn của nó không bảo đảm nổi.
   expect(TRANG_THAI_KHOI.running.nhan).not.toBe(TRANG_THAI_MAY_RUNTIME.running.nhan);
-  expect(TRANG_THAI_KHOI.running.nhan).toBe('đang mở');
+  expect(TRANG_THAI_KHOI.running.nhan).toBe('hiện tại');
 });
 
 test('slate thanh trên KHÔNG mượn chữ của trạng thái máy', () => {
@@ -81,7 +81,7 @@ test('chip kết nối nói về TRÌNH DUYỆT, và cả bốn trạng thái c�
 
     // Nhãn phải nêu TÂN NGỮ. "đã nối" trần là bản cũ, và người dùng đã phải hỏi "đã nối là
     // gì ấy nhỉ" — một nhãn phải hỏi mới hiểu là một nhãn đã hỏng.
-    expect(nhan, nhan).toContain('engine');
+    expect(nhan, nhan).toContain('hệ thống');
 
     // Bản ngắn thật sự NGẮN hơn, nếu không thì điểm ngắt 700px không cứu được gì.
     expect(nhanNgan.length, nhanNgan).toBeLessThan(nhan.length);

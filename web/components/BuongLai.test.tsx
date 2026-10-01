@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { expect, test } from 'vitest';
 
+import { TD } from '@/lib/chu/tien-do';
 import { CHU, GIAI_THICH } from '@/lib/nhan';
 import type { Snapshot } from '@/lib/types';
 import { BO_DEM_RONG, moLuot, themChu, type BoDemVan } from '@/lib/vanSong';
@@ -141,59 +142,54 @@ test('dải ở buồng lái được cho biết máy đang chạy hay nghỉ', 
   expect(nhanNutGui(false)).toContain(CHU.danhThucLuotMoi);
 });
 
-/* ── ba hàng của cột giữa, và bàn chia ô ở hàng giữa ──────────────────── */
+/* ── bố cục: đầu trang · trang cuộn · góp ý ghim đáy ─────────────────── */
 
-test('cột giữa có đủ BA hàng, theo đúng thứ tự trục · bàn · can thiệp', () => {
-  // Hỏi thứ tự chứ không chỉ hỏi sự có mặt: trục phải TRÊN bàn (nó nói về cả cuốn, và một
-  // dải nói phạm vi đứng dưới các ô nói chi tiết là đảo cấp bậc), và ô can thiệp phải DƯỚI
-  // cùng — nó là dòng nhập của TUI, ghim đáy, không cuộn đi mất.
+test('khung có đúng BA hàng: đầu trang · trang cuộn · ô góp ý ghim đáy', () => {
+  // Ô góp ý là anh em của trang cuộn chứ không nằm trong nó: góp ý là việc người vận hành
+  // làm giữa lúc đang đọc chữ chảy, và một ô nhập cuộn đi mất là bắt họ rời mắt đi tìm nó.
   const { container } = ve(true);
-  const giua = container.querySelector('.blgiua');
-  expect(giua).not.toBeNull();
-
-  // Thanh chia của trục nằm GIỮA trục và bàn, không phải cuối danh sách: thứ tự DOM là thứ
-  // tự Tab, nên một thanh chia đứng sai chỗ là bàn phím đi tới nó ở một chỗ mà mắt không
-  // thấy ranh giới nào.
-  const hang = [...giua!.children].map((e) => e.className.split(' ')[0]);
-  expect(hang).toEqual(['bltruc', 'blkeo', 'blsan', 'blcanthiep']);
+  const khung = container.querySelector('.buonglai')!;
+  const hang = [...khung.children].map((e) => e.className.split(' ')[0]);
+  expect(hang).toEqual(['head', 'tdCuon', 'blcanthiep']);
 });
 
-test('ba ranh giới kéo được, mỗi cái một thanh chia có nhãn riêng', () => {
-  // Ba `separator` cùng một chỗ mà chung nhãn thì trình đọc màn hình đọc ra ba lần cùng một
-  // câu, và người dùng bàn phím không biết mình đang đứng ở ranh giới nào.
-  const { container } = ve(true);
-  const nhan = [...container.querySelectorAll('[role="separator"]')].map((e) => ({
-    nhan: e.getAttribute('aria-label'),
-    huong: e.getAttribute('aria-orientation'),
-    bamPhimDuoc: (e as HTMLElement).tabIndex === 0,
-  }));
-
-  expect(nhan).toEqual([
-    { nhan: CHU.keoTruc, huong: 'horizontal', bamPhimDuoc: true },
-    { nhan: CHU.keoCot, huong: 'vertical', bamPhimDuoc: true },
-    { nhan: CHU.keoHang, huong: 'horizontal', bamPhimDuoc: true },
-  ]);
+test('thứ tự DOM là thứ tự ĐỌC: cửa duyệt → thẻ đang làm → văn → bằng chứng', () => {
+  // Lưới đặt thẻ bằng cột, nên thứ tự DOM và thứ tự nhìn thấy có thể tách rời — đúng lớp
+  // lỗi mà `PRODUCT.md` cấm ("bàn phím là hạng nhất"). Thứ tự này cũng là thứ tự của bố cục
+  // một cột ở canvas hẹp, nên nó phải đúng ở cả hai chỗ bằng một khai báo duy nhất.
+  const { container } = ve(true, { advance: { mode: 'review', hold: true, permit_chapter: 8 } });
+  const thuTu = [
+    '.cuanghiemthu',
+    '.tdDangLam',
+    '.tdPhien',
+    '.tdVan',
+    '.tdO-chuong',
+    '.tdO-sukien',
+    '.tdO-nhatky',
+  ].map((sel) => {
+    const el = container.querySelector(sel);
+    expect(el, sel).not.toBeNull();
+    return el!;
+  });
+  for (let i = 1; i < thuTu.length; i++) {
+    expect(
+      thuTu[i - 1]!.compareDocumentPosition(thuTu[i]!) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  }
 });
 
-test('bàn có đủ BỐN ô, và thứ tự DOM là thứ tự ĐỌC', () => {
-  // Lưới đặt bốn ô bằng `grid-area`, nên thứ tự DOM và thứ tự nhìn thấy có thể tách rời —
-  // đúng lớp lỗi mà `PRODUCT.md` cấm ("bàn phím là hạng nhất"): một bàn đẹp mắt với thứ tự
-  // Tab nhảy cóc là một bàn không dùng được bằng bàn phím.
-  //
-  // Thứ tự này cũng là thứ tự mà bố cục một-cột dưới 700px canvas dùng nguyên xi, nên nó
-  // phải đúng ở CẢ HAI chỗ bằng một khai báo duy nhất.
-  const { container } = ve(true);
-  const o = [...container.querySelectorAll('.blsan > .blo')].map(
-    (e) => e.className.split(' ')[1],
-  );
-  expect(o).toEqual(['blo-song', 'blo-sukien', 'blo-chuong', 'blo-nhatky']);
+test('trục toàn truyện nằm TRONG thẻ đang làm, không phải một dải riêng', () => {
+  // Trục trả lời "đang ở đâu trong cả cuốn" — cùng câu với thẻ đang làm. Tách nó ra một dải
+  // riêng là hai khối cùng nói về vị trí, ở hai chỗ.
+  const { container } = ve(true, {
+    timeline: { volumes: null, arcs: null, chapters: [{ chapter: 1, state: 'done' }] },
+  });
+  expect(container.querySelector('.tdDangLam .tdTruc .chlane')).not.toBeNull();
 });
 
-test('mỗi ô của bàn có đầu ô RIÊNG, để biết mình đang đọc ô nào lúc đã cuộn', () => {
-  // Bốn ô cùng cuộn độc lập. Một ô mất đầu ô là một cột số không tên ngay khi người dùng
-  // cuộn qua dòng đầu — và ở ô bảng chương thì đó là năm cột số cùng lúc.
+test('mỗi thẻ bằng chứng có tiêu đề RIÊNG, để biết mình đang đọc thẻ nào lúc đã cuộn', () => {
   const { container } = ve(true);
-  for (const ma of ['blo-song', 'blo-sukien', 'blo-chuong', 'blo-nhatky']) {
+  for (const ma of ['tdVan', 'tdO-chuong', 'tdO-sukien', 'tdO-nhatky']) {
     const o = container.querySelector(`.${ma}`)!;
     expect(o.querySelector('h2'), ma).not.toBeNull();
   }
@@ -255,15 +251,13 @@ test('ô can thiệp nói ra hệ quả đúng với trạng thái máy', () => 
   expect(screen.getByRole('button', { name: CHU.danhThucLuotMoi })).toBeDefined();
 });
 
-/* ── bảng chương + nhật ký: mỗi thứ một Ô, không nối đuôi nhau ────────── */
+/* ── bảng chương + nhật ký: mỗi thứ một thẻ, không nối đuôi nhau ─────── */
 
-test('bảng chương và nhật ký ở HAI ô riêng, không nằm sau dòng sự kiện trong một khu cuộn', () => {
-  // Đây là phép đo của chính lỗi mà bàn chia ô sinh ra để sửa. Bản trước xếp ba mục nối đuôi
-  // trong MỘT khu cuộn cao 125px: dòng sự kiện cao 98px, bảng chương bắt đầu ở offset 98 và
-  // cao 1.951px nên hiện đúng 0 hàng, nhật ký bắt đầu ở offset 2.049 nên không bao giờ tới.
-  //
-  // jsdom không bố cục nên nó không đo được 125px kia. Cái nó đo được — và đủ để chặn việc
-  // dựng lại cấu trúc cũ — là mỗi mục có VÙNG CUỘN CỦA RIÊNG NÓ.
+test('bảng chương, diễn biến và nhật ký ở BA thẻ riêng, không nối đuôi trong một khu cuộn', () => {
+  // Bản đầu xếp ba mục nối đuôi trong MỘT khu cuộn cao 125px: bảng chương bắt đầu ở offset 98
+  // nên hiện đúng 0 hàng, nhật ký thì không bao giờ tới. jsdom không bố cục nên không đo
+  // được chiều cao; cái nó đo được — và đủ chặn việc dựng lại cấu trúc cũ — là mỗi mục có
+  // thân thẻ của RIÊNG nó.
   const { container } = ve(
     true,
     {
@@ -286,17 +280,62 @@ test('bảng chương và nhật ký ở HAI ô riêng, không nằm sau dòng s
     },
   );
 
-  expect(container.querySelector('.blcuon')).toBeNull();
-  expect(container.querySelector('.blo-sukien > .blothan .dong')).not.toBeNull();
-  expect(container.querySelector('.blo-chuong > .blothan .bangwrap')).not.toBeNull();
-  expect(container.querySelector('.blo-nhatky > .blothan .log')).not.toBeNull();
+  expect(container.querySelector('.tdO-sukien > .tdOThan .dong')).not.toBeNull();
+  expect(container.querySelector('.tdO-chuong > .tdOThan .bangwrap')).not.toBeNull();
+  expect(container.querySelector('.tdO-nhatky > .tdOThan .log')).not.toBeNull();
+});
+
+test('bảng chương: mới nhất đứng trên, gọn về tám hàng, và mở được cả bảng', () => {
+  // Ở một cuốn 700 chương, thứ người dùng cần là mấy chương vừa xong — không phải chương 1.
+  const chapters = Array.from({ length: 20 }, (_, i) => ({
+    chapter: i + 1,
+    stage: 'done' as const,
+    words: 1000,
+  }));
+  const { container } = ve(false, { chapters });
+  const so = () =>
+    [...container.querySelectorAll('.tdO-chuong tbody td.ch')].map((e) => e.textContent);
+
+  expect(so()).toEqual(['20', '19', '18', '17', '16', '15', '14', '13']);
+  // Mẫu số vẫn là CẢ phạm vi, không phải phần đang hiện.
+  expect(screen.getByText(CHU.soChuongTrongBang(20))).toBeDefined();
+
+  fireEvent.click(screen.getByRole('button', { name: TD.hienThem(12) }));
+  expect(so()).toHaveLength(20);
+  fireEvent.click(screen.getByRole('button', { name: TD.thuGon }));
+  expect(so()).toHaveLength(8);
+});
+
+test('bảng gọn KHÔNG cắt mất chương cần viết lại hay đang viết, dù nó cũ', () => {
+  // Cắt im lặng một chương chờ viết lại là đúng lỗi mà Rail và bộ chọn mức xem đã tránh.
+  const chapters = Array.from({ length: 20 }, (_, i) => ({
+    chapter: i + 1,
+    stage: (i === 2 ? 'rewrite' : i === 4 ? 'drafting' : 'done') as 'rewrite' | 'drafting' | 'done',
+  }));
+  const { container } = ve(false, { chapters });
+  const so = [...container.querySelectorAll('.tdO-chuong tbody td.ch')].map((e) => e.textContent);
+  expect(so).toContain('3');
+  expect(so).toContain('5');
+});
+
+test('khu văn: nghỉ mà rỗng thì không vẽ, chạy mà chưa có chữ thì một dòng, có chữ thì là khối đọc', () => {
+  // Một ô trống cao vài trăm pixel giữa màn là thứ người dùng đã chê; lúc nghỉ, cả dòng gợi
+  // ý cũng chỉ nhắc lại câu "bấm Viết tiếp" của thẻ đang làm.
+  const nghi = ve(false);
+  expect(nghi.container.querySelector('.tdVan')).toBeNull();
+  cleanup();
+  const a = ve(true);
+  expect(a.container.querySelector('.tdVan.rong')).not.toBeNull();
+  cleanup();
+  const b = ve(true, {}, themChu(BO_DEM_RONG, 'nàng quay đầu lại'));
+  expect(b.container.querySelector('.tdVan')).not.toBeNull();
+  expect(b.container.querySelector('.tdVan.rong')).toBeNull();
 });
 
 test('hai neo cuộn `#dong-su-kien` và `#nhat-ky-phan-quyet` còn nguyên', () => {
-  // `DangLam` trong `ViecTiepTheo.tsx` cuộn tới `#dong-su-kien` bằng id. Bàn chia ô chuyển
-  // hai mục này từ `<section class="sect">` sang `<section class="blo">`, và một lần đổi
-  // markup làm rơi mất `id` sẽ để nút "xem dòng sự kiện" bấm mà không đi đâu — không lỗi
-  // nào nổ ra, chỉ một nút im lặng.
+  // `DangLam` trong `ViecTiepTheo.tsx` cuộn tới `#dong-su-kien` bằng id. Mỗi lần làm lại
+  // bố cục là một lần đổi markup, và một lần làm rơi mất `id` sẽ để nút "xem diễn biến" bấm
+  // mà không đi đâu — không lỗi nào nổ ra, chỉ một nút im lặng.
   const { container } = ve(true);
   expect(container.querySelector('#dong-su-kien')).not.toBeNull();
   expect(container.querySelector('#nhat-ky-phan-quyet')).not.toBeNull();
@@ -310,7 +349,7 @@ test('đầu trang nói tên cuốn, giai đoạn và số đo — không phải
   });
 
   expect(screen.getByRole('heading', { name: CHU.dongSanXuat })).toBeDefined();
-  expect(screen.getByText(/Trấn Yêu Ký · đang viết · 300 chương · 12\.000 từ/)).toBeDefined();
+  expect(screen.getByText(/Trấn Yêu Ký · chặng viết · 300 chương · 12\.000 từ/)).toBeDefined();
 });
 
 test('cuốn KHÔNG phân tầng thì không có bộ chọn mức xem', () => {
@@ -332,10 +371,13 @@ test('cuốn phân tầng thì có bộ chọn mức xem', () => {
   expect(container.querySelector('.mucxem')).not.toBeNull();
 });
 
-test('cảnh báo dữ liệu lệch hiện ra, không bị nuốt', () => {
+test('cảnh báo dữ liệu lệch hiện ra, không bị nuốt — gọn một dòng có số đếm', () => {
   const { container } = ve(true, { warnings: ['chương 4 thiếu tệp bản thảo'] });
 
   expect(container.querySelector('.canhbao')).not.toBeNull();
+  // Số đếm nằm ngay trên dòng thấy được, nên phần thu gọn vẫn được nói ra bằng số.
+  expect(screen.getByText(TD.canhBao(1))).toBeDefined();
+  // Nội dung vẫn ở trong DOM — thu gọn là việc của hình, không phải của dữ liệu.
   expect(screen.getByText('chương 4 thiếu tệp bản thảo')).toBeDefined();
 });
 

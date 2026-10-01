@@ -21,7 +21,7 @@ test('vẽ cây vai với công cụ và số lượt', () => {
 
   // `Writer` chứ không phải `writer`: tên bốn tác tử của PRODUCT.md đi qua `nhanVai` như mọi
   // chỗ khác trên trang — xem "chỗ kế hoạch sai" trong nhật ký thi hành.
-  expect(screen.getByText(/Writer/)).toBeDefined();
+  expect(screen.getByText(/Người viết/)).toBeDefined();
   expect(screen.getByText(/draft_chapter/)).toBeDefined();
   expect(screen.getByText(/7/)).toBeDefined();
   expect(screen.getByText(/architect_long/)).toBeDefined();

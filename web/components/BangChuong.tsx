@@ -7,7 +7,8 @@ import type { Capabilities, ChapterRow } from '@/lib/types';
 import { TrangThai } from './TrangThai';
 
 /**
- * Bảng chương — nơi làm việc thật. Số liệu canh phải và dùng mono.
+ * Bảng chương — nơi làm việc thật. Số liệu canh phải, chữ số tabular; tên chương serif vì nó
+ * là chữ của truyện; trạng thái là viên `.vien` mang cả ký hiệu lẫn chữ.
  *
  * Hai cột trong bản mockup không được vẽ ở đây, và đó là chủ ý:
  *
@@ -60,7 +61,9 @@ export function BangChuong({
           <th scope="col">{CHU.colChuong}</th>
           <th scope="col">{CHU.colTieuDe}</th>
           <th scope="col">{CHU.colCongDoan}</th>
-          <th scope="col">{CHU.colPhuTrach}</th>
+          <th scope="col" className="who">
+            {CHU.colPhuTrach}
+          </th>
           <th scope="col" className="num">
             {CHU.colSoTu}
           </th>
@@ -97,7 +100,7 @@ export function BangChuong({
                 {r.title ? r.title : <span className="draft">{CHU.chuaDatTieuDe}</span>}
               </td>
               <td>
-                <TrangThai tt={tt} dap={dangChay} />
+                <TrangThai tt={tt} dap={dangChay} vien />
               </td>
               <td className="who">{vai || <span className="trong">{CHU.khongCo}</span>}</td>
               <td className="num">{tu ?? <span className="trong">{CHU.khongCo}</span>}</td>

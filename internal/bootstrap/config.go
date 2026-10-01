@@ -184,6 +184,11 @@ type RoleConfig struct {
 	ReasoningEffort string `json:"reasoning_effort,omitempty"`
 }
 
+// IsEffortOnly báo mục vai chỉ ghi đè độ suy luận, còn model vẫn thừa hưởng mặc định.
+func (rc RoleConfig) IsEffortOnly() bool {
+	return rc.Provider == "" && rc.Model == "" && len(rc.Fallbacks) == 0
+}
+
 // knownRoles 支持的可配置角色名。Arbiter 当前不开放角色级配置，
 // 统一使用顶层默认模型（host.arbiterModel 用 models.Default）。
 // import_* 是导入语义函数的模型档位旋钮（docs/import-pipeline.md §13.1）：
@@ -305,6 +310,12 @@ func (c *Config) ValidateBase() error {
 		}
 		if !knownRoles[role] {
 			return fmt.Errorf("unknown role %q in roles config (valid: architect/writer/editor/import_segment/import_analyze/import_synthesize): %w", role, errs.ErrConfig)
+		}
+		// Mục chỉ mang reasoning_effort (không provider, không model, không fallback) là hợp lệ:
+		// vai vẫn THỪA HƯỞNG model mặc định, chỉ đổi độ suy luận. `SetRoleThinking` trên một vai
+		// chưa đặt riêng sinh ra đúng hình dạng này; chặn nó ở đây là làm hỏng lần mở engine sau.
+		if rc.IsEffortOnly() {
+			continue
 		}
 		if rc.Provider == "" || rc.Model == "" {
 			return fmt.Errorf("role %q must have both provider and model: %w", role, errs.ErrConfig)

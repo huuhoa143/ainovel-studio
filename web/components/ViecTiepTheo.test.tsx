@@ -69,8 +69,8 @@ test('máy chạy: dòng đang làm gì nói vai và bước từ `song`', () =>
 
   expect(container.querySelector('.vttLive')).not.toBeNull();
   expect(screen.getByText('draft_chapter')).toBeDefined();
-  // Tên vai đi qua từ điển như mọi chỗ khác trên trang, nên nó ra `Writer` chứ không `writer`.
-  expect(screen.getByText('Writer')).toBeDefined();
+  // Tên vai đi qua từ điển như mọi chỗ khác trên trang, nên nó ra `Người viết` chứ không `writer`.
+  expect(screen.getByText('Người viết')).toBeDefined();
 });
 
 test('máy chạy mà `song` vắng: dòng đang làm gì im, không bịa vai hay bước', () => {

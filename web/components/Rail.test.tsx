@@ -3,7 +3,7 @@ import { expect, test, vi } from 'vitest';
 
 import type { Khu } from '@/lib/khu';
 import { manCuaKhu } from '@/lib/man';
-import { CHU } from '@/lib/nhan';
+import { CHU, DH } from '@/lib/nhan';
 
 import { Rail } from './Rail';
 import { snap } from './mau.test-helper';
@@ -95,40 +95,33 @@ test('đồng thanh THẮNG nhấp-số-đổi: một phần tử không mang ha
  * không đổi — vẫn là "có đường tới đó không, và người dùng có thấy đường ấy không".
  */
 
-test('cả BA màn luôn hiện, kể cả khi đang đứng trong xưởng sản xuất', () => {
-  // Đây là bài quan trọng nhất của tệp. Câu người dùng đã hỏi nguyên văn là "các màn khác
-  // đâu rồi ta", và nguyên nhân là điều hướng cấp một bị giấu sau một cú bấm mở nhóm. Ba
-  // hàng màn KHÔNG được nằm sau bất cứ lớp thu gọn nào.
-  ve('dong-san-xuat');
-  for (const ten of [CHU.manQuanLy, CHU.manCaiDatChung, CHU.manXuongSanXuat]) {
-    expect(screen.getByRole('button', { name: new RegExp(ten) })).toBeTruthy();
+test('mọi đích luôn hiện cùng lúc, đứng ở đâu cũng vậy', () => {
+  // Bản trước có tầng "màn" chồng trên tầng "khu": phải chọn màn rồi mới thấy khu của nó.
+  // Người dùng hỏi "các màn khác đâu rồi ta". Giờ rail là một cây phẳng, nên từ bất cứ khu
+  // nào cũng thấy tủ truyện, các mục của truyện đang mở và cài đặt.
+  for (const khu of ['dong-san-xuat', 'xuong', 'cau-hinh'] as const) {
+    const r = ve(khu);
+    const nhan = [...r.container.querySelectorAll('.mucdi .nhan')].map((e) => e.textContent);
+    expect(nhan).toContain(DH.tuTruyen);
+    expect(nhan).toContain(DH.vietTruyenMoi);
+    expect(nhan).toContain(DH.docTruyen);
+    expect(nhan).toContain(DH.tienDo);
+    expect(nhan).toContain(DH.modelKhoa);
+    r.unmount();
   }
 });
 
-test('bấm một màn thì đi tới khu ĐẦU của màn đó, không phải một khu tuỳ ý', () => {
-  const { doiMan } = ve('dong-san-xuat');
-  fireEvent.click(screen.getByRole('button', { name: new RegExp(CHU.manQuanLy) }));
-  expect(doiMan).toHaveBeenCalledWith('quan-ly');
+test('tên truyện đang mở đứng đầu nhóm của nó', () => {
+  const { container } = ve('dong-san-xuat');
+  expect(container.querySelector('.railSachTen')?.textContent).toBe('Trấn Yêu Ký');
 });
 
-test('rail chỉ vẽ khu của MÀN đang mở — không trộn hai cấp vào một cột', () => {
-  // Cả điểm của tầng màn: đứng trong xưởng sản xuất thì không thấy khu của màn Quản lý, và
-  // ngược lại. Trộn lại là quay về đúng cái rail mười tám mục đã bị gọi là "quá ngợp".
-  const sx = ve('dong-san-xuat');
-  const nhanSX = [...sx.container.querySelectorAll('.mucdi .nhan')].map((e) => e.textContent);
-  expect(nhanSX).toContain(CHU.banThao);
-  expect(nhanSX).not.toContain(CHU.xuong);
-  expect(nhanSX).not.toContain(CHU.cauHinh);
-  sx.unmount();
-
-  const ql = ve('xuong');
-  const nhanQL = [...ql.container.querySelectorAll('.mucdi .nhan')].map((e) => e.textContent);
-  expect(nhanQL).toContain(CHU.xuong);
-  expect(nhanQL).toContain(CHU.taoTacPham);
-  expect(nhanQL).not.toContain(CHU.banThao);
-  // Xưởng đứng ĐẦU, trên Tác phẩm mới: thứ tự này là thứ tự câu hỏi — "tôi đang có gì" đi
-  // trước "thêm một cái nữa".
-  expect(nhanQL.indexOf(CHU.xuong)).toBeLessThan(nhanQL.indexOf(CHU.taoTacPham));
+test('tủ truyện đứng đầu rail, cài đặt ghim cuối', () => {
+  // Thứ tự là thứ tự câu hỏi: "tôi đang có gì" trước, cấu hình dùng một lần thì xuống đáy.
+  const { container } = ve('dong-san-xuat');
+  const nhan = [...container.querySelectorAll('.mucdi .nhan')].map((e) => e.textContent);
+  expect(nhan[0]).toBe(DH.tuTruyen);
+  expect(nhan.at(-1)).toBe(DH.chiPhiTong);
 });
 
 test('mục Xưởng của màn Quản lý đi tới khu `xuong`', () => {

@@ -166,13 +166,13 @@ test('`Trang` nối danh sách sách THẬT của studio xuống màn Xưởng',
   STUDIO_GIA.khu = 'xuong';
   try {
     const { container } = render(<Trang />);
-    expect(container.querySelector('.khuxuong tbody tr[data-ma="b"]')).not.toBeNull();
+    expect(container.querySelector('.khuxuong .keLuoi [data-ma="b"]')).not.toBeNull();
   } finally {
     STUDIO_GIA.khu = truoc;
   }
 });
 
-test('`Trang` nối cửa nghiệm thu lên thanh trên, và huy hiệu hiện ở khu KHÁC buồng lái', () => {
+test('`Trang` nối cửa duyệt lên rail, và nút chờ duyệt hiện ở khu KHÁC buồng lái', () => {
   // Mắt cuối của sợi dây `snapshot.advance` → `Trang` → `ThanhTren`, và cùng lúc là phép đo
   // DUY NHẤT cho luật "huy hiệu phải thấy từ MỌI bề mặt". Bộ kiểm của `ThanhTren` dựng
   // component thẳng nên nó không biết gì về việc huy hiệu nằm trong hay ngoài `Khu`; đặt nhầm
@@ -277,7 +277,7 @@ test('`Trang` nối hành động mở-tại-khu THẬT của studio xuống nú
   MO_TAI.mockClear();
   try {
     const { container } = render(<Trang />);
-    fireEvent.click(container.querySelector<HTMLElement>('.khuxuong tbody tr[data-ma="b"] button')!);
+    fireEvent.click(container.querySelector<HTMLElement>('.khuxuong .keLuoi [data-ma="b"] button')!);
     expect(MO_TAI).toHaveBeenCalledWith('b', 'dong-san-xuat');
   } finally {
     STUDIO_GIA.khu = truoc;

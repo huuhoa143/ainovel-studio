@@ -319,13 +319,17 @@ func buildChapterRows(st *store.Store, p *domain.Progress, cycles map[int]chapte
 	}
 	sort.Ints(chapters)
 
+	// Lỗi đọc thư mục chỉ làm mất dấu "có nhận xét", không đáng làm hỏng cả snapshot.
+	reviewed, _ := st.World.ReviewedChapters()
+
 	rows := make([]ChapterRow, 0, len(chapters))
 	for _, c := range chapters {
 		row := ChapterRow{
-			Chapter: c,
-			Title:   chapterTitle(st, c),
-			Stage:   rowStage(c, p, done, rewrite),
-			Words:   p.ChapterWordCounts[c],
+			Chapter:  c,
+			Title:    chapterTitle(st, c),
+			Stage:    rowStage(c, p, done, rewrite),
+			Words:    p.ChapterWordCounts[c],
+			Reviewed: reviewed[c],
 		}
 		if cyc, ok := cycles[c]; ok {
 			if cyc.Measurable {
@@ -391,6 +395,9 @@ func buildTransport(st *store.Store, p *domain.Progress, cps []domain.Checkpoint
 		tr.Model = meta.Model
 	}
 	if usage, err := st.Usage.Load(); err == nil && usage != nil {
+		if lc := usage.LastCall; lc != nil {
+			tr.LastCall = &LuotGoi{Agent: lc.Agent, Provider: lc.Provider, Model: lc.Model, At: lc.At.Format(time.RFC3339)}
+		}
 		tr.CostUSD = usage.Overall.Cost
 		if n := len(p.CompletedChapters); n > 0 && usage.Overall.Cost > 0 {
 			per := usage.Overall.Cost / float64(n)

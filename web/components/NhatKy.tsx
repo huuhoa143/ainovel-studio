@@ -3,7 +3,7 @@
 import { useState } from 'react';
 
 import { gio, ngayGio, thoiLuong } from '@/lib/dinhdang';
-import { GIAI_THICH, nhanPhanQuyet, nhanVai } from '@/lib/nhan';
+import { GIAI_THICH, nhanPhanQuyet, nhanVai, DH } from '@/lib/nhan';
 import type { Decision, StreamEvent } from '@/lib/types';
 
 /**
@@ -40,15 +40,14 @@ function DongPhanQuyet({ d }: { d: Decision }) {
         {gio(d.at) ?? '—'}
       </time>
 
-      <span className={`kind ${mau}`}>
-        <span className="ma">{d.kind}</span>
-        {giai ? <span className="giai">{giai}</span> : null}
+      <span className={`kind ${mau}`} title={d.kind}>
+        <span className="giai">{giai || d.kind}</span>
       </span>
 
       <span className="why">
-        {d.reason ? d.reason : <span className="trong">không ghi lý do</span>}
-        {d.input ? <span className="vao">ý kiến vào: {d.input}</span> : null}
-        {d.error ? <span className="loi">lỗi: {d.error}</span> : null}
+        {d.reason ? d.reason : <span className="trong">{DH.khongGhiLyDo}</span>}
+        {d.input ? <span className="vao">{DH.gopYVao} {d.input}</span> : null}
+        {d.error ? <span className="loi">{DH.loi} {d.error}</span> : null}
         <span className="vao">
           <b>{nhanVai(d.decider)}</b>
           {d.model ? ` · ${d.model}` : ''}
@@ -66,7 +65,7 @@ function DongPhanQuyet({ d }: { d: Decision }) {
         aria-expanded={mo}
         onClick={() => setMo((v) => !v)}
       >
-        {mo ? 'Đóng' : 'Xem lại'}
+        {mo ? DH.anChiTiet : DH.xemChiTiet}
       </button>
     </div>
   );
@@ -107,13 +106,29 @@ export function DongSuKien({
           <time dateTime={ev.time} title={ngayGio(ev.time)}>
             {gio(ev.time) ?? '—'}
           </time>
-          <span className="loai">{ev.category ?? ev.kind}</span>
+          <span className="loai" title={ev.category ?? ev.kind}>
+            {nhanLoaiSuKien(ev.category ?? ev.kind)}
+          </span>
           <span className="tt">
-            {ev.summary ?? <span className="trong">không có mô tả</span>}
+            {ev.summary ?? <span className="trong">{DH.khongMoTa}</span>}
             {ev.agent ? <span className="vai"> · {nhanVai(ev.agent)}</span> : null}
           </span>
         </div>
       ))}
     </div>
   );
+}
+
+const LOAI_SU_KIEN: Record<string, string> = {
+  SYSTEM: 'hệ thống',
+  ERROR: 'lỗi',
+  TOOL: 'công cụ',
+  USER: 'bạn',
+  DISPATCH: 'giao việc',
+  DECISION: 'quyết định',
+};
+
+function nhanLoaiSuKien(ma: string | undefined): string {
+  if (!ma) return '';
+  return LOAI_SU_KIEN[ma.toUpperCase()] ?? ma.toLowerCase();
 }

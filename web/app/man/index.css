@@ -1,0 +1,7 @@
+/* Mỗi màn một tệp, nạp sau he.css. */
+@import './tu-truyen.css';
+@import './tien-do.css';
+@import './doc-duyet.css';
+@import './the-gioi.css';
+@import './van-hanh.css';
+@import './cau-hinh.css';

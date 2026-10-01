@@ -22,6 +22,7 @@ import type {
   DapCungDung,
   KetQuaLuongTep,
   LuotCungDung,
+  MucVai,
   OutlineDoc,
   Profile,
   SettingsDoc,
@@ -600,6 +601,7 @@ export interface SuaCauHinh {
   style?: string;
   provider_config?: {
     name: string;
+    /** Vắng = giữ giao thức. Chuỗi rỗng = suy giao thức theo tên (mục do TUI tạo). */
     type?: string;
     base_url?: string;
     /** Vắng = giữ khóa cũ. Chuỗi rỗng = xóa khóa. Hai nghĩa khác nhau. */
@@ -614,7 +616,7 @@ export interface SuaCauHinh {
    * mặc định", nên trộn thì thêm được mà không bao giờ gỡ được. Map rỗng = gỡ hết ghi đè.
    * Vắng trường này = không nói gì về vai. Xem `thanCauHinh.Roles` phía Go.
    */
-  roles?: Record<string, { provider: string; model: string }>;
+  roles?: Record<string, MucVai>;
 }
 
 export function luuCauHinh(
@@ -731,6 +733,27 @@ export function lietKeModel(
   // một yêu cầu ra ngoài kèm khóa API. `doc()` không gắn header rào nên sẽ ăn 403.
   const q = provider ? `?provider=${encodeURIComponent(provider)}` : '';
   return ghiDoc(`/api/models${q}`);
+}
+
+/**
+ * Kiểm một nhà cung cấp ĐANG GÕ, chưa lưu — POST /api/models/try. Trường vắng lấy từ mục đã
+ * lưu cùng tên, nên khi sửa mà không gõ lại khóa vẫn kiểm được bằng khóa cũ. Không ghi gì.
+ */
+export function thuKetNoi(nhap: {
+  name: string;
+  type?: string;
+  base_url?: string;
+  api_key?: string;
+}): Promise<{ provider: string; models: string[]; count: number; windows?: Record<string, number> }> {
+  return ghi('/api/models/try', 'POST', nhap);
+}
+
+/**
+ * Nạp lại cấu hình model từ đĩa vào engine ĐANG MỞ của một cuốn — nút "Áp dụng ngay".
+ * Kiểu văn vẫn chỉ ăn từ lần mở phiên sau.
+ */
+export function apDungCauHinh(book: string): Promise<{ applied: boolean }> {
+  return ghi(`/api/books/${encodeURIComponent(book)}/models/apply`, 'POST');
 }
 
 export function doiCheDoTien(

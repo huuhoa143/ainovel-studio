@@ -3,29 +3,28 @@
 import { useEffect, useState } from 'react';
 
 import { LoiApi, doiVaiModel, layVaiModel, moMay } from '@/lib/api';
+import { CH } from '@/lib/chu/cau-hinh';
 import { CHU, GIAI_THICH, nhanKenhVai } from '@/lib/nhan';
 import type { KenhVaiMuc, VaiModelDoc } from '@/lib/types';
 
+import { ChonModel, type NhomModel } from './ChonModel';
+import { TrangThaiLuu, useTrangThaiLuu } from './TrangThaiLuu';
+
 /**
- * Bốn kênh model — bản web của `/model` trong TUI.
+ * Model theo vai của một phiên ĐANG MỞ — bản web của `/model` trong TUI.
  *
- * # Vì sao dựng như channel strip của bàn trộn
+ * # Vì sao đòi engine đang mở
  *
- * `default / architect / writer / editor` không phải một danh sách cài đặt: chúng là
- * bốn đường song song của CÙNG một dây chuyền, và người vận hành so chúng theo cột
- * (vai này đang dùng model nào so với vai kia). Đó đúng là việc mà channel strip làm.
- * Dựng thành bốn khối `<dl>` xếp dọc sẽ mất phép so sánh theo cột — thứ duy nhất đáng
- * xem ở đây.
+ * `Host.SwitchModel` dựng lại model set của engine đang chạy rồi VÁ đúng trường đó trong tệp
+ * cấu hình. Không có engine thì không có gì để dựng lại; đổi mặc định cho lượt sau là việc
+ * của màn Model & khóa API.
  *
- * # Vì sao đòi engine ĐANG MỞ
+ * # Vì sao chọn bằng một ô cho cả cặp
  *
- * `Host.SwitchModel` dựng lại model set của engine đang chạy RỒI mới ghi cấu hình.
- * Không có engine thì không có gì để dựng lại, và tự ghi `cfg.Roles` sẽ tạo ra cảnh
- * tệp nói model mới trong khi dây chuyền chạy model cũ. Đổi mặc định cho lượt sau là
- * việc của bề mặt Cấu hình máy.
+ * Ô Nhà cung cấp và ô Model độc lập là đúng cách đã dựng ra `openai · cx/gpt-5.5`: đổi nhà
+ * cung cấp mà ô Model giữ tên cũ. `ChonModel` nhóm model theo nhà cung cấp, nên cặp đi cùng nhau.
  *
- * `arbiter` cố ý KHÔNG có kênh: `host.arbiterModel` luôn dùng model mặc định, nên một
- * ô chọn cho nó là ô người dùng đổi mà không có tác dụng.
+ * `arbiter` cố ý KHÔNG có ô: `host.arbiterModel` luôn dùng model mặc định.
  */
 export function KenhVai({
   tacPham,
@@ -46,8 +45,7 @@ export function KenhVai({
         datLoi(null);
       })
       .catch((e: unknown) => {
-        // 409 = chưa mở engine. Đó KHÔNG phải lỗi cần báo đỏ: nó là trạng thái bình
-        // thường của mọi cuốn không chạy, và câu trả lời đúng là một dòng giải thích.
+        // 409 = chưa mở engine — trạng thái bình thường, không phải lỗi cần báo đỏ.
         const chuaMo = e instanceof LoiApi && e.status === 409;
         datLoi({ thongDiep: e instanceof Error ? e.message : String(e), chuaMoMay: chuaMo });
         datDu(null);
@@ -57,19 +55,18 @@ export function KenhVai({
 
   if (loi?.chuaMoMay) {
     return (
-      <section className="sect">
-        {/* KHÔNG dùng "Đang chạy với" ở đây: chưa có gì chạy. Xem `CHU.mayDangDong`. */}
+      <section className="sect kenhVaiPhien">
+        {/* KHÔNG dùng "Đang viết bằng" ở đây: chưa có gì chạy. */}
         <h2>{CHU.mayDangDong}</h2>
         <p className="trongSect">{GIAI_THICH.kenhVaiCanMayMo}</p>
-        {/* Nút MỞ, không phải nút Chạy. Mở engine không gọi LLM lần nào; gộp hai việc
-            lại sẽ khiến người dùng phải tiêu tiền để đổi một ô cấu hình. */}
+        {/* Nút MỞ, không phải nút Chạy: mở engine không gọi LLM lần nào. */}
         <MoMayNut tacPham={tacPham} onXong={tai} />
       </section>
     );
   }
   if (loi) {
     return (
-      <section className="sect">
+      <section className="sect kenhVaiPhien">
         <h2>{CHU.kenhVai}</h2>
         <p className="loiDoc">{loi.thongDiep}</p>
       </section>
@@ -77,22 +74,24 @@ export function KenhVai({
   }
   if (!du || !tacPham) return null;
 
-  const coThuaHuong = du.channels.some((k) => !k.explicit);
-  // Kênh mặc định là thứ so được với `run.json`: `host.arbiterModel` và mọi vai thừa hưởng
-  // đều theo nó.
   const macDinh = du.channels.find((k) => k.role === 'default');
   const dangChay = macDinh ? `${macDinh.provider} · ${macDinh.model}` : undefined;
   const daDoi = !!khoiDong && !!dangChay && khoiDong !== dangChay;
+  const nhom: NhomModel[] = du.providers.map((p) => ({
+    provider: p,
+    daKhai: du.models_by_provider[p] ?? [],
+    daTai: [],
+    taiDuoc: false,
+    dangTai: false,
+    daTaiLan: true,
+    loi: null,
+  }));
 
   return (
-    <section className="sect">
+    <section className="sect kenhVaiPhien">
       <h2>{CHU.kenhVai}</h2>
-      {/* Hai hệ quả của một cú Lưu ở đây, và cái thứ hai là thứ người dùng không đoán được:
-          `Host.SwitchModel` ghi luôn `cfg.Roles` xuống tệp, nên "đổi cho lượt này" dính vĩnh
-          viễn. Ba dòng ghim lạ trong tệp cấu hình ra đời đúng theo đường đó. */}
+      {/* Lưu ở đây ăn ngay VÀ ghi xuống tệp cấu hình — vế thứ hai không đoán được từ giao diện. */}
       <p className="steerhint">{GIAI_THICH.kenhVaiAnNgayVaGhi}</p>
-      {/* Khối trên in giá trị LÚC KHỞI ĐỘNG. Khi nó đã khác giá trị đang chạy, màn hình có hai
-          con số cho cùng một câu hỏi — nên nói thẳng ra thay vì để người đọc tự phát hiện. */}
       {daDoi ? (
         <p className="vphacap">
           <span className="ky" aria-hidden="true">
@@ -101,10 +100,9 @@ export function KenhVai({
           <span>{GIAI_THICH.kenhVaiDaDoiSoVoiKhoiDong(khoiDong!, dangChay!)}</span>
         </p>
       ) : null}
-      {coThuaHuong ? <p className="steerhint">{GIAI_THICH.kenhVaiThuaHuong}</p> : null}
-      <div className="kenhDai">
+      <div className="chBangVai" role="table" aria-label={CHU.kenhVai}>
         {du.channels.map((k) => (
-          <MotKenh key={k.role} tacPham={tacPham} k={k} du={du} onXong={tai} />
+          <MotKenh key={k.role} tacPham={tacPham} k={k} nhom={nhom} onXong={tai} />
         ))}
       </div>
     </section>
@@ -113,158 +111,89 @@ export function KenhVai({
 
 /** Mở engine để dải kênh dùng được, không kèm một lượt chạy nào. */
 function MoMayNut({ tacPham, onXong }: { tacPham: string | undefined; onXong: () => void }) {
-  const [dangGui, datDangGui] = useState(false);
-  const [loi, datLoi] = useState<string | null>(null);
+  const tt = useTrangThaiLuu();
   if (!tacPham) return null;
   return (
-    <>
-      {loi ? <p className="loiDoc">{loi}</p> : null}
+    <div className="chHangNut">
       <button
         type="button"
         className="nutPhu"
-        disabled={dangGui}
-        onClick={() => {
-          datDangGui(true);
-          datLoi(null);
-          moMay(tacPham)
-            .then(onXong)
-            .catch((e: unknown) => datLoi(e instanceof LoiApi ? e.message : String(e)))
-            .finally(() => datDangGui(false));
-        }}
+        disabled={tt.dang}
+        onClick={() => void tt.chay(() => moMay(tacPham), onXong)}
       >
-        {dangGui ? CHU.dangLuu : CHU.moMay}
+        {tt.dang ? CH.phienDangMoMo : CHU.moMay}
       </button>
-    </>
+      {tt.tt.loai === 'loi' ? <TrangThaiLuu tt={tt.tt} /> : null}
+    </div>
   );
 }
 
 function MotKenh({
   tacPham,
   k,
-  du,
+  nhom,
   onXong,
 }: {
   tacPham: string;
   k: KenhVaiMuc;
-  du: VaiModelDoc;
+  nhom: NhomModel[];
   onXong: () => void;
 }) {
-  const [provider, datProvider] = useState(k.provider);
-  const [model, datModel] = useState(k.model);
-  const [thinking, datThinking] = useState(k.thinking);
-  const [dangGui, datDangGui] = useState(false);
-  const [loi, datLoi] = useState<string | null>(null);
+  const tt = useTrangThaiLuu();
+  const ten = nhanKenhVai(k.role);
+  // Chỉ có ô độ suy luận khi model này có MỨC THẬT để chọn. `[""]` là "không có gì để chọn" —
+  // bản trước vẫn vẽ một ô chọn chỉ chứa một dòng trống.
+  const mucThat = k.thinking_options.filter((m) => m !== '');
 
-  // Đồng bộ lại khi dữ liệu server đổi (sau một lượt lưu, hoặc sau khi đổi mặc định làm
-  // các vai thừa hưởng đổi theo). Không có cái này thì ô vẫn hiện giá trị cũ và người
-  // dùng tưởng lượt lưu không ăn.
-  useEffect(() => {
-    datProvider(k.provider);
-    datModel(k.model);
-    datThinking(k.thinking);
-  }, [k.provider, k.model, k.thinking]);
-
-  const doi = kiemDoi(k, provider, model, thinking);
-
-  const gui = () => {
-    datDangGui(true);
-    datLoi(null);
-    doiVaiModel(tacPham, {
-      role: k.role,
-      ...(doi.model ? { provider, model } : {}),
-      ...(doi.thinking ? { thinking } : {}),
-    })
-      .then(onXong)
-      .catch((e: unknown) => datLoi(e instanceof LoiApi ? e.message : String(e)))
-      .finally(() => datDangGui(false));
-  };
-
-  const dsModel = du.models_by_provider[provider] ?? [];
+  const gui = (than: { provider?: string; model?: string; thinking?: string }) =>
+    void tt.chay(() => doiVaiModel(tacPham, { role: k.role, ...than }), onXong);
 
   return (
-    <form
-      className={`kenh${k.explicit ? ' rieng' : ''}`}
-      onSubmit={(e) => {
-        e.preventDefault();
-        gui();
-      }}
-    >
-      <div className="kenhDau">
-        <span className="kenhTen">{nhanKenhVai(k.role)}</span>
-        <span className="kenhNguon">{k.explicit ? CHU.datRieng : CHU.thuaHuong}</span>
-      </div>
-
-      <label className="oNhap">
-        <span>{CHU.nhaCungCap}</span>
-        <select value={provider} onChange={(e) => datProvider(e.target.value)}>
-          {du.providers.map((p) => (
-            <option key={p} value={p}>
-              {p}
-            </option>
-          ))}
-        </select>
-      </label>
-
-      <label className="oNhap">
-        <span>{CHU.model}</span>
-        <input
-          value={model}
-          onChange={(e) => datModel(e.target.value)}
-          list={`ds-${k.role}`}
-          required
-        />
-        <datalist id={`ds-${k.role}`}>
-          {dsModel.map((m) => (
-            <option key={m} value={m} />
-          ))}
-        </datalist>
-      </label>
-
-      {/* Chỉ hiện ô độ suy luận khi model này CÓ mức nào để chọn. Model không hỗ trợ thì
-          một ô rỗng là ô người dùng thử đổi rồi nhận lỗi từ tầng dưới. */}
-      {k.thinking_options.length > 0 ? (
-        <label className="oNhap">
-          <span>{CHU.doSuyLuan}</span>
-          <select value={thinking} onChange={(e) => datThinking(e.target.value)}>
+    <div className={`chDongVai${k.explicit && k.role !== 'default' ? ' rieng' : ''}`} role="row">
+      <span className="chTenVai" role="rowheader">
+        {ten}
+      </span>
+      <span className="chCap" role="cell">
+        <span className="ncc">{k.provider}</span>
+        <span className="cham" aria-hidden="true">
+          ·
+        </span>
+        <span className="model">{k.model}</span>
+      </span>
+      <span role="cell">
+        {k.role === 'default' ? null : (
+          <span className={`vien${k.explicit ? ' gold' : ''}`}>{k.explicit ? CH.datRieng : CH.theoMacDinh}</span>
+        )}
+      </span>
+      <span className="chNutVai" role="cell">
+        <TrangThaiLuu tt={tt.tt} />
+        {mucThat.length > 0 ? (
+          <select
+            aria-label={`${CHU.doSuyLuan} — ${ten}`}
+            value={k.thinking}
+            disabled={tt.dang}
+            onChange={(e) => gui({ thinking: e.target.value })}
+          >
             {k.thinking_options.map((m) => (
               <option key={m} value={m}>
-                {m}
+                {m || CH.theoModel}
               </option>
             ))}
           </select>
-        </label>
-      ) : null}
-
-      {loi ? <p className="loiDoc">{loi}</p> : null}
-
-      {/* Nút chỉ bật khi có gì ĐỔI THẬT. Một nút Lưu luôn bật ở bốn kênh cạnh nhau mời
-          người dùng bấm bừa, và mỗi cú bấm là một lượt dựng lại model set của engine
-          đang chạy. */}
-      <button
-        type="submit"
-        className="nutChinh"
-        disabled={dangGui || (!doi.model && !doi.thinking)}
-      >
-        {dangGui ? CHU.dangLuu : CHU.luu}
-      </button>
-    </form>
+        ) : null}
+        <ChonModel
+          nhom={nhom}
+          dangChon={{ provider: k.provider, model: k.model }}
+          nhanNut={CH.doiRieng}
+          nhanTruyCap={`${CH.doiModel} — ${ten}`}
+          onChon={(p, m) => {
+            if (p === k.provider && m === k.model) return;
+            gui({ provider: p, model: m });
+          }}
+          onTai={() => {}}
+          tat={tt.dang}
+        />
+      </span>
+    </div>
   );
-}
-
-/**
- * Cái gì đã đổi so với server.
- *
- * Tách thành hàm vì `PUT` đòi CẢ provider và model khi đổi model (gửi lẻ một nửa bị
- * server từ chối), nên phép so phải nhóm hai trường đó lại thành MỘT thay đổi.
- */
-function kiemDoi(
-  k: KenhVaiMuc,
-  provider: string,
-  model: string,
-  thinking: string,
-): { model: boolean; thinking: boolean } {
-  return {
-    model: provider !== k.provider || model !== k.model,
-    thinking: thinking !== k.thinking,
-  };
 }

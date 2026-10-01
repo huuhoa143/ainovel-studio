@@ -100,6 +100,21 @@ export function gio(iso: string | undefined): string | undefined {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
+/** "5 phút trước" / "2 ngày trước" — mốc gần đây đọc theo khoảng cách, không theo đồng hồ. */
+export function cachDay(iso: string | undefined, bay: Date = new Date()): string | undefined {
+  if (!iso) return undefined;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return undefined;
+  const phut = Math.floor((bay.getTime() - d.getTime()) / 60_000);
+  if (phut < 1) return 'vừa xong';
+  if (phut < 60) return `${phut} phút trước`;
+  const gioTruoc = Math.floor(phut / 60);
+  if (gioTruoc < 24) return `${gioTruoc} giờ trước`;
+  const ngay = Math.floor(gioTruoc / 24);
+  if (ngay < 30) return `${ngay} ngày trước`;
+  return d.toLocaleDateString('vi-VN');
+}
+
 /** Ngày giờ đầy đủ, dùng cho `title` khi chỉ hiện giờ:phút. */
 export function ngayGio(iso: string | undefined): string | undefined {
   if (!iso) return undefined;

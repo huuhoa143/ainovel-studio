@@ -210,8 +210,10 @@ func (s *server) routes() *http.ServeMux {
 		// không đọc nổi kết quả, nhưng vẫn khiến studio gọi ra ngoài. Và nó lệch luật của
 		// chính tệp này — mọi thứ chạm khóa đều nằm sau hàng rào.
 		mux.HandleFunc("GET /api/models", raoGhi(s.handleLietKeModel))
+		mux.HandleFunc("POST /api/models/try", raoGhi(s.handleThuKetNoi))
 		mux.HandleFunc("GET /api/books/{book}/models", s.handleDocVaiModel)
 		mux.HandleFunc("PUT /api/books/{book}/models", raoGhi(s.handleGhiVaiModel))
+		mux.HandleFunc("POST /api/books/{book}/models/apply", raoGhi(s.handleApDungCauHinh))
 
 		// Vòng đời sáng tác — bản web của /review, /next, /reopen.
 		mux.HandleFunc("PUT /api/books/{book}/advance-mode", raoGhi(s.handleDoiCheDoTien))

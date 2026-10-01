@@ -263,7 +263,7 @@ func (h *Host) ConfigureModels(draft ModelConfigurationDraft) error {
 	if h.configPath == "" {
 		return errors.New(i18n.F("无法定位配置文件路径"))
 	}
-	if err := h.saveModelConfigurationLocked(candidate, draft.Provider, pc, len(renames) > 0); err != nil {
+	if err := h.saveModelConfigurationLocked(draft.Provider, pc, renames); err != nil {
 		return fmt.Errorf(i18n.F("保存配置失败: %w"), err)
 	}
 
@@ -354,11 +354,18 @@ func renameModelReferences(cfg *bootstrap.Config, provider string, renames map[s
 	}
 }
 
-func (h *Host) saveModelConfigurationLocked(candidate bootstrap.Config, provider string, pc bootstrap.ProviderConfig, renamed bool) error {
-	if renamed {
+func (h *Host) saveModelConfigurationLocked(provider string, pc bootstrap.ProviderConfig, renames map[string]string) error {
+	if len(renames) > 0 {
 		// 引用与 provider 定义必须在同一次文件替换中落盘，否则进程重启可能只看到一半。
-		// /model 也使用 SaveConfig 写回有效配置；重命名沿用同一语义。
-		return bootstrap.SaveConfig(h.configPath, candidate)
+		// Vá trên chính tệp đích (không ghi ảnh chụp đã trộn `candidate`): ghi cả ảnh chụp sẽ đổ
+		// tầng toàn cục xuống tệp dự án và đè thay đổi mà nơi khác vừa lưu.
+		return bootstrap.PatchConfigFile(h.configPath, func(c *bootstrap.Config) {
+			if c.Providers == nil {
+				c.Providers = make(map[string]bootstrap.ProviderConfig)
+			}
+			c.Providers[provider] = pc
+			renameModelReferences(c, provider, renames)
+		})
 	}
 	return bootstrap.SaveProviderConfig(h.configPath, provider, pc)
 }

@@ -6,6 +6,8 @@ import { LoiApi, canThiep } from '@/lib/api';
 import { CHU, GIAI_THICH } from '@/lib/nhan';
 import type { Capabilities } from '@/lib/types';
 
+import { BieuTuong } from './BieuTuong';
+
 /**
  * Ô can thiệp — người vận hành nói vào dây chuyền.
  *
@@ -81,6 +83,7 @@ export function OCanThiep({
   return (
     <>
       <div className="steerbox">
+        <BieuTuong ten="gopY" co={16} />
         <input
           type="text"
           placeholder={CHU.viDuCanThiep}
@@ -104,6 +107,7 @@ export function OCanThiep({
         />
         <button type="button" onClick={gui} disabled={!bat || dangGui || !chu.trim()}>
           {dangGui ? CHU.dangGui : dangChay ? CHU.tiemVaoLuotDangChay : CHU.danhThucLuotMoi}
+          <BieuTuong ten="mui" co={14} />
         </button>
       </div>
 

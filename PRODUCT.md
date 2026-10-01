@@ -6,7 +6,7 @@ product
 
 ## Users
 
-Người vận hành một xưởng sản xuất truyện — thường là một người, có nền kỹ thuật, tự chạy engine Go trên máy mình hoặc trên VPS riêng.
+Một người viết, tự chạy studio trên máy mình (local) để nhờ AI viết tiểu thuyết: quản lý nhiều truyện, theo dõi tiến độ, đọc và góp ý. Có thể có nền kỹ thuật, nhưng giao diện không được đòi hỏi điều đó — người dùng nghĩ bằng truyện, chương, nhân vật, không bằng engine, store hay endpoint.
 
 Bối cảnh sử dụng: engine chạy hàng giờ đến hàng ngày mà không cần người trực. Người vận hành không ngồi xem liên tục; họ **quay lại theo chu kỳ** để trả lời ba câu hỏi, theo đúng thứ tự đó:
 
@@ -30,13 +30,17 @@ Thành công trông như thế này: người vận hành mở studio sau 6 gi�
 
 ## Brand Personality
 
-**Chuyên nghiệp · chính xác · điềm tĩnh.**
+**Rõ ràng · ấm áp · đáng tin.**
 
-Giọng của thiết bị công nghiệp, không phải giọng của trợ lý AI. Nó báo cáo sự thật kèm số đo, không chúc mừng và không xin lỗi. Khi có lỗi thì nói rõ lỗi gì và làm gì tiếp, không làm dịu.
+Giọng của một người biên tập đồng hành, không phải của thiết bị công nghiệp và cũng không phải trợ lý AI nhí nhảnh. Xưng "bạn", câu ngắn, thuần Việt; nói người dùng được gì và nên làm gì tiếp. Vẫn báo sự thật kèm số đo, không chúc mừng sáo rỗng, không emoji, không viết IN HOA để nhấn. Khi có lỗi thì nói rõ lỗi gì và cách xử lý.
 
-Tham chiếu về cảm giác: bàn dựng phim và DAW — thanh transport luôn hiện, dòng sản xuất dạng lane, panel inspector. Người làm nghề đã quen bộ quy ước đó, và nó khớp tự nhiên với domain vì **Tập → Cung → Chương vốn đã là cấp bậc sản xuất**, đúng như Act → Sequence → Shot.
+Bản đầu dùng giọng "xưởng / máy / dây chuyền / nghiệm thu / khế ước" và người dùng chê "thô và khô khan quá". Từ vựng đã chốt lại: Tủ truyện, Viết truyện mới, Tiến độ, Đọc truyện, Nhận xét biên tập, Cần viết lại, Góp ý; vai là Điều phối, Kiến trúc sư, Người viết, Biên tập viên; Tập → Hồi → Chương. Toàn bộ chữ nằm ở `web/lib/nhan.ts`.
 
-Cảm xúc cần đạt: sự tin cậy đến từ độ chính xác. Không phải sự phấn khích đến từ "AI làm được".
+**Chuẩn hình ảnh (người dùng chốt 2026-10-01):** đặt cạnh Linear / Raycast và Arc / Things 3, lấy mức hoàn thiện của chúng làm chuẩn. Có hai giao diện sáng/tối. Bề mặt trung tính; màu chỉ ở bìa truyện, hành động chính và trạng thái. Hai lối từng bị loại: nâu-đen "bảng điều khiển nhà máy" (u ám, không có chất tiểu thuyết) và màu phẳng khối to kiểu poster ("quê").
+
+Tham chiếu bố cục vẫn là bàn dựng phim và DAW — thanh điều khiển luôn hiện ở đáy, tiến độ dạng lane, panel chi tiết bên phải — vì Tập → Hồi → Chương vốn là cấp bậc sản xuất. Nhưng đó là cấu trúc, không phải giọng nói.
+
+Cảm xúc cần đạt: yên tâm và muốn quay lại viết tiếp. Sự tin cậy đến từ độ chính xác, không phải từ sự phấn khích "AI làm được".
 
 ## Anti-references
 
