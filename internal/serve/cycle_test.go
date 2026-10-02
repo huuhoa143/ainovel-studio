@@ -25,7 +25,7 @@ func TestLatestChapterCycles_ChuKyDon(t *testing.T) {
 		cp(3, 47, "consistency_check", t0.Add(100*time.Second)),
 		cp(4, 47, "commit", t0.Add(2*time.Minute)),
 	}
-	got := latestChapterCycles(cps)
+	got := latestChapterCycles(cps, time.Time{})
 	c, ok := got[47]
 	if !ok {
 		t.Fatal("thiếu chương 47")
@@ -51,7 +51,7 @@ func TestLatestChapterCycles_ChiDoChuKyCuoiKhiVietLai(t *testing.T) {
 		cp(10, 41, "draft", t0.Add(6*time.Hour+90*time.Second)),
 		cp(11, 41, "commit", t0.Add(6*time.Hour+4*time.Minute)),
 	}
-	c := latestChapterCycles(cps)[41]
+	c := latestChapterCycles(cps, time.Time{})[41]
 	if want := 4 * time.Minute; c.Duration() != want {
 		t.Errorf("thời lượng = %v, muốn %v (không được tính khoảng nằm chờ)", c.Duration(), want)
 	}
@@ -63,7 +63,7 @@ func TestLatestChapterCycles_ChiDoChuKyCuoiKhiVietLai(t *testing.T) {
 func TestLatestChapterCycles_MotCheckpointThiKhongDoDuoc(t *testing.T) {
 	// Chương chỉ mới commit (ví dụ nhập từ nguồn ngoài, không qua plan/draft):
 	// không biết lúc nào bắt đầu, nên phải nói "không đo được" thay vì báo 0s.
-	c := latestChapterCycles([]domain.Checkpoint{cp(1, 12, "commit", t0)})[12]
+	c := latestChapterCycles([]domain.Checkpoint{cp(1, 12, "commit", t0)}, time.Time{})[12]
 	if c.Measurable {
 		t.Error("một checkpoint đơn lẻ không được coi là đo được")
 	}
@@ -80,7 +80,7 @@ func TestLatestChapterCycles_BoQuaScopeKhongPhaiChuong(t *testing.T) {
 		cp(4, 47, "plan", t0.Add(3*time.Minute)),
 		cp(5, 47, "commit", t0.Add(5*time.Minute)),
 	}
-	got := latestChapterCycles(cps)
+	got := latestChapterCycles(cps, time.Time{})
 	if len(got) != 1 {
 		t.Fatalf("chỉ chương 47 được tính, được %d mục: %v", len(got), got)
 	}
@@ -100,7 +100,7 @@ func TestLatestChapterCycles_TuSapTheoSeq(t *testing.T) {
 		cp(10, 41, "draft", t0.Add(6*time.Hour+90*time.Second)),
 		cp(2, 41, "draft", t0.Add(1*time.Minute)),
 	}
-	if want, got := 4*time.Minute, latestChapterCycles(cps)[41].Duration(); got != want {
+	if want, got := 4*time.Minute, latestChapterCycles(cps, time.Time{})[41].Duration(); got != want {
 		t.Errorf("thời lượng = %v, muốn %v — danh sách xáo trộn phải được sắp lại", got, want)
 	}
 }
@@ -147,5 +147,84 @@ func TestThroughput(t *testing.T) {
 				t.Errorf("năng suất = %.3f, muốn ~%.3f", got, c.want)
 			}
 		})
+	}
+}
+
+// Số đo THẬT của truyện dong-ho-qua-lac (2026-10-02): model viết trọn chương trong một lượt
+// rồi phát cả bốn lời gọi cùng lúc, nên bốn checkpoint của chương 1 nằm trong 0,12s. Bảng
+// chương từng ghi "0,1s" cho một chương mất 86s.
+func TestLatestChapterCycles_ChuKyDonDoTuMocTruoc(t *testing.T) {
+	at := func(s string) time.Time {
+		v, err := time.Parse(time.RFC3339Nano, s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return v
+	}
+	glob := func(seq int64, step, s string) domain.Checkpoint {
+		return domain.Checkpoint{Seq: seq, Scope: domain.Scope{Kind: domain.ScopeGlobal}, Step: step, OccurredAt: at(s)}
+	}
+	cps := []domain.Checkpoint{
+		glob(4, "world_rules", "2026-10-02T11:37:43.362+07:00"),
+		glob(5, "foundation_audit", "2026-10-02T11:37:50.991+07:00"),
+		cp(6, 1, "plan", at("2026-10-02T11:39:16.572+07:00")),
+		cp(7, 1, "draft", at("2026-10-02T11:39:16.594+07:00")),
+		cp(8, 1, "consistency_check", at("2026-10-02T11:39:16.609+07:00")),
+		cp(9, 1, "commit", at("2026-10-02T11:39:16.686+07:00")),
+		cp(10, 2, "plan", at("2026-10-02T11:39:50.186+07:00")),
+		cp(11, 2, "draft", at("2026-10-02T11:39:50.209+07:00")),
+		cp(12, 2, "consistency_check", at("2026-10-02T11:39:50.223+07:00")),
+		cp(13, 2, "commit", at("2026-10-02T11:39:50.300+07:00")),
+		cp(14, 3, "draft", at("2026-10-02T11:41:58.964+07:00")),
+		cp(15, 3, "consistency_check", at("2026-10-02T11:42:04.114+07:00")),
+		cp(16, 3, "commit", at("2026-10-02T11:42:10.292+07:00")),
+	}
+	got := latestChapterCycles(cps, at("2026-10-02T11:37:16+07:00"))
+	muon := map[int]time.Duration{1: 85 * time.Second, 2: 33 * time.Second, 3: 139 * time.Second}
+	for ch, m := range muon {
+		c := got[ch]
+		if !c.Measurable {
+			t.Errorf("chương %d phải đo được", ch)
+			continue
+		}
+		if d := c.Duration().Truncate(time.Second); d != m {
+			t.Errorf("chương %d = %v, muốn %v", ch, d, m)
+		}
+	}
+}
+
+// Mốc trước xa hơn khoảng nghỉ tối đa (phiên đã dừng giữa chừng) → không đo được, không bịa.
+func TestLatestChapterCycles_ChuKyDonMocQuaXaThiKhongDo(t *testing.T) {
+	cps := []domain.Checkpoint{
+		cp(1, 4, "commit", t0),
+		cp(2, 5, "plan", t0.Add(3*time.Hour)),
+		cp(3, 5, "commit", t0.Add(3*time.Hour+50*time.Millisecond)),
+	}
+	if c := latestChapterCycles(cps, time.Time{})[5]; c.Measurable {
+		t.Errorf("mốc cách 3 giờ phải là không đo được, được %v", c.Duration())
+	}
+}
+
+// Mở phiên MUỘN hơn checkpoint trước → đo từ lúc mở phiên, không cộng thời gian máy tắt.
+func TestLatestChapterCycles_ChuKyDonDoTuLucMoPhien(t *testing.T) {
+	cps := []domain.Checkpoint{
+		cp(1, 4, "commit", t0),
+		cp(2, 5, "plan", t0.Add(20*time.Minute)),
+		cp(3, 5, "commit", t0.Add(20*time.Minute+50*time.Millisecond)),
+	}
+	c := latestChapterCycles(cps, t0.Add(19*time.Minute))[5]
+	if !c.Measurable || c.Duration().Truncate(time.Second) != time.Minute {
+		t.Errorf("phải đo từ lúc mở phiên (1 phút), được %v measurable=%v", c.Duration(), c.Measurable)
+	}
+}
+
+// Chương nhập từ truyện có sẵn: chốt liền nhau cách vài mili giây → vẫn không đo được.
+func TestLatestChapterCycles_ChuongNhapLienNhauKhongDo(t *testing.T) {
+	cps := []domain.Checkpoint{
+		cp(1, 1, "commit", t0),
+		cp(2, 2, "commit", t0.Add(5*time.Millisecond)),
+	}
+	if c := latestChapterCycles(cps, time.Time{})[2]; c.Measurable {
+		t.Errorf("hai lần chốt cách 5ms không phải là thời lượng viết, được %v", c.Duration())
 	}
 }

@@ -132,10 +132,13 @@ test('kiểm kết nối bằng BẢN NHÁP trước khi lưu, rồi tích chọ
   fireEvent.change(document.querySelector('li.nccMuc input[type="password"]')!, { target: { value: 'sk-moi' } });
   fireEvent.click(form.getByRole('button', { name: 'Kiểm tra kết nối' }));
   await waitFor(() => expect(THU).toHaveBeenCalled());
+  // Kèm `tools` + model đang chọn: nút Kiểm tra thử luôn model ấy có gọi công cụ được không.
   expect(THU.mock.calls[0]![0], 'bản nháp phải mang khóa vừa gõ và KHÔNG mang type khi chưa đổi').toEqual({
     name: '9Router',
     base_url: 'https://9router.example/v1',
     api_key: 'sk-moi',
+    tools: true,
+    model: 'cx/gpt-5.6-luna',
   });
   expect(LUU, 'kiểm tra đã ghi cấu hình').not.toHaveBeenCalled();
 

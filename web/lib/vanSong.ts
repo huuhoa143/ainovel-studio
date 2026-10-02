@@ -40,6 +40,15 @@ export const BO_DEM_RONG: BoDemVan = { luot: [], idKe: 1 };
 /** Số lượt giữ lại. Người dùng cần đối chiếu lượt này với lượt trước, không cần cả phiên. */
 export const SO_LUOT_GIU = 3;
 
+/**
+ * Lượt "văn" — đủ dài để là chữ của chương, không phải tham số công cụ. Sau lượt viết nháp,
+ * engine phát liền vài lượt ngắn (`✻ check_consistency`, `✻ commit_chapter`, `plan` của
+ * chương sau, mỗi lượt vài trăm ký tự). Chỉ đếm lượt thì ba lượt ngắn đó đẩy chương vừa viết
+ * ra khỏi bộ đệm sau vài giây — khu "AI đang viết" còn lại toàn tham số. Cả hai loại lượt
+ * đều mở bằng tiêu đề "✻ …", nên phân biệt bằng độ dài chứ không bằng ký hiệu.
+ */
+export const DO_DAI_LUOT_VAN = 1500;
+
 /** Trần tổng byte của cả bộ đệm. Cùng con số với trần của server, vì cùng một lý do. */
 export const CO_TOI_DA = 512 * 1024;
 
@@ -105,7 +114,17 @@ export function nhanVach(chuong: number | undefined, luc: Date): string {
 function cat(bd: BoDemVan): BoDemVan {
   let luot = bd.luot;
 
-  if (luot.length > SO_LUOT_GIU) luot = luot.slice(luot.length - SO_LUOT_GIU);
+  if (luot.length > SO_LUOT_GIU) {
+    const giu = luot.slice(luot.length - SO_LUOT_GIU);
+    // Lượt văn gần nhất không bị đẩy ra bởi các lượt công cụ ngắn tới sau nó.
+    if (!giu.some((l) => l.chu.length >= DO_DAI_LUOT_VAN)) {
+      const bo = luot.slice(0, luot.length - SO_LUOT_GIU);
+      const van = [...bo].reverse().find((l) => l.chu.length >= DO_DAI_LUOT_VAN);
+      luot = van ? [van, ...giu] : giu;
+    } else {
+      luot = giu;
+    }
+  }
 
   let tong = luot.reduce((n, l) => n + l.chu.length, 0);
   while (tong > CO_TOI_DA && luot.length > 1) {

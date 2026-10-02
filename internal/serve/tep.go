@@ -262,12 +262,14 @@ func (s *server) handleXuatBan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ten := tenTepXuat(p.id, duoi)
+	tenTruyen := ""
+	if st, err := s.openBook(p.id); err == nil {
+		if pr, err := st.Progress.Load(); err == nil && pr != nil {
+			tenTruyen = pr.NovelName
+		}
+	}
 	w.Header().Set("Content-Type", loaiTep(duoi))
-	// `filename*` dạng RFC 5987 để tên tiếng Việt có dấu không bị hỏng. Header HTTP là
-	// latin-1, nên một tên như "Ba đêm đèn tắt.txt" đặt thẳng vào `filename=` sẽ ra rác.
-	w.Header().Set("Content-Disposition",
-		fmt.Sprintf("attachment; filename=%q; filename*=UTF-8''%s", ten, urlHoa(ten)))
+	w.Header().Set("Content-Disposition", dauTepXuat(p.id, tenTruyen, duoi))
 	// Số chương bị bỏ qua đi theo header: chúng KHÔNG phải lỗi (chương chưa viết xong thì
 	// exp.Run bỏ qua có chủ ý), nhưng người dùng cần biết bản tải về thiếu gì.
 	if len(kq.Skipped) > 0 {
@@ -279,7 +281,42 @@ func (s *server) handleXuatBan(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func tenTepXuat(id, duoi string) string { return id + "." + duoi }
+// dauTepXuat dựng header Content-Disposition cho tệp xuất.
+//
+// Người dùng tải về một CUỐN TRUYỆN, nên tên tệp là tên truyện ("Tiếng Vọng Thời Gian Phố
+// Cổ.txt"), không phải tên thư mục ("dong-ho-qua-lac.txt"). Tên thật đi ở `filename*` dạng
+// RFC 5987 vì header HTTP là latin-1 — chữ có dấu đặt thẳng vào `filename=` sẽ ra rác. Còn
+// `filename=` giữ tên thư mục (ASCII chắc chắn) cho trình duyệt không hiểu `filename*`.
+func dauTepXuat(id, tenTruyen, duoi string) string {
+	ascii := id + "." + duoi
+	ten := tenTepAnToan(tenTruyen)
+	if ten == "" {
+		ten = id
+	}
+	return fmt.Sprintf("attachment; filename=%q; filename*=UTF-8''%s", ascii, urlHoa(ten+"."+duoi))
+}
+
+// tenTepAnToan bỏ những ký tự hệ điều hành không cho đặt trong tên tệp (/ \ : * ? " < > |
+// và ký tự điều khiển), gộp khoảng trắng, và cắt ở 120 rune để không vượt giới hạn tên tệp.
+func tenTepAnToan(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		switch {
+		// Ký tự điều khiển (tab, xuống dòng) thành dấu cách chứ không bỏ hẳn: bỏ hẳn thì
+		// "Tên<tab>có" dính thành "Têncó".
+		case r < 0x20 || r == 0x7f, strings.ContainsRune(`/\:*?"<>|`, r):
+			b.WriteRune(' ')
+		default:
+			b.WriteRune(r)
+		}
+	}
+	ten := strings.Join(strings.Fields(b.String()), " ")
+	ten = strings.Trim(ten, ". ")
+	if r := []rune(ten); len(r) > 120 {
+		ten = strings.TrimSpace(string(r[:120]))
+	}
+	return ten
+}
 
 func loaiTep(duoi string) string {
 	if duoi == "epub" {

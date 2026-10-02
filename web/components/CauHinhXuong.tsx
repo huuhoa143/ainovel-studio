@@ -2,7 +2,14 @@
 
 import { useEffect, useState } from 'react';
 
-import { apDungCauHinh, layCauHinh, luuCauHinh, thuKetNoi, type SuaCauHinh } from '@/lib/api';
+import {
+  apDungCauHinh,
+  layCauHinh,
+  luuCauHinh,
+  thuKetNoi,
+  type KetQuaCongCu,
+  type SuaCauHinh,
+} from '@/lib/api';
 import { CH } from '@/lib/chu/cau-hinh';
 import { thanXoaNhaCungCap, vaiDungNhaCungCap, vaiGhimO } from '@/lib/chuyenNhaCungCap';
 import { useModelNapVe, type ModelNapVe } from '@/lib/modelNapVe';
@@ -119,21 +126,26 @@ function PhienDangMo({ du }: { du: CauHinhDoc }) {
   return (
     <div className="the chBao amber">
       {du.engine_open.map((ten) => (
-        <MotPhien key={ten} ten={ten} />
+        <MotPhien key={ten} ten={ten} dauVet={dauVetModel(du)} />
       ))}
       <span className="phu">{CH.kieuVanCanMoLai}</span>
     </div>
   );
 }
 
-function MotPhien({ ten }: { ten: string }) {
+function MotPhien({ ten, dauVet }: { ten: string; dauVet: string }) {
   const tt = useTrangThaiLuu();
   const [luc, datLuc] = useState<string | null>(null);
+  // Cấu hình model đổi SAU khi đã áp dụng → phiên lại đang chạy thiết lập cũ, nên câu "đang
+  // dùng thiết lập mới" phải lui về. Áp dụng tự nó không đổi cấu hình, nên không tự xóa mình.
+  const [vetLucApDung, datVetLucApDung] = useState<string | null>(null);
+  const conHieuLuc = luc !== null && vetLucApDung === dauVet;
   return (
     <div className="chPhien">
-      <span>{CH.phienDangMo(ten)}</span>
+      {/* Áp dụng xuôi rồi thì câu "vẫn dùng thiết lập lúc mở" là sai — nói trạng thái mới. */}
+      <span>{conHieuLuc ? CH.phienDaApDung(ten, luc) : CH.phienDangMo(ten)}</span>
       <span className="chPhienNut">
-        <TrangThaiLuu tt={tt.tt} nhanXong={luc ? CH.daApDung(ten, luc) : undefined} />
+        <TrangThaiLuu tt={tt.tt} nhanXong={conHieuLuc ? CH.daApDung(ten, luc) : undefined} />
         <button
           type="button"
           className="nutPhu"
@@ -141,7 +153,10 @@ function MotPhien({ ten }: { ten: string }) {
           onClick={() =>
             void tt.chay(
               () => apDungCauHinh(ten),
-              () => datLuc(gio(Date.now())),
+              () => {
+                datLuc(gio(Date.now()));
+                datVetLucApDung(dauVet);
+              },
             )
           }
         >
@@ -304,10 +319,13 @@ function MotNhaCungCap({
               {CH.ketNoiLoi}
             </span>
           ) : daKiem ? (
-            <span className="chTT xong">
-              <span aria-hidden="true">✓ </span>
-              {CH.ketNoiDuoc(dsThat.length, luc ? gio(luc) : '')}
-            </span>
+            <>
+              <span className="chTT xong">
+                <span aria-hidden="true">✓ </span>
+                {CH.ketNoiDuoc(dsThat.length, luc ? gio(luc) : '')}
+              </span>
+              <DongCongCu kq={napVe.congCuCua(n.name)} />
+            </>
           ) : (
             <span className="chTT">{CH.chuaKiem}</span>
           )}
@@ -316,7 +334,7 @@ function MotNhaCungCap({
           <button
             type="button"
             className="nutPhu"
-            onClick={() => napVe.nap(n.name)}
+            onClick={() => napVe.nap(n.name, { congCu: true })}
             disabled={dangKiem || !coKhoa}
             title={coKhoa ? undefined : CH.canKhoaDeKiem}
           >
@@ -439,7 +457,11 @@ function FormNhaCungCap({
   const [chon, datChon] = useState<string[]>((cu?.models ?? []).map((m) => m.name));
   const [themTen, datThemTen] = useState('');
   const [loc, datLoc] = useState('');
-  const [kq, datKq] = useState<{ models: string[]; windows: Record<string, number> } | null>(null);
+  const [kq, datKq] = useState<{
+    models: string[];
+    windows: Record<string, number>;
+    congCu?: KetQuaCongCu;
+  } | null>(null);
   const kiem = useTrangThaiLuu();
   const luu = useTrangThaiLuu();
   const lanDau = !du.provider;
@@ -472,11 +494,16 @@ function FormNhaCungCap({
           ...kemLoai,
           base_url: baseURL.trim(),
           ...(khoa !== '' ? { api_key: khoa } : {}),
+          // Thử gọi công cụ bằng model đang chọn; chưa chọn gì thì server thử `auto` nếu có.
+          tools: true,
+          ...(chon[0] ? { model: chon[0] } : {}),
         }),
       (r) => {
-        datKq({ models: r.models, windows: r.windows ?? {} });
-        // Thêm mới và chưa chọn gì: chọn sẵn model đầu tiên để bước chọn model không trống trơn.
-        if (!cu && chon.length === 0 && r.models[0]) datChon([r.models[0]]);
+        datKq({ models: r.models, windows: r.windows ?? {}, congCu: r.tools });
+        // Thêm mới và chưa chọn gì: chọn sẵn `auto` nếu nhà cung cấp có — và CHỈ `auto`. Bản
+        // trước chọn model đầu bảng chữ cái (`agnes-2.0-flash` ở lingoreup), tức một model
+        // ngẫu nhiên mà người dùng không hề chọn sẽ được lưu nếu họ bấm Lưu luôn.
+        if (!cu && chon.length === 0 && r.models.includes('auto')) datChon(['auto']);
       },
     );
 
@@ -608,9 +635,12 @@ function FormNhaCungCap({
           {kiem.tt.loai === 'loi' ? (
             <TrangThaiLuu tt={kiem.tt} />
           ) : kq ? (
-            <span className="chTT xong" role="status">
-              <span aria-hidden="true">✓ </span>
-              {CH.ketNoiDuoc(kq.models.length, gio(Date.now()))}
+            <span className="chKqKiem" role="status">
+              <span className="chTT xong">
+                <span aria-hidden="true">✓ </span>
+                {CH.ketNoiDuoc(kq.models.length, gio(Date.now()))}
+              </span>
+              <DongCongCu kq={kq.congCu} />
             </span>
           ) : kiem.dang ? (
             <TrangThaiLuu tt={kiem.tt} />
@@ -750,7 +780,7 @@ function ThietLapKhac({ du, onXong }: { du: CauHinhDoc; onXong: () => void }) {
             {kieuVanLa ? <option value={du.style}>{du.style}</option> : null}
             {du.styles.map((k) => (
               <option key={k} value={k}>
-                {k}
+                {CH.nhanKieuVan[k] ?? k}
               </option>
             ))}
           </select>
@@ -761,7 +791,7 @@ function ThietLapKhac({ du, onXong }: { du: CauHinhDoc; onXong: () => void }) {
             <option value="">{CH.theoModel}</option>
             {['off', 'low', 'medium', 'high', 'xhigh', 'max'].map((m) => (
               <option key={m} value={m}>
-                {m}
+                {CH.nhanDoSuyLuan[m] ?? m}
               </option>
             ))}
           </select>
@@ -777,6 +807,39 @@ function ThietLapKhac({ du, onXong }: { du: CauHinhDoc; onXong: () => void }) {
   );
 }
 
+/** Dấu vết phần MODEL của cấu hình — đổi khi mặc định, vai hay nhà cung cấp đổi. */
+function dauVetModel(du: CauHinhDoc): string {
+  return JSON.stringify([du.provider, du.model, du.roles ?? null, du.providers]);
+}
+
 function gio(ms: number): string {
   return new Date(ms).toLocaleTimeString('vi', { hour: '2-digit', minute: '2-digit' });
+}
+
+/**
+ * Dòng thứ hai của kết quả Kiểm tra: model có gọi công cụ được không.
+ *
+ * "Kết nối được · 306 model" từng đứng một mình trong khi không model nào của cổng gọi được
+ * công cụ — dấu ✓ xanh, rồi truyện kẹt ở bước Kiến trúc sư. Giờ câu đó luôn đi kèm câu này.
+ */
+function DongCongCu({ kq }: { kq: KetQuaCongCu | undefined }) {
+  if (!kq) return null;
+  if (!kq.checked) {
+    return kq.note ? <span className="chTT">{kq.note}</span> : null;
+  }
+  if (kq.ok) {
+    return (
+      <span className="chTT xong">
+        <span aria-hidden="true">✓ </span>
+        {CH.congCuDuoc(kq.model ?? '')}
+      </span>
+    );
+  }
+  return (
+    <span className="chTT loi chCongCu" title={kq.raw}>
+      <span aria-hidden="true">✗ </span>
+      {CH.congCuKhong(kq.model ?? '')}
+      {kq.reason ? <span className="phu"> {CH.congCuLyDo(kq.reason)}</span> : null}
+    </span>
+  );
 }

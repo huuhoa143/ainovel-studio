@@ -461,7 +461,7 @@ export function Khu({
     // Khu mức MÁY: cố ý KHÔNG nhận `tacPham`. Truyền vào sẽ mời người sau dùng nó rồi
     // biến một bề mặt toàn cục thành nửa-theo-tác-phẩm.
     case 'nhap-xuat':
-      return <NhapXuat tacPham={tacPham} />;
+      return <NhapXuat tacPham={tacPham} soChuongXong={snapshot?.book.completed_chapters} />;
     case 'cau-hinh':
       return <CauHinhXuong onDoiCauHinh={onDoiCauHinh} />;
     case 'tac-pham-moi':

@@ -86,13 +86,18 @@ export function ChonModel({
   const q = tim.trim().toLowerCase();
   const hien = useMemo(
     () =>
-      nhom.map((n) => {
-        const tat = [...n.daKhai, ...n.daTai.filter((m) => !n.daKhai.includes(m))];
-        const khopNcc = q !== '' && n.provider.toLowerCase().includes(q);
-        const loc = q === '' || khopNcc ? tat : tat.filter((m) => m.toLowerCase().includes(q));
-        const cat = q === '' ? loc.slice(0, TRAN_NHOM) : loc;
-        return { ...n, dong: cat, con: loc.length - cat.length };
-      }),
+      nhom
+        .map((n) => {
+          const tat = [...n.daKhai, ...n.daTai.filter((m) => !n.daKhai.includes(m))];
+          const khopNcc = q !== '' && n.provider.toLowerCase().includes(q);
+          const loc = q === '' || khopNcc ? tat : tat.filter((m) => m.toLowerCase().includes(q));
+          const cat = q === '' ? loc.slice(0, TRAN_NHOM) : loc;
+          return { ...n, khopNcc, dong: cat, con: loc.length - cat.length };
+        })
+        // Đang lọc thì nhóm không khớp tên và không còn dòng nào phải biến mất. Bản trước giữ
+        // tiêu đề của mọi nhà cung cấp, nên gõ "lingo2" vẫn thấy lingoreup, 9Router, kiraai —
+        // ba tiêu đề rỗng đứng trên kết quả duy nhất.
+        .filter((n) => q === '' || n.khopNcc || n.dong.length > 0),
     [nhom, q],
   );
   // Danh sách PHẲNG các dòng chọn được, để phím mũi tên đi qua mọi nhóm như một danh sách.

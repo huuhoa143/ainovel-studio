@@ -107,7 +107,46 @@ test('chương đang viết chưa có nhận xét thì nói vì sao', () => {
     />,
   );
   expect(screen.getByText(GIAI_THICH.chuaCoDuyet)).toBeDefined();
+  // Truyện chưa có nhận xét nào: lý do là nhịp chấm định kỳ, không phải công đoạn.
+  expect(screen.getByText(/Biên tập viên chấm định kỳ, cứ 5 chương một lần/)).toBeDefined();
+});
+
+test('truyện ĐÃ có nhận xét ở chương khác thì chương đang viết nói lý do theo công đoạn', () => {
+  render(
+    <KiemDinh
+      snapshot={snap({
+        chapters: [
+          { chapter: 3, stage: 'done', reviewed: true },
+          { chapter: 4, stage: 'drafting' },
+        ],
+      })}
+      tacPham="b"
+      choGhi
+      dangChay
+      chuongChon={4}
+      onChonChuong={() => {}}
+      onDoi={() => {}}
+    />,
+  );
   expect(screen.getByText(DOC_DUYET.viSaoChuaCo.drafting)).toBeDefined();
+});
+
+test('truyện ngắn đã xong mà chưa tới lượt chấm thì nói thẳng ra', () => {
+  render(
+    <KiemDinh
+      snapshot={snap({
+        book: { ...snap({}).book, phase: 'complete', completed_chapters: 3, total_chapters: 3 },
+        chapters: [{ chapter: 3, stage: 'done' }],
+      })}
+      tacPham="b"
+      choGhi
+      dangChay={false}
+      chuongChon={3}
+      onChonChuong={() => {}}
+      onDoi={() => {}}
+    />,
+  );
+  expect(screen.getByText(/kết thúc trước lượt chấm đầu tiên/)).toBeDefined();
 });
 
 test('snapshot còn của chương cũ thì nói đang mở, không nói "chưa có"', () => {

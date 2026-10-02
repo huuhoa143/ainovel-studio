@@ -392,7 +392,7 @@ func (s *WorldStore) LoadLastReview(fromChapter int) (*domain.ReviewEntry, error
 	return nil, nil
 }
 
-// ReviewedChapters 返回有单章审阅文件（reviews/NN.json）的章节集合。只看文件名，不解析内容：
+// ReviewedChapters 返回有审阅文件（reviews/NN.json 或 reviews/NN-global.json）的章节集合。只看文件名，不解析内容：
 // 用于在章节列表上标出"哪一章有审阅"，避免逐章读文件。
 func (s *WorldStore) ReviewedChapters() (map[int]bool, error) {
 	entries, err := os.ReadDir(s.io.path("reviews"))
@@ -408,7 +408,12 @@ func (s *WorldStore) ReviewedChapters() (map[int]bool, error) {
 		if entry.IsDir() || !strings.HasSuffix(name, ".json") {
 			continue
 		}
-		if n, err := strconv.Atoi(strings.TrimSuffix(name, ".json")); err == nil && n > 0 {
+		// "NN.json" là nhận xét riêng một chương; "NN-global.json" là lượt chấm toàn truyện
+		// lưu ở chương NN (mốc mỗi ReviewInterval chương, hoặc lượt chấm cuối trước khi kết
+		// truyện). Cả hai đều là "chương NN có nhận xét để đọc": màn Nhận xét biên tập mở
+		// chương đó ra là thấy bản chấm (LoadReview rồi LoadLastReview).
+		goc := strings.TrimSuffix(strings.TrimSuffix(name, ".json"), "-global")
+		if n, err := strconv.Atoi(goc); err == nil && n > 0 {
 			out[n] = true
 		}
 	}

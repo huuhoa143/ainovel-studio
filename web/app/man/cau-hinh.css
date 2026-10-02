@@ -685,3 +685,33 @@
     left: 0;
   }
 }
+
+/* Kết quả Kiểm tra có HAI dòng: kết nối, rồi khả năng gọi công cụ. Dòng thứ hai là dòng nói
+   lên "truyện có chạy được không", nên nó không được bị cắt bởi `nowrap` của ô kết nối. */
+#cau-hinh .nccKetNoi {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+  max-width: 340px;
+}
+#cau-hinh .nccKetNoi .chTT {
+  white-space: normal;
+}
+#cau-hinh .chKqKiem {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+#cau-hinh .chCongCu .phu {
+  display: block;
+  color: var(--ink-3);
+  font-weight: 400;
+}
+@media (max-width: 860px) {
+  #cau-hinh .nccKetNoi {
+    align-items: flex-start;
+    max-width: none;
+  }
+}

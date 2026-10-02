@@ -3,8 +3,9 @@
 import { useEffect, useState } from 'react';
 
 import { DOC_DUYET } from '@/lib/chu/doc-duyet';
+import { cauChuaCoNhanXet } from '@/lib/nhanXetDinhKy';
 import type { Khu } from '@/lib/khu';
-import { CHU, GIAI_THICH, TRANG_THAI_CHUONG, kyTheoTone, nhanKetLuan } from '@/lib/nhan';
+import { CHU, GIAI_THICH, kyTheoTone, nhanKetLuan, trangThaiDong } from '@/lib/nhan';
 import type { ChapterRow, Review, Snapshot, Stage } from '@/lib/types';
 
 import { BanDuyet } from './BanDuyet';
@@ -193,6 +194,7 @@ export function KiemDinh({
               ) : (
                 <ChuaCoNhanXet
                   stage={dong?.stage}
+                  dinhKy={soCoNX === 0 ? cauChuaCoNhanXet(snapshot) : undefined}
                   onDoc={
                     onChonKhu && dong && dong.stage !== 'pending'
                       ? () => onChonKhu('ban-thao')
@@ -222,7 +224,7 @@ function PhuDong({ r, review }: { r: ChapterRow; review: Review | undefined }) {
       </span>
     );
   }
-  const tt = TRANG_THAI_CHUONG[r.stage];
+  const tt = trangThaiDong(r);
   return (
     <span className={`kdCd ${tt.mau}`} title={tt.nhan}>
       <span aria-hidden="true">{tt.ky}</span>
@@ -238,12 +240,24 @@ function diemTb(r: Review | undefined): string | undefined {
 }
 
 /** Chương chưa có nhận xét: nói vì sao theo công đoạn, và gợi việc làm tiếp. */
-function ChuaCoNhanXet({ stage, onDoc }: { stage: Stage | undefined; onDoc?: () => void }) {
+function ChuaCoNhanXet({
+  stage,
+  dinhKy,
+  onDoc,
+}: {
+  stage: Stage | undefined;
+  /** Truyện CHƯA có nhận xét nào: câu nhịp chấm định kỳ thay cho các lý do theo công đoạn. */
+  dinhKy?: string;
+  onDoc?: () => void;
+}) {
+  // "Có thể chương được chốt trước khi bật nhận xét…" chỉ đúng khi truyện ĐÃ có nhận xét ở
+  // chương khác. Một truyện chưa có nhận xét nào thì lý do là nhịp chấm định kỳ, không phải sự cố.
+  const lyDo = dinhKy ?? (stage ? DOC_DUYET.viSaoChuaCo[stage] : undefined);
   return (
     <div className="kdTrong the">
       <p className="chinh">{GIAI_THICH.chuaCoDuyet}</p>
-      {stage ? <p>{DOC_DUYET.viSaoChuaCo[stage]}</p> : null}
-      {stage === 'done' || stage === 'rewrite' ? <p>{DOC_DUYET.goiYKhiChuaCo}</p> : null}
+      {lyDo ? <p>{lyDo}</p> : null}
+      {!dinhKy && (stage === 'done' || stage === 'rewrite') ? <p>{DOC_DUYET.goiYKhiChuaCo}</p> : null}
       {onDoc ? (
         <button type="button" className="nutPhu" onClick={onDoc}>
           <BieuTuong ten="doc" co={14} />
@@ -256,6 +270,8 @@ function ChuaCoNhanXet({ stage, onDoc }: { stage: Stage | undefined; onDoc?: () 
 
 /** Chỉ đếm những gì đếm được từ payload: số chương có dấu vết sản xuất. */
 function motTa(hang: ChapterRow[]): string {
-  const daNghiemThu = hang.filter((r) => r.stage === 'done').length;
-  return `${hang.length} chương đã viết · ${daNghiemThu} đã duyệt`;
+  // "đã duyệt" ở đây từng đếm mọi chương `done` — tức 725 "đã duyệt" trong khi chỉ 51 chương có
+  // nhận xét thật. Đếm đúng thứ màn này nói về: chương có nhận xét.
+  const coNhanXet = hang.filter((r) => r.reviewed).length;
+  return `${hang.length} chương đã viết · ${coNhanXet} có nhận xét`;
 }

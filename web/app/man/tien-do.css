@@ -1367,3 +1367,37 @@
 #dong-san-xuat .lane.day .blk:not(.running) {
   min-width: 4px;
 }
+
+/* Thẻ đang làm ở trạng thái kẹt: câu lỗi đã dịch + đường gỡ (Model & khóa API). */
+#dong-san-xuat .tdDangLam[data-tt='ket'] .tdTtNhan {
+  color: var(--amber);
+}
+#dong-san-xuat .tdKet {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  margin: 6px 0 4px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in oklab, var(--amber) 45%, var(--line));
+  border-radius: var(--r);
+  background: color-mix(in oklab, var(--amber) 8%, var(--panel));
+}
+#dong-san-xuat .tdKet .tdMoTa {
+  flex: 1 1 320px;
+  margin: 0;
+  color: var(--ink);
+}
+#dong-san-xuat .tdMoTaPhu {
+  margin: 2px 0 0;
+  color: var(--ink-3);
+  font-size: 12.5px;
+}
+#dong-san-xuat .tdTruc:empty {
+  display: none;
+}
+
+/* Lỗi đã qua — engine tự thử lại rồi đi tiếp. Lặng, không đỏ: chỉ là dấu vết. */
+#dong-san-xuat .dong .sk.daQua .tt {
+  color: var(--ink-3);
+}

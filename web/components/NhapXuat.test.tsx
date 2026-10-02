@@ -43,3 +43,15 @@ test('chưa chọn truyện thì nói việc nên làm', () => {
   render(<NhapXuat tacPham={undefined} />);
   expect(screen.queryByRole('button', { name: CHU.taiVe })).toBeNull();
 });
+
+test('khoảng chương bị chặn trên bằng số chương đã xong — không phải 0', () => {
+  render(<NhapXuat tacPham="b" soChuongXong={3} />);
+  for (const nhan of [CHU.tuChuong, CHU.denChuong]) {
+    expect((screen.getByLabelText(nhan) as HTMLInputElement).max).toBe('3');
+  }
+});
+
+test('chưa biết số chương thì không đặt chặn trên', () => {
+  render(<NhapXuat tacPham="b" />);
+  expect((screen.getByLabelText(CHU.denChuong) as HTMLInputElement).max).toBe('');
+});

@@ -66,16 +66,31 @@ func (s *server) handleEvents(w http.ResponseWriter, r *http.Request) {
 	// `s.may == nil` là chế độ chỉ đọc (không có bộ giám sát) và `dangMo` lỗi là engine chưa
 	// mở. Cả hai KHÔNG phải lỗi của yêu cầu này: dòng sự kiện vẫn chạy, chỉ là không có văn
 	// sống nào để phát.
+	// Bộ đệm văn sống được dò LẠI ở mỗi nhịp poll, không chỉ lúc nối.
+	//
+	// ĐO ĐƯỢC (2026-10-02, truyện dong-ho-qua-lac): trang Tiến độ mở lúc engine CHƯA mở (truyện
+	// tạm dừng, server vừa khởi động lại), rồi người dùng bấm Viết tiếp — engine mở với một
+	// bộ đệm MỚI. Bản trước tra bộ đệm đúng một lần lúc nối, nên kết nối đó giữ `van = nil`
+	// suốt cả lượt viết ba chương và khung "AI đang viết" không nhận được chữ nào. Đóng rồi
+	// mở lại phiên cũng thế: con trỏ bộ đệm đổi, kết nối cũ vẫn đọc bộ đệm đã chết.
 	var van *dongVan
-	if s.may != nil {
-		if p, err := s.may.dangMo(r.PathValue("book")); err == nil {
-			van = p.van
-		}
-	}
 	var mocVan int64
-	if van != nil {
-		// Người mới nối phải thấy CẢ đoạn đang chảy, không phải nửa cuối một câu. Gửi lệnh
-		// xóa trước để giao diện không dán đoạn này vào phần cũ của nó.
+	doVan := func() {
+		var moi *dongVan
+		if s.may != nil {
+			if p, err := s.may.dangMo(r.PathValue("book")); err == nil {
+				moi = p.van
+			}
+		}
+		if moi == van {
+			return
+		}
+		van, mocVan = moi, 0
+		if van == nil {
+			return
+		}
+		// Người mới nối (hoặc phiên vừa mở) phải thấy CẢ đoạn đang chảy, không phải nửa cuối
+		// một câu. Gửi lệnh xóa trước để giao diện không dán đoạn này vào phần cũ của nó.
 		vong, moc := van.vongHienTai()
 		mocVan = moc
 		if vong != "" {
@@ -84,6 +99,7 @@ func (s *server) handleEvents(w http.ResponseWriter, r *http.Request) {
 			flusher.Flush()
 		}
 	}
+	doVan()
 
 	ticker := time.NewTicker(pollInterval)
 	defer ticker.Stop()
@@ -113,6 +129,7 @@ func (s *server) handleEvents(w http.ResponseWriter, r *http.Request) {
 			flusher.Flush()
 		case <-ticker.C:
 			lastSeq = pump(w, flusher, st, lastSeq)
+			doVan()
 		}
 	}
 }

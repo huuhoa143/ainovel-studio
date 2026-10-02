@@ -1,7 +1,7 @@
 'use client';
 
 import { soTu, thoiLuong } from '@/lib/dinhdang';
-import { CHU, GIAI_THICH, TRANG_THAI_CHUONG, nhanToVai } from '@/lib/nhan';
+import { CHU, GIAI_THICH, nhanToVai, trangThaiDong } from '@/lib/nhan';
 import type { Capabilities, ChapterRow } from '@/lib/types';
 
 import { TrangThai } from './TrangThai';
@@ -76,7 +76,7 @@ export function BangChuong({
       </thead>
       <tbody>
         {rows.map((r) => {
-          const tt = TRANG_THAI_CHUONG[r.stage];
+          const tt = trangThaiDong(r);
           const chon = r.chapter === chuongChon;
           const tu = soTu(r.words);
           const tl = thoiLuong(r.duration_ms);

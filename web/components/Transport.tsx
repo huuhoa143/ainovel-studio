@@ -3,8 +3,10 @@
 import { useEffect, useState } from 'react';
 
 import { layCauHinh } from '@/lib/api';
+import { LOI_LLM } from '@/lib/chu/tien-do';
 import { cachDay, daChay, donGia, nangSuat, phanTram, so, tongTien } from '@/lib/dinhdang';
 import { CHU, GIAI_THICH, TRANG_THAI_MAY_RUNTIME, giaiCongDoan, nhanVai, DH } from '@/lib/nhan';
+import { cauLoi, giaiDong, giaiLoi, phatHienKet } from '@/lib/loiLlm';
 import { nguCanhMoiNhat } from '@/lib/nguCanh';
 import { mayNaoDo } from '@/lib/song';
 import type { Activity, StreamEvent, Transport as TransportData } from '@/lib/types';
@@ -70,6 +72,9 @@ export function Transport({
    */
   trong?: boolean;
 }) {
+  // Hook đứng TRƯỚC mọi nhánh return: `transport` đổi từ vắng sang có (đang tải → đã tải) là
+  // ca thường, và một hook gọi sau `return` sớm làm số hook giữa hai lần vẽ khác nhau.
+  const seDung = useSeDung();
   if (!transport) {
     return (
       // Cùng hai vùng như nhánh chính, không phải một hàng phẳng: nếu nhánh này khác cấu
@@ -89,9 +94,11 @@ export function Transport({
   // MỘT phép suy cho cả chữ, ký hiệu, nhịp đập và đầu đọc. Bốn kênh, một nguồn — xem lý do
   // đầy đủ (và cái giá đã trả) ở `mayNaoDo` trong lib/song.ts.
   const khoaMay = mayNaoDo(runtime, hoatDong);
-  const seDung = useSeDung();
   const may = TRANG_THAI_MAY_RUNTIME[khoaMay];
   const mayChay = khoaMay === 'running';
+  const ncc = transport.last_call?.provider;
+  // Chạy mà chỉ toàn thử lại một lỗi thì với người dùng là KẸT — cùng phép đo với thẻ đang làm.
+  const ket = mayChay ? phatHienKet(suKien, { ncc }) : undefined;
   const buoc = song?.buoc ?? transport.last_step;
   const dangChay = song?.dangChay ?? false;
   const nhanBuoc = dangChay ? CHU.buocDangChayNgan : CHU.congDoanVuaXong;
@@ -100,7 +107,9 @@ export function Transport({
   // `last_call` (usage.json) là lượt gọi THẬT gần nhất, kèm tên nhà cung cấp; `transport.model`
   // chỉ là model mặc định lúc mở phiên. Có `last_call` thì tin nó.
   const lc = transport.last_call;
-  const vai = song?.vai ?? lc?.agent ?? transport.agent;
+  const loiBuoc = giaiLoi(buoc, { ncc, vai: song?.vai ?? transport.agent });
+  // `||` chứ không `??`: song.vai là chuỗi rỗng khi chưa có giao việc nào, và rỗng phải rơi tiếp.
+  const vai = song?.vai || lc?.agent || transport.agent;
   const modelLuot = lc ? `${lc.provider} · ${lc.model}` : transport.model;
   const khiNao = !mayChay ? cachDay(lc?.at) : undefined;
   /* Câu đầy đủ của ô `tổ` cho `title` — ô bị chặn bề rộng nên tên model dài sẽ
@@ -127,15 +136,24 @@ export function Transport({
           không cuộn mất", và giờ dải số cuộn được nên lời hứa ấy phải thành một lớp thật.
           Luật đó nói về TRẠNG THÁI, không nói về mọi con số — nên giá, năng suất và đã chạy
           vẫn cắt được. */}
-      <div className="cell ghim">
-        <span
-          className={`ky ${may.mau}${mayChay ? ' dap' : ''}`}
-          aria-hidden="true"
-        >
-          {may.ky}
-        </span>
-        <span className="m">{may.nhan}</span>
-      </div>
+      {ket ? (
+        <div className="cell ghim ket" title={`${cauLoi(ket.loi)}\n${ket.loi.tho}`}>
+          <span className="ky amber" aria-hidden="true">
+            ■
+          </span>
+          <span className="m">{LOI_LLM.dangKet.toLowerCase()}</span>
+        </div>
+      ) : (
+        <div className="cell ghim">
+          <span
+            className={`ky ${may.mau}${mayChay ? ' dap' : ''}`}
+            aria-hidden="true"
+          >
+            {may.ky}
+          </span>
+          <span className="m">{may.nhan}</span>
+        </div>
+      )}
 
       {/* Ô bước chỉ hiện khi đang chạy: lúc nghỉ, "bước vừa xong" là việc của lượt cũ — có
           khi từ nhiều tuần trước — và đặt nó ở đây đọc như việc đang diễn ra. */}
@@ -145,7 +163,9 @@ export function Transport({
         {buoc ? (
           <>
             <span className="m" title={buoc}>
-              {giaiCongDoan(buoc) ?? buoc}
+              {loiBuoc
+                ? cauLoi(loiBuoc, false)
+                : (giaiCongDoan(buoc) ?? giaiDong(buoc, { ncc, coViec: false }) ?? buoc)}
             </span>
             <span className="lbl">{nhanBuoc}</span>
           </>
@@ -173,7 +193,8 @@ export function Transport({
         {vai && (mayChay || !modelLuot) ? <span>{nhanVai(vai)}</span> : null}
         {vai && mayChay && modelLuot ? <span className="lbl">·</span> : null}
         {modelLuot ? <span className="model">{modelLuot}</span> : null}
-        {khiNao ? <span className="lbl">{khiNao}</span> : null}
+        {/* "1 phút trước" chỉ ở `title`: hiện nó cạnh tên model là ép tên model còn một ký tự
+            ("lượt trước l. · 1 phút trước") — đo được ở 1512px khi cột phải mở. */}
         {!vai && !modelLuot ? <span className="trong">{CHU.khongCo}</span> : null}
       </div>
       {!mayChay && seDung ? (

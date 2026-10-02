@@ -27,7 +27,11 @@ func buildSnapshot(st *store.Store, id string, selected int) (*Snapshot, error) 
 	}
 
 	cps := st.Checkpoints.All()
-	cycles := latestChapterCycles(cps)
+	var phienBatDau time.Time
+	if meta, err := st.RunMeta.Load(); err == nil && meta != nil {
+		phienBatDau, _ = time.Parse(time.RFC3339, meta.StartedAt)
+	}
+	cycles := latestChapterCycles(cps, phienBatDau)
 	timeline := buildTimeline(st, progress)
 
 	// Ba cờ dưới suy từ CHÍNH builder mà ba endpoint kia dùng, không từ một phép

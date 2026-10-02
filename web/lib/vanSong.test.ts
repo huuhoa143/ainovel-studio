@@ -147,3 +147,18 @@ test('không biết chương thì nhãn chỉ có giờ, không bịa số chư�
   const t = new Date('2026-08-01T09:05:00');
   expect(nhanVach(undefined, t)).toBe('09:05');
 });
+
+test('lượt văn dài gần nhất KHÔNG bị các lượt công cụ ngắn tới sau đẩy ra', () => {
+  let bd = BO_DEM_RONG;
+  bd = themChu(bd, '✻ Viết nháp\n' + 'Mai mở cửa tiệm lúc sáu giờ. '.repeat(80));
+  for (const t of ['✻ check_consistency\nchapter: 1', '✻ commit_chapter\ntitle: Chương 1', '✻ plan_chapter\nchapter: 2']) {
+    bd = moLuot(bd, 'vạch');
+    bd = themChu(bd, t);
+  }
+  expect(bd.luot).toHaveLength(SO_LUOT_GIU + 1);
+  expect(bd.luot[0]!.chu).toContain('Mai mở cửa tiệm');
+  // Thêm lượt ngắn nữa: vẫn giữ đúng một lượt văn, không phình.
+  bd = themChu(moLuot(bd, 'vạch'), '✻ novel_context');
+  expect(bd.luot).toHaveLength(SO_LUOT_GIU + 1);
+  expect(bd.luot[0]!.chu).toContain('Mai mở cửa tiệm');
+});

@@ -56,9 +56,9 @@ export function Truc({
   // trên thay vì vẽ lane rỗng: lane rỗng trông như dữ liệu bị mất.
   const phanTang = capabilities.layered_outline;
 
-  if (tong === 0 && !phanTang) {
-    return <p className="trongSect">{GIAI_THICH.chuongChuaCoDuLieu}</p>;
-  }
+  // Truyện phẳng chưa có chương nào: không vẽ gì. Câu "Chương này chưa có dữ liệu." của bản
+  // trước đứng ngay dưới "Chưa có chương nào" của thẻ đang làm — hai câu cho một sự thật.
+  if (tong === 0 && !phanTang) return null;
 
   return (
     <>

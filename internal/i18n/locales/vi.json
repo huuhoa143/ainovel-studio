@@ -1397,8 +1397,8 @@
  "第 %d 卷第 %d 弧结束，触发弧级评审": "Tập %d cung %d kết thúc, kích hoạt duyệt cấp cung",
  "第 %d 章": "Chương %d",
  "第 %d 章\n\n": "Chương %d\n\n",
- "第 %d 章  %s\n\n": "Chương %d  %s\n\n",
- "第 %d 章 %s": "Chương %d %s",
+ "第 %d 章  %s\n\n": "Chương %d · %s\n\n",
+ "第 %d 章 %s": "Chương %d · %s",
  "第 %d 章〈%s〉：%s": "Chương %d \"%s\": %s",
  "第 %d 章不在分层大纲范围内：写作必须先 expand_arc 扩展弧或 append_volume 追加卷；若全书已完结请调 save_foundation type=complete_book: %w": "chương %d nằm ngoài phạm vi dàn ý phân lớp: cần expand_arc để mở rộng cung hoặc append_volume để thêm tập trước khi viết; nếu toàn bộ sách đã hoàn thành hãy gọi save_foundation type=complete_book: %w",
  "第 %d 章不在待打磨队列中，当前队列：%v。请先处理队列内章节，再动新章节: %w": "Chương %d không có trong hàng đợi gia công, hàng đợi hiện tại: %v. Hãy xử lý các chương trong hàng đợi trước, rồi mới sang chương mới: %w",
@@ -1831,5 +1831,6 @@
  "%d 秒": "%d giây",
  "%d 分钟": "%d phút",
  "%.1f 小时": "%.1f giờ",
- "停止调用模型 (%s): %v": "dừng gọi model (%s): %v"
+ "停止调用模型 (%s): %v": "dừng gọi model (%s): %v",
+ "已写完大纲全部 %d 章，收官前做一次终审": "Đã viết hết %d chương theo dàn ý, chấm toàn truyện một lần trước khi kết"
 }

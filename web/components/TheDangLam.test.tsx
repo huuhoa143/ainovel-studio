@@ -1,7 +1,8 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { expect, test } from 'vitest';
 
-import { TD } from '@/lib/chu/tien-do';
+import { LOI_LLM, TD } from '@/lib/chu/tien-do';
+import { giaiLoi } from '@/lib/loiLlm';
 import { DH } from '@/lib/nhan';
 import type { Snapshot } from '@/lib/types';
 import type { CongDoanSong } from '@/lib/useStudio';
@@ -122,4 +123,87 @@ test('phiên này: có số thì nói kèm đơn vị', () => {
   );
   expect(screen.getByText(TD.chuongMoiGio('7,5'))).toBeDefined();
   expect(screen.getByText('lingoreup-auto')).toBeDefined();
+});
+
+/* ── dựng nền, lỗi LLM, kẹt (đo trên truyện thật dong-ho-qua-lac) ─────────── */
+
+const LOI_THO =
+  'Thử lại (4/7): routing_exhausted: All models exhausted: 388 routes checked (229 no usable key c...';
+
+test('chưa có chương nào và Kiến trúc sư đang làm → "Đang dựng nền truyện", không phải "Chương 1"', () => {
+  const s = snap({});
+  ve(
+    true,
+    { book: { ...s.book, phase: 'init', completed_chapters: 0 }, in_progress_chapter: undefined },
+    { ...SONG('draft', true), vai: 'architect_short', buoc: 'save_foundation' },
+  );
+  expect(screen.getByRole('heading', { name: LOI_LLM.dungNen })).toBeDefined();
+  expect(screen.queryByText(/^Chương 1/)).toBeNull();
+});
+
+test('bước là lỗi LLM → câu tiếng Việt kèm việc nên làm, nguyên văn ở title', () => {
+  const s = snap({});
+  const { container } = ve(
+    true,
+    { book: { ...s.book, phase: 'init', completed_chapters: 0 } },
+    { ...SONG('x', true), vai: 'architect_short', buoc: LOI_THO, dangChay: false },
+  );
+  const mt = container.querySelector('.tdMoTa')!;
+  expect(mt.textContent).toContain('không còn model nào nhận yêu cầu');
+  expect(mt.textContent).toContain('Kiến trúc sư');
+  expect(mt.textContent).not.toContain('routing_exhausted');
+  expect(mt.getAttribute('title')).toBe(LOI_THO);
+});
+
+test('kẹt → thẻ nói "Đang kẹt" và có nút mở Model & khóa API', () => {
+  const s = snap({});
+  const chon: string[] = [];
+  render(
+    <TheDangLam
+      snapshot={snap({ book: { ...s.book, phase: 'init', completed_chapters: 0 } })}
+      song={undefined}
+      dangChay
+      truc={<i data-truc />}
+      ket={{ loi: giaiLoi(LOI_THO, { ncc: 'lingoreup', vai: 'architect_short' })!, vai: 'architect_short' }}
+      onChonKhu={(k) => chon.push(k)}
+    />,
+  );
+  expect(screen.getByText(LOI_LLM.dangKet)).toBeDefined();
+  fireEvent.click(screen.getByRole('button', { name: LOI_LLM.moCauHinh }));
+  expect(chon).toEqual(['cau-hinh']);
+});
+
+/* ── lượt chạy thật dong-ho-qua-lac: sau Chốt KHÔNG mặc nhiên là Biên tập ─────────────── */
+
+test('chốt xong mà chưa tới lượt chấm thì bước kế là Kế hoạch của chương sau', () => {
+  expect(buocCuaChuong(undefined, 'commit')).toEqual({ hienTai: 0, dangLam: false, vuaXong: 3 });
+  expect(buocCuaChuong(undefined, 'commit', true)).toEqual({ hienTai: 4, dangLam: false, vuaXong: 3 });
+});
+
+test('thẻ không nói "kế tiếp là biên tập" khi chưa tới lượt chấm (2 chương xong)', () => {
+  ve(true, {
+    book: { ...snap({}).book, completed_chapters: 2, total_chapters: 3, phase: 'writing' },
+    transport: { state: 'running', cost_usd: 0, last_step: 'commit' },
+  });
+  expect(screen.queryByText(/kế tiếp là biên tập/)).toBeNull();
+  expect(screen.getByText(TD.moTaXongChuong('AI'))).toBeDefined();
+});
+
+test('giao việc đang chạy đọc thành "Điều phối giao cho Người viết: …", không phải "giao việc cho chính mình"', () => {
+  ve(
+    true,
+    { book: { ...snap({}).book, completed_chapters: 1, total_chapters: 3, phase: 'writing' } },
+    { buoc: 'writer (Viết chương 2)', vai: 'writer', loai: 'DISPATCH', dangChay: true, luc: '', loi: false },
+  );
+  expect(screen.getByText('Điều phối giao cho Người viết: Viết chương 2')).toBeDefined();
+});
+
+test('công cụ đang chạy đọc thành việc của vai, không phải tên hàm', () => {
+  ve(
+    true,
+    { book: { ...snap({}).book, completed_chapters: 2, total_chapters: 3, phase: 'writing' } },
+    { buoc: 'novel_context(chương 3)', vai: 'writer', loai: 'TOOL', dangChay: true, luc: '', loi: false },
+  );
+  expect(screen.getByText('Người viết đang đọc tài liệu cho chương 3.')).toBeDefined();
+  expect(screen.queryByText(/novel_context/)).toBeNull();
 });

@@ -67,7 +67,7 @@ export const DOC_DUYET = {
   viSaoChuaCo: {
     done: 'Có thể chương được chốt trước khi bật nhận xét, hoặc nhận xét của nó đã bị xóa khỏi thư mục truyện.',
     rewrite: 'Chương đang chờ viết lại. Nhận xét cũ không còn trong thư mục truyện.',
-    drafting: 'Người viết đang viết chương này. Biên tập viên nhận xét ngay sau khi chương được chốt.',
+    drafting: 'Người viết đang viết chương này. Biên tập viên chấm định kỳ, không chấm từng chương.',
     pending: 'Chương này chưa được viết, nên chưa có gì để nhận xét.',
   },
   goiYKhiChuaCo: 'Bạn vẫn đọc được chương, và có thể chọn một chương đã duyệt ở danh sách bên trái.',
@@ -81,4 +81,13 @@ export const DOC_DUYET = {
   hangChoRongGoiY: 'Bạn có thể đọc các chương đã duyệt ở Đọc truyện.',
   soVanDe: (n: number) => `${n} vấn đề`,
   chuongLienQuan: (ds: number[]) => `ch. ${ds.join(', ')}`,
+} as const;
+
+/** Biên tập viên chấm định kỳ — xem `lib/nhanXetDinhKy.ts`. */
+export const NHAN_XET_DINH_KY = {
+  chuKy: (n: number) => `Biên tập viên chấm định kỳ, cứ ${n} chương một lần.`,
+  chuaToiLuot: 'Chương này chưa tới lượt chấm.',
+  truyenNgan: 'Truyện ngắn này kết thúc trước lượt chấm đầu tiên, nên chưa có nhận xét nào.',
+  cuoiHoi: 'Biên tập viên chấm ở cuối mỗi hồi. Chương này chưa tới lượt chấm.',
+  dangViet: 'Người viết đang viết chương này. Biên tập viên chấm định kỳ, không chấm từng chương.',
 } as const;

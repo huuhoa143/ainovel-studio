@@ -23,6 +23,21 @@ import (
 // stepCycleStart là bước mở đầu một chu kỳ sản xuất chương.
 const stepCycleStart = "plan"
 
+// Checkpoint ghi lúc CÔNG CỤ chạy xong, không phải lúc model bắt đầu nghĩ. Nhiều model viết
+// trọn một chương trong MỘT lượt trả lời rồi phát cả bốn lời gọi plan → draft → check →
+// commit cùng lúc, nên bốn checkpoint cách nhau vài chục mili giây và chu kỳ đo ra "0,1s" —
+// trong khi chương mất cả phút để viết. ĐO ĐƯỢC trên truyện thật (dong-ho-qua-lac, chương 1):
+// bốn checkpoint trong 0,12s, còn checkpoint ngay trước đó (soát nền truyện) sớm hơn 86s.
+//
+// Nên: chu kỳ nào các bước trải ra thật (≥ chuKyDonToiThieu) thì đo như cũ. Chu kỳ bị DỒN
+// thì đo từ mốc ngay trước nó — checkpoint liền trước (bất kỳ cấp nào), hoặc lúc mở phiên
+// nếu mở phiên muộn hơn — miễn mốc đó không xa quá khoangNghiToiDa (xa hơn là đã có một
+// khoảng nghỉ chen vào). Không có mốc tin được thì KHÔNG đo được, chứ không báo 0,1s.
+const (
+	chuKyDonToiThieu = 2 * time.Second
+	khoangNghiToiDa  = 30 * time.Minute
+)
+
 // chapterCycle là một chu kỳ sản xuất của một chương.
 type chapterCycle struct {
 	Chapter int
@@ -46,7 +61,34 @@ func (c chapterCycle) Duration() time.Duration {
 // latestChapterCycles nhóm checkpoint theo chương và trả về chu kỳ sản xuất gần
 // nhất của từng chương. Chỉ xét Scope.Kind == chapter; checkpoint cấp
 // arc/volume/global không thuộc chu kỳ chương nào.
-func latestChapterCycles(cps []domain.Checkpoint) map[int]chapterCycle {
+//
+// phienBatDau là lúc mở phiên engine gần nhất (meta/run.json); zero = không biết.
+func latestChapterCycles(cps []domain.Checkpoint, phienBatDau time.Time) map[int]chapterCycle {
+	tatCa := make([]domain.Checkpoint, 0, len(cps))
+	for _, cp := range cps {
+		if !cp.OccurredAt.IsZero() {
+			tatCa = append(tatCa, cp)
+		}
+	}
+	sort.Slice(tatCa, func(i, j int) bool { return tatCa[i].Seq < tatCa[j].Seq })
+	// moc trả về mốc đáng tin ngay trước checkpoint mang Seq `seq` (xem ghi chú đầu tệp).
+	moc := func(seq int64, dau time.Time) (time.Time, bool) {
+		var truoc time.Time
+		for _, cp := range tatCa {
+			if cp.Seq >= seq {
+				break
+			}
+			truoc = cp.OccurredAt
+		}
+		if !phienBatDau.IsZero() && phienBatDau.Before(dau) && phienBatDau.After(truoc) {
+			truoc = phienBatDau
+		}
+		if truoc.IsZero() || dau.Sub(truoc) > khoangNghiToiDa || truoc.After(dau) {
+			return time.Time{}, false
+		}
+		return truoc, true
+	}
+
 	byChapter := make(map[int][]domain.Checkpoint)
 	for _, cp := range cps {
 		if cp.Scope.Kind != domain.ScopeChapter || cp.Scope.Chapter <= 0 {
@@ -73,13 +115,26 @@ func latestChapterCycles(cps []domain.Checkpoint) map[int]chapterCycle {
 		for _, cp := range cycle {
 			steps = append(steps, cp.Step)
 		}
-		out[chapter] = chapterCycle{
+		c := chapterCycle{
 			Chapter:    chapter,
 			Start:      cycle[0].OccurredAt,
 			End:        cycle[len(cycle)-1].OccurredAt,
 			Steps:      steps,
 			Measurable: len(cycle) > 1,
 		}
+		// Chu kỳ không mở bằng `plan` cũng thiếu phần đầu: model nghĩ (ĐO ĐƯỢC: hai phút ở
+		// chương 3) rồi mới phát `draft`, nên checkpoint đầu tiên đã trễ.
+		don := c.End.Sub(c.Start) < chuKyDonToiThieu
+		if don || cycle[0].Step != stepCycleStart {
+			// Mốc liền trước cũng có thể chỉ sớm hơn vài mili giây (chương nhập từ truyện có
+			// sẵn được chốt liền nhau) — khi đó vẫn là không đo được.
+			if m, ok := moc(cycle[0].Seq, c.Start); ok && c.End.Sub(m) >= chuKyDonToiThieu {
+				c.Start, c.Measurable = m, true
+			} else if don {
+				c.Measurable = false
+			}
+		}
+		out[chapter] = c
 	}
 	return out
 }

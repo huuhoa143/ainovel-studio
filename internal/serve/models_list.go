@@ -37,6 +37,10 @@ import (
 //	có trong danh sách → tên model có thật
 //
 // Ba câu hỏi ấy là toàn bộ những gì hỏng ở lượt vừa rồi, và trả lời chúng miễn phí.
+//
+// Câu thứ tư — model có gọi công cụ được không — thì `/models` không trả lời được, và nó đã
+// làm hỏng một lượt thật (xem cong_cu.go). Nên `?tools=1` xin thêm đúng MỘT lượt chat tí hon;
+// nút Kiểm tra gửi cờ đó, bộ chọn model nạp danh sách thì không.
 func (s *server) handleLietKeModel(w http.ResponseWriter, r *http.Request) {
 	// Bản TRỘN, đúng nguồn `GET /api/config` hiện ra. Bản trước đọc riêng tệp đích, nên một
 	// nhà cung cấp hay khóa nằm ở tầng toàn cục làm thẻ nói "đã đặt khóa" còn nút Kiểm tra
@@ -60,7 +64,15 @@ func (s *server) handleLietKeModel(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusNotFound, fmt.Errorf("không có nhà cung cấp %q trong cấu hình", ten))
 		return
 	}
-	lietKeTheo(w, r, ten, pc)
+	var kiem *yeuCauCongCu
+	if q := r.URL.Query(); q.Get("tools") == "1" {
+		model := strings.TrimSpace(q.Get("model"))
+		if model == "" {
+			model = modelDangDungO(&cfg, ten, pc)
+		}
+		kiem = &yeuCauCongCu{model: model}
+	}
+	lietKeTheo(w, r, ten, pc, kiem)
 }
 
 // handleThuKetNoi — POST /api/models/try
@@ -77,6 +89,10 @@ func (s *server) handleThuKetNoi(w http.ResponseWriter, r *http.Request) {
 		Loai    *string `json:"type,omitempty"`
 		BaseURL *string `json:"base_url,omitempty"`
 		APIKey  *string `json:"api_key,omitempty"`
+		// Model để thử gọi công cụ. Vắng thì thử `auto` nếu nhà cung cấp có, không thì báo
+		// "chưa kiểm" — xem `lietKeTheo`.
+		Model string `json:"model,omitempty"`
+		Tools bool   `json:"tools,omitempty"`
 	}
 	if err := docThan(r, &than); err != nil {
 		writeErr(w, http.StatusBadRequest, err)
@@ -96,11 +112,17 @@ func (s *server) handleThuKetNoi(w http.ResponseWriter, r *http.Request) {
 	if than.APIKey != nil {
 		pc.APIKey = *than.APIKey
 	}
-	lietKeTheo(w, r, ten, pc)
+	var kiem *yeuCauCongCu
+	if than.Tools {
+		kiem = &yeuCauCongCu{model: strings.TrimSpace(than.Model)}
+	}
+	lietKeTheo(w, r, ten, pc, kiem)
 }
 
 // lietKeTheo hỏi danh sách model của một nhà cung cấp đã dựng sẵn cấu hình.
-func lietKeTheo(w http.ResponseWriter, r *http.Request, ten string, pc bootstrap.ProviderConfig) {
+//
+// `kiem` khác nil thì sau khi liệt kê xong còn thử MỘT lượt gọi công cụ — xem `thuGoiCongCu`.
+func lietKeTheo(w http.ResponseWriter, r *http.Request, ten string, pc bootstrap.ProviderConfig, kiem *yeuCauCongCu) {
 	if strings.TrimSpace(pc.APIKey) == "" && !khongCanKhoa(ten, pc) {
 		writeErr(w, http.StatusBadRequest, fmt.Errorf(
 			"nhà cung cấp %q chưa có khóa API — nhập khóa rồi mới hỏi được danh sách model", ten))
@@ -218,7 +240,7 @@ func lietKeTheo(w http.ResponseWriter, r *http.Request, ten string, pc bootstrap
 	}
 	sort.Strings(ds)
 
-	writeJSON(w, map[string]any{
+	ra := map[string]any{
 		// `windows` đi RIÊNG khỏi `models` chứ không gộp thành mảng đối tượng: `models` đang
 		// nạp thẳng vào `datalist` của giao diện, và đổi hình dạng của nó là bắt mọi chỗ đọc
 		// phải sửa theo cho một thông tin mà phần lớn trong số đó không cần.
@@ -226,7 +248,15 @@ func lietKeTheo(w http.ResponseWriter, r *http.Request, ten string, pc bootstrap
 		"provider": ten,
 		"models":   ds,
 		"count":    len(ds),
-	})
+	}
+	if kiem != nil {
+		model := kiem.model
+		if model == "" && ten2["auto"] {
+			model = "auto"
+		}
+		ra["tools"] = thuGoiCongCu(r.Context(), ten, pc, model)
+	}
+	writeJSON(w, ra)
 }
 
 // soMem đọc một con số từ JSON thô, và trả 0 thay vì LỖI khi hình dạng không phải số.

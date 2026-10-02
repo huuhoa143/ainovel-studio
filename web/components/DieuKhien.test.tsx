@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, expect, test, vi } from 'vitest';
 
+import { DIEU_KHIEN, DONG_PHIEN } from '@/lib/chu/tien-do';
 import { CHU } from '@/lib/nhan';
 import type { Snapshot } from '@/lib/types';
 
@@ -266,7 +267,28 @@ test('công tắc chế độ mang đủ TÊN TRỢ NĂNG, vì CSS ẩn nhãn nh
   expect(nhom, 'công tắc chế độ phải là một `group` có nhãn').not.toBeNull();
   expect(nhom!.getAttribute('aria-label')).toBe(CHU.cheDoDiTiep);
 
-  // Tên nút lấy từ NỘI DUNG, không từ `aria-label` — ellipsis của CSS không chạm vào nó.
-  const nut = [...nhom!.querySelectorAll('button')].map((b) => b.textContent?.trim());
-  expect(nut).toEqual([CHU.cheDoTuChay, CHU.cheDoNghiemThu]);
+  // Mắt thấy nhãn NGẮN (để thanh dưới không cắt "Tự viết liên t…"); tên trợ năng vẫn là tên
+  // ĐẦY ĐỦ, qua `aria-label` — người dùng trình đọc màn hình không mất gì.
+  const nut = [...nhom!.querySelectorAll('button')];
+  expect(nut.map((b) => b.getAttribute('aria-label'))).toEqual([CHU.cheDoTuChay, CHU.cheDoNghiemThu]);
+  expect(nut.map((b) => b.textContent?.trim())).toEqual([DIEU_KHIEN.lienTuc, DIEU_KHIEN.tungChuong]);
+});
+
+test('đang chạy → Đóng phiên khóa và nói ĐÚNG lý do (không phải "cần mở phiên trước")', () => {
+  ve({ advance: { ...AUTO } }, true);
+  const nut = screen.getByRole('button', { name: CHU.dongMay }) as HTMLButtonElement;
+  expect(nut.disabled).toBe(true);
+  expect(nut.getAttribute('title')).toBe(DONG_PHIEN.khiDangChay);
+  expect(nut.getAttribute('title')).not.toContain('mở phiên trước');
+});
+
+test('truyện đã xong: viết tiếp hạ xuống hàng phụ, tên "Viết thêm" — không phải nút vàng chính', () => {
+  const { container } = ve({
+    runtime: 'completed',
+    advance: { ...AUTO },
+    book: { ...snap({}).book, phase: 'complete', completed_chapters: 3, total_chapters: 3 },
+  });
+  expect(container.querySelector('.dkChay')).toBeNull();
+  const nut = screen.getByRole('button', { name: DIEU_KHIEN.vietThem });
+  expect(nut.className).toContain('dkPhu');
 });

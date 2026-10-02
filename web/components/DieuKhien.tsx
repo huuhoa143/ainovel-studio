@@ -11,6 +11,7 @@ import {
   dungSach,
   moMay,
 } from '@/lib/api';
+import { DIEU_KHIEN, DONG_PHIEN } from '@/lib/chu/tien-do';
 import { CHU, GIAI_THICH } from '@/lib/nhan';
 import { mayNaoDo } from '@/lib/song';
 import type { Snapshot } from '@/lib/types';
@@ -113,6 +114,13 @@ export function DieuKhien({
   // `pausing` = lệnh Dừng đã nhận, engine đang thu dọn. Bấm thêm không nhanh hơn, và tệ hơn
   // là một lượt chạy chồng lên một lượt đang tắt.
   const dangThuDon = khoaMay === 'pausing';
+  // Truyện đã đủ số chương dự kiến: viết tiếp không còn là việc chính, nên nút ấy hạ xuống
+  // hàng phụ và đổi tên. Một nút vàng "▶ Viết tiếp" trên một truyện đã xong là mời người dùng
+  // tiêu tiền cho một việc họ không cần — việc chính lúc này là đọc và xuất bản.
+  const daXong = khoaMay === 'completed' || snapshot.book.phase === 'complete';
+  const lopChay = daXong ? 'dkNut dkPhu' : 'dkNut dkChay';
+  const nhanNutChay = daXong ? DIEU_KHIEN.vietThem : `▶ ${nhanChay}`;
+  const viSaoChay = daXong ? DIEU_KHIEN.vietThemGiai : GIAI_THICH.taoSachSeTieuTien;
 
   return (
     <div className="dieukhien" role="group" aria-label={CHU.dieuKhien}>
@@ -149,12 +157,12 @@ export function DieuKhien({
           </button>
           <button
             type="button"
-            className="dkNut dkChay"
+            className={lopChay}
             disabled={khoa}
-            title={GIAI_THICH.taoSachSeTieuTien}
+            title={viSaoChay}
             onClick={() => goi('chay', () => chaySach(tacPham))}
           >
-            {dangGui === 'chay' ? CHU.dangGui : `▶ ${nhanChay}`}
+            {dangGui === 'chay' ? CHU.dangGui : nhanNutChay}
           </button>
         </>
       ) : (
@@ -191,10 +199,10 @@ export function DieuKhien({
               <span className="dkChonDe">{CHU.cheDoDiTiep}</span>
               {(
                 [
-                  ['auto', CHU.cheDoTuChay, GIAI_THICH.cheDoAutoLaGi],
-                  ['review', CHU.cheDoNghiemThu, GIAI_THICH.cheDoReviewLaGi],
+                  ['auto', DIEU_KHIEN.lienTuc, CHU.cheDoTuChay, GIAI_THICH.cheDoAutoLaGi],
+                  ['review', DIEU_KHIEN.tungChuong, CHU.cheDoNghiemThu, GIAI_THICH.cheDoReviewLaGi],
                 ] as const
-              ).map(([che, nhan, viSao]) => {
+              ).map(([che, nhan, nhanDu, viSao]) => {
                 const dangBat = che === (choNghiemThu ? 'review' : 'auto');
                 return (
                   <button
@@ -202,8 +210,11 @@ export function DieuKhien({
                     type="button"
                     className={`dkChonNut${dangBat ? ' dkBat' : ''}`}
                     aria-pressed={dangBat}
+                    aria-label={nhanDu}
                     disabled={khoa || dangBat}
-                    title={viSao}
+                    // Nhãn hiện ra là bản NGẮN để thanh dưới không cắt "Tự viết liên t…"; tên
+                    // đầy đủ ở `aria-label`, lời giải thích ở `title`.
+                    title={`${nhanDu} — ${viSao}`}
                     onClick={() => goi('chedo', () => doiCheDoTien(tacPham, che))}
                   >
                     {dangGui === 'chedo' && !dangBat ? CHU.dangGui : nhan}
@@ -218,7 +229,9 @@ export function DieuKhien({
             type="button"
             className="dkNut dkPhu"
             disabled={khoa || dangChay}
-            title={dangChay ? GIAI_THICH.vongDoiCanMoMay : undefined}
+            // Máy đang MỞ ở nhánh này — câu "cần mở phiên trước" của bản cũ là câu của nhánh
+            // kia, và nói ngược sự thật ngay dưới một phiên đang chạy.
+            title={dangChay ? DONG_PHIEN.khiDangChay : undefined}
             onClick={() => goi('dong', () => dongMay(tacPham))}
           >
             {dangGui === 'dong' ? CHU.dangGui : CHU.dongMay}
@@ -246,12 +259,12 @@ export function DieuKhien({
           ) : (
             <button
               type="button"
-              className="dkNut dkChay"
+              className={lopChay}
               disabled={khoa || dangThuDon}
-              title={dangThuDon ? GIAI_THICH.dangThuDon : GIAI_THICH.taoSachSeTieuTien}
+              title={dangThuDon ? GIAI_THICH.dangThuDon : viSaoChay}
               onClick={() => goi('chay', () => chaySach(tacPham))}
             >
-              {dangGui === 'chay' ? CHU.dangGui : `▶ ${nhanChay}`}
+              {dangGui === 'chay' ? CHU.dangGui : nhanNutChay}
             </button>
           )}
         </>

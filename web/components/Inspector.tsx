@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 
 import { layChuong, layDanY, layNhanVat } from '@/lib/api';
 import { soTu } from '@/lib/dinhdang';
-import { CHU, GIAI_THICH, TRANG_THAI_CHUONG, nhanHang } from '@/lib/nhan';
+import { CHU, GIAI_THICH, nhanHang, trangThaiDong } from '@/lib/nhan';
 import { mayDangChay } from '@/lib/song';
 import type {
   ChapterDetail,
@@ -341,7 +341,7 @@ function TrangThaiChuong({
   if (!row) return null;
   // Cùng một sự thật liveness với bảng chương và thanh transport — nếu ba chỗ
   // này suy khác nhau thì một màn hình lại nói ba điều, đúng lỗi đã sửa.
-  return <TrangThai tt={TRANG_THAI_CHUONG[row.stage]} dap={mayDangChay(snapshot)} />;
+  return <TrangThai tt={trangThaiDong(row)} dap={mayDangChay(snapshot)} />;
 }
 
 /* ── tab Khế ước ──────────────────────────────────────────────────────── */

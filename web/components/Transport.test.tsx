@@ -2,6 +2,7 @@ import { render } from '@testing-library/react';
 import { expect, test } from 'vitest';
 
 import { TRANG_THAI_MAY_RUNTIME } from '@/lib/nhan';
+import type { StreamEvent } from '@/lib/types';
 
 import { Transport } from './Transport';
 import { snap } from './mau.test-helper';
@@ -151,8 +152,90 @@ test('lúc nghỉ, ô "lượt trước" đọc last_call (nhà cung cấp · mo
   );
   const o = container.querySelector('.trans .cell.to');
   expect(o?.textContent).toContain('9Router · cx/gpt-5.6-luna');
-  expect(o?.textContent).toContain('vừa xong');
+  // "vừa xong" chỉ ở `title`: hiện nó bên cạnh làm tên model bị ép còn một ký tự.
+  expect(o?.textContent).not.toContain('vừa xong');
+  expect(o?.getAttribute('title')).toContain('vừa xong');
   expect(o?.textContent).not.toContain('mac-dinh-cu');
   // Ô "bước" là việc của lượt cũ — lúc nghỉ không hiện.
   expect(container.querySelector('.trans .cell.buoc')).toBeNull();
+});
+
+/* ── lỗi LLM, kẹt, tạm dừng (đo trên truyện thật dong-ho-qua-lac) ─────────── */
+
+function suKienThuLai(vong: number): StreamEvent[] {
+  const ds: StreamEvent[] = [];
+  let seq = 0;
+  for (let v = 0; v < vong; v++) {
+    for (let n = 1; n <= 7; n++) {
+      seq += 1;
+      ds.unshift({
+        seq,
+        time: new Date(Date.UTC(2026, 9, 2, 2, seq)).toISOString(),
+        kind: 'event',
+        category: 'SYSTEM',
+        agent: 'architect_short',
+        summary: `Thử lại (${n}/7): routing_exhausted: All models exhausted`,
+      });
+    }
+  }
+  return ds;
+}
+
+test('đang chạy mà chỉ thử lại mãi một lỗi → ô trạng thái nói "đang kẹt", không "đang chạy"', () => {
+  const s = snap({ runtime: 'running', transport: { state: 'running', cost_usd: 0 } });
+  const { container } = render(
+    <Transport
+      transport={s.transport}
+      song={undefined}
+      suKien={suKienThuLai(2)}
+      runtime="running"
+      hoatDong={s.book.activity}
+    />,
+  );
+  const o = container.querySelector('.trans .cell.ghim')!;
+  expect(o.classList.contains('ket')).toBe(true);
+  expect(o.textContent).toContain('đang kẹt');
+  expect(o.getAttribute('title')).toContain('routing_exhausted');
+});
+
+test('ô bước là lỗi LLM → câu tiếng Việt ngắn, nguyên văn ở title; vai không hiện mã thô', () => {
+  const tho = 'Thử lại (4/7): routing_exhausted: All models exhausted: 388 routes checked';
+  const s = snap({ runtime: 'running', transport: { state: 'running', cost_usd: 0, agent: 'architect_short' } });
+  const { container } = render(
+    <Transport
+      transport={s.transport}
+      song={{ buoc: tho, vai: 'architect_short', dangChay: true, luc: '2026-10-02T02:00:00Z', loi: false }}
+      suKien={[]}
+      runtime="running"
+      hoatDong={s.book.activity}
+    />,
+  );
+  const buoc = container.querySelector('.trans .cell.buoc .m')!;
+  expect(buoc.textContent).toContain('không còn model nào nhận yêu cầu');
+  expect(buoc.textContent).toContain('đang thử lại 4/7');
+  expect(buoc.getAttribute('title')).toBe(tho);
+  expect(container.querySelector('.trans .cell.to')!.textContent).toContain('Kiến trúc sư');
+  expect(container.textContent).not.toContain('architect_short');
+});
+
+test('tạm dừng → dải số vẫn có ô trạng thái và số liệu, không chỉ còn cụm nút', () => {
+  const s = snap({ runtime: 'paused', transport: { state: 'idle', cost_usd: 0.5 } });
+  const { container } = render(
+    <Transport transport={s.transport} song={undefined} suKien={[]} runtime="paused" hoatDong={s.book.activity}>
+      <div className="dieukhien" />
+    </Transport>,
+  );
+  const o = container.querySelector('.trans .dai .cell.ghim')!;
+  expect(o.textContent).toContain(TRANG_THAI_MAY_RUNTIME.paused.nhan);
+  expect(container.querySelectorAll('.trans .dai .cell').length).toBeGreaterThan(2);
+});
+
+test('transport đổi từ vắng sang có không làm lệch số hook (không ném lỗi)', () => {
+  const s = snap({ runtime: 'idle', transport: { state: 'idle', cost_usd: 0 } });
+  const { rerender } = render(
+    <Transport transport={undefined} song={undefined} suKien={[]} runtime="" hoatDong="idle" />,
+  );
+  expect(() =>
+    rerender(<Transport transport={s.transport} song={undefined} suKien={[]} runtime="idle" hoatDong="idle" />),
+  ).not.toThrow();
 });

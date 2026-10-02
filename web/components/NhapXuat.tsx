@@ -27,7 +27,14 @@ import { BieuTuong } from './BieuTuong';
  * khóa độc quyền của engine (`acquireExclusive`), tức chúng không chạy song song với việc
  * viết — và đó là đúng: nhập một cuốn ngoài vào giữa lúc đang viết sẽ ghi chồng dàn ý.
  */
-export function NhapXuat({ tacPham }: { tacPham: string | undefined }) {
+export function NhapXuat({
+  tacPham,
+  soChuongXong,
+}: {
+  tacPham: string | undefined;
+  /** Số chương đã xong — chặn trên của khoảng chương. Vắng thì không chặn (không đoán 0). */
+  soChuongXong?: number;
+}) {
   return (
     <main className="canvas vhMan" id="nhap-xuat">
       <div className="head">
@@ -39,7 +46,7 @@ export function NhapXuat({ tacPham }: { tacPham: string | undefined }) {
           <p className="the vhTrong trongSect">{GIAI_THICH.nhapXuatCanTacPham}</p>
         ) : (
           <>
-            <XuatBan tacPham={tacPham} />
+            <XuatBan tacPham={tacPham} soChuongXong={soChuongXong} />
             {/* Nhập và học văn phong là việc làm một lần cho mỗi truyện, nên cùng một thẻ và
                 gập lại mặc định: không chiếm chỗ của Xuất bản, thứ người dùng bấm nhiều lần. */}
             <section className="the vhThe vhNhap">
@@ -77,7 +84,10 @@ const DINH_DANG = [
  * được như một nhóm), không phải ô thả xuống: chỉ có hai lựa chọn, và câu giải thích dưới mỗi
  * cái là thứ một `<select>` không chứa được.
  */
-function XuatBan({ tacPham }: { tacPham: string }) {
+function XuatBan({ tacPham, soChuongXong }: { tacPham: string; soChuongXong?: number }) {
+  // Không có `max` thì trình duyệt báo `valuemax=0` cho trình đọc màn hình — và mũi tên lên
+  // của ô số chạy quá số chương thật. Chỉ đặt khi biết chắc có chương.
+  const toiDa = soChuongXong && soChuongXong > 0 ? soChuongXong : undefined;
   const [dinhDang, datDinhDang] = useState<'TXT' | 'EPUB'>('TXT');
   const [tu, datTu] = useState('');
   const [den, datDen] = useState('');
@@ -136,6 +146,7 @@ function XuatBan({ tacPham }: { tacPham: string }) {
           <input
             type="number"
             min={1}
+            max={toiDa}
             inputMode="numeric"
             aria-label={CHU.tuChuong}
             value={tu}
@@ -146,11 +157,12 @@ function XuatBan({ tacPham }: { tacPham: string }) {
           <input
             type="number"
             min={1}
+            max={toiDa}
             inputMode="numeric"
             aria-label={CHU.denChuong}
             value={den}
             onChange={(e) => datDen(e.target.value)}
-            placeholder={CHU.chuongCuoi}
+            placeholder={toiDa ? String(toiDa) : CHU.chuongCuoi}
           />
         </div>
         <p className="steerhint">{CHU_VH.khoangChuongPhu}</p>

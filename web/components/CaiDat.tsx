@@ -1,6 +1,7 @@
 'use client';
 
 import { layCaiDat } from '@/lib/api';
+import { CH } from '@/lib/chu/cau-hinh';
 import { CHU_VH } from '@/lib/chu/van-hanh';
 import { ngayGio, so } from '@/lib/dinhdang';
 import {
@@ -174,7 +175,7 @@ function PhienChay({ du }: { du: SettingsDoc }) {
             chưng ra sau ở ranh giới cung. Câu giải thích tách hai thứ ra. */}
         {du.style ? (
           <Dong nhan={CHU.kieuVan} giai={CHU_VH.giaiKieuVan} title={GIAI_THICH.caiDatKieuVanKhac}>
-            {du.style}
+            {CH.nhanKieuVan[du.style] ?? du.style}
           </Dong>
         ) : null}
         {du.planning_tier ? (

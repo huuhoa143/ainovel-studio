@@ -18,7 +18,11 @@ import type { CauHinhDoc } from '@/lib/types';
  * nhà cung cấp xong màn hình vẫn khoe kết quả kiểm của địa chỉ CŨ.
  */
 
-const LIET_KE = vi.fn<(p: string) => Promise<{ provider: string; models: string[]; count: number }>>();
+const LIET_KE = vi.fn<
+  (p: string) => Promise<{ provider: string; models: string[]; count: number; tools?: unknown }>
+>();
+// Tùy chọn của lượt hỏi, tách khỏi LIET_KE để các bài cũ (`toHaveBeenCalledWith('kiraai')`) giữ nguyên.
+const TUY_CHON = vi.fn();
 const LUU = vi.fn((_than?: Record<string, unknown>) => Promise.resolve({ saved: true, path: '', reopen_to_apply: [] }));
 
 const CAU_HINH: CauHinhDoc = {
@@ -60,7 +64,10 @@ const CAU_HINH: CauHinhDoc = {
 vi.mock('@/lib/api', async (goc) => ({
   ...(await goc<typeof import('@/lib/api')>()),
   layCauHinh: () => Promise.resolve(CAU_HINH),
-  lietKeModel: (p: string) => LIET_KE(p),
+  lietKeModel: (p: string, o?: unknown) => {
+    TUY_CHON(o);
+    return LIET_KE(p);
+  },
   luuCauHinh: (...a: unknown[]) => LUU(...(a as [])),
 }));
 
@@ -78,6 +85,7 @@ const nutKiem = (ten: string) => within(dongCua(ten)).getByRole('button', { name
 beforeEach(async () => {
   cleanup();
   LIET_KE.mockReset();
+  TUY_CHON.mockClear();
   LUU.mockClear();
   render(<CauHinhXuong />);
   await waitFor(() => expect(document.querySelectorAll('li.nccMuc').length).toBe(3));
@@ -108,6 +116,40 @@ test('kiểm xong thì nói số model + giờ, và chỉ tên ĐÃ LƯU mà nh�
   const chu = dongCua('kiraai').textContent ?? '';
   expect(chu).toMatch(/không còn phục vụ: kira-mini-1\.0\./);
   expect(chu, 'tên có thật cũng bị nêu là lạ').not.toMatch(/phục vụ:[^.]*kira-1\.0/);
+});
+
+test('nút Kiểm tra xin thử gọi công cụ, và nói thẳng khi model không gọi được', async () => {
+  // Ca thật 2026-10-02: "Kết nối được · 306 model" xanh, trong khi không model nào gọi được
+  // công cụ — truyện kẹt ở Kiến trúc sư. Dòng thứ hai là câu trả lời người dùng cần.
+  LIET_KE.mockResolvedValue({
+    provider: 'kiraai',
+    models: ['kira-mini-1.0'],
+    count: 1,
+    tools: {
+      model: 'kira-mini-1.0',
+      checked: true,
+      ok: false,
+      reason: 'cổng đã thử hết 388 tuyến mà không tuyến nào nhận',
+      raw: 'All models exhausted',
+    },
+  });
+  fireEvent.click(nutKiem('kiraai'));
+  await waitFor(() => expect(dongCua('kiraai').textContent).toMatch(/không gọi công cụ được/));
+  expect(TUY_CHON).toHaveBeenCalledWith({ congCu: true });
+  const chu = dongCua('kiraai').textContent ?? '';
+  expect(chu).toMatch(/Model kira-mini-1\.0 không gọi công cụ được — Kiến trúc sư, Người viết và Biên tập viên sẽ không chạy/);
+  expect(chu).toMatch(/Lý do: cổng đã thử hết 388 tuyến/);
+});
+
+test('gọi công cụ được thì nói ra, cạnh dòng kết nối', async () => {
+  LIET_KE.mockResolvedValue({
+    provider: 'kiraai',
+    models: ['kira-mini-1.0'],
+    count: 1,
+    tools: { model: 'kira-mini-1.0', checked: true, ok: true },
+  });
+  fireEvent.click(nutKiem('kiraai'));
+  await waitFor(() => expect(dongCua('kiraai').textContent).toMatch(/kira-mini-1\.0 gọi công cụ được/));
 });
 
 test('chưa lưu khóa thì nút Kiểm tra tắt, kèm lý do', () => {

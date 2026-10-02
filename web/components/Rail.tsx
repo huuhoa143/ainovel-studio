@@ -172,7 +172,9 @@ export function Rail({
   // amber theo `cuaKiemDinh > 0` — một điều kiện gần như không bao giờ đúng, nên
   // chưa ai thấy nó sai. Báo động chất lượng thật nằm ở Hàng chờ viết lại ngay
   // dưới, và mục đó có amber.
-  const kiemDinh = rows.length;
+  // Số chương CÓ nhận xét (`reviewed`), không phải số hàng: bảng chương còn có chương chưa
+  // viết, và một truyện chưa có nhận xét nào từng hiện "Nhận xét biên tập 1".
+  const kiemDinh = rows.filter((r) => r.reviewed).length;
   // Hàng chờ viết lại đếm từ BẢNG CHƯƠNG, không từ vạch trên trục — vì bề mặt
   // hàng chờ cũng đọc từ đó. Lane chương chỉ trải từ 1 tới `total_chapters` nên
   // một chương chờ viết lại ngoài khoảng đó không có vạch: rail sẽ báo 2 rồi bề

@@ -4,9 +4,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { layChuong } from '@/lib/api';
 import { DOC_DUYET } from '@/lib/chu/doc-duyet';
+import { cauChuaCoNhanXet } from '@/lib/nhanXetDinhKy';
 import { soTu } from '@/lib/dinhdang';
 import type { Khu } from '@/lib/khu';
-import { CHU, GIAI_THICH, TRANG_THAI_CHUONG, kyTheoTone, nhanKetLuan } from '@/lib/nhan';
+import { CHU, GIAI_THICH, kyTheoTone, nhanKetLuan, trangThaiDong } from '@/lib/nhan';
 import type { ChapterDetail, ChapterRow, Contract, Review, Snapshot } from '@/lib/types';
 
 import { BanDuyet } from './BanDuyet';
@@ -180,6 +181,7 @@ export function DocTruyen({
             sau={sau}
             onChon={chon}
             viTri={i >= 0 ? DOC_DUYET.viTri(i + 1, hang.length) : undefined}
+            chuaCoNhanXet={cauChuaCoNhanXet(snapshot)}
             onMoNhanXet={onChonKhu ? () => onChonKhu('kiem-dinh') : undefined}
           />
         ) : (
@@ -363,7 +365,7 @@ function DieuHuong({
 /** Phần phải của một dòng mục lục: chỉ đánh dấu chương không ở trạng thái thường. */
 function PhuDong({ r }: { r: ChapterRow }) {
   if (r.stage === 'done') return null;
-  const tt = TRANG_THAI_CHUONG[r.stage];
+  const tt = trangThaiDong(r);
   return (
     <span className={`docCd ${tt.mau}`} title={tt.nhan}>
       <span aria-hidden="true">{tt.ky}</span>
@@ -381,6 +383,7 @@ function ThanChuong({
   sau,
   onChon,
   viTri,
+  chuaCoNhanXet,
   onMoNhanXet,
 }: {
   tacPham: string | undefined;
@@ -389,6 +392,7 @@ function ThanChuong({
   sau: ChapterRow | undefined;
   onChon: (n: number) => void;
   viTri: string | undefined;
+  chuaCoNhanXet: string;
   onMoNhanXet?: () => void;
 }) {
   const [ct, setCt] = useState<ChapterDetail>();
@@ -487,6 +491,7 @@ function ThanChuong({
       <div className="docCot">{than}</div>
       {doc.moLe ? (
         <BenLe
+          chuaCo={chuaCoNhanXet}
           contract={ct?.contract}
           review={ct?.review}
           sanSang={!!ct}
@@ -537,12 +542,15 @@ function ChiSoChuong({
 function BenLe({
   contract,
   review,
+  chuaCo,
   sanSang,
   onDong,
   onMoNhanXet,
 }: {
   contract: Contract | undefined;
   review: Review | undefined;
+  /** Câu khi chương chưa có nhận xét — nói đúng nhịp chấm định kỳ của truyện này. */
+  chuaCo: string;
   sanSang: boolean;
   onDong: () => void;
   onMoNhanXet?: () => void;
@@ -580,7 +588,7 @@ function BenLe({
             {review ? (
               <BanDuyet review={review} le tieuDe={false} />
             ) : (
-              <p className="docLeTrong">{GIAI_THICH.banDuyetChuaCo}</p>
+              <p className="docLeTrong">{chuaCo}</p>
             )}
             {review && onMoNhanXet ? (
               <button type="button" className="nutPhu docLeMo" onClick={onMoNhanXet}>

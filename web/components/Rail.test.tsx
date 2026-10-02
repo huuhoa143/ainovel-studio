@@ -140,3 +140,28 @@ test('đang ở khu Xưởng thì mục đó sáng lên — người dùng biế
   const dangMo = container.querySelector('[aria-current="page"] .nhan');
   expect(dangMo?.textContent).toBe(CHU.xuong);
 });
+
+test('số ở "Nhận xét biên tập" là số chương CÓ nhận xét, không phải số hàng của bảng chương', () => {
+  render(
+    <Rail
+      snapshot={snap({
+        chapters: [
+          { chapter: 1, stage: 'pending' },
+          { chapter: 2, stage: 'done', reviewed: true },
+          { chapter: 3, stage: 'done' },
+        ],
+      })}
+      hoSo={undefined}
+      khu="dong-san-xuat"
+      man={manCuaKhu('dong-san-xuat')}
+      onChonKhu={() => {}}
+      onChonMan={() => {}}
+      canBan={false}
+      tenCuonNgan="Trấn Yêu Ký"
+      dauChot={0}
+    />,
+  );
+  const nut = screen.getByRole('button', { name: new RegExp(`^${DH.nhanXet}`) });
+  expect(nut.textContent).toContain('1');
+  expect(nut.textContent).not.toContain('3');
+});

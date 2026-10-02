@@ -2,9 +2,13 @@
 
 import type { ReactNode } from 'react';
 
-import { BUOC_CHUONG, TD } from '@/lib/chu/tien-do';
+import { BUOC_CHUONG, LOI_LLM, TD } from '@/lib/chu/tien-do';
 import { daChay, donGia, nangSuat, so, tongTien } from '@/lib/dinhdang';
+import type { Khu } from '@/lib/khu';
+import { giaiCongCu } from '@/lib/congCu';
+import { type TinhTrangKet, cauLoi, giaiGiaoViec, giaiLoi } from '@/lib/loiLlm';
 import { trangThaiCua } from '@/lib/nghiemThu';
+import { denLuotBienTap } from '@/lib/nhanXetDinhKy';
 import { CHU, DH, TRANG_THAI_MAY_RUNTIME, nhanVai } from '@/lib/nhan';
 import { mayNaoDo } from '@/lib/song';
 import type { Snapshot } from '@/lib/types';
@@ -28,10 +32,19 @@ export function TheDangLam({
   viec,
   truc,
   chiTiet,
+  ket,
+  onChonKhu,
 }: {
   snapshot: Snapshot;
   song: CongDoanSong | undefined;
   dangChay: boolean;
+  /**
+   * Engine đang thử lại mãi một lỗi (xem `phatHienKet`). Có thì thẻ nói "Đang kẹt" bằng màu
+   * hổ phách thay cho "Đang viết" — thanh dưới vẫn báo máy chạy, nhưng chạy mà không gọi được
+   * lượt nào thì với người dùng là kẹt, và họ cần biết ngay chỗ để gỡ.
+   */
+  ket?: TinhTrangKet;
+  onChonKhu?: (k: Khu) => void;
   /** Khe dưới phần đầu — câu việc tiếp theo kèm nút, lúc máy nghỉ. */
   viec?: ReactNode;
   /** Trục toàn truyện. */
@@ -40,15 +53,26 @@ export function TheDangLam({
   chiTiet?: ReactNode;
 }) {
   const cua = trangThaiCua(snapshot.advance, snapshot.runtime);
-  const tt = trangThaiThe(snapshot, cua.dangCho, dangChay);
-  const chuong = chuongCuaThe(snapshot, cua.dangCho ? cua.chuong : undefined, dangChay);
-  const buoc = dangChay ? buocCuaChuong(song, snapshot.transport.last_step) : undefined;
-  const vai = song?.vai ?? snapshot.transport.agent;
-
+  const vai = song?.vai || snapshot.transport.last_call?.agent || snapshot.transport.agent;
+  const ncc = snapshot.transport.last_call?.provider;
+  const tt = ket
+    ? { ma: 'ket', nhan: LOI_LLM.dangKet, mau: 'amber', phu: undefined }
+    : trangThaiThe(snapshot, cua.dangCho, dangChay);
+  // Chưa có chương nào và Kiến trúc sư đang làm (hoặc truyện còn ở chặng dựng nền): việc
+  // đang diễn ra là DỰNG NỀN, không phải "Chương 1". Nêu số chương ở đây là hứa một chương
+  // chưa tồn tại — và trên truyện thật, chương ấy chưa có cả dàn ý.
+  const dungNen = laDungNen(snapshot, vai);
+  const chuong = dungNen
+    ? undefined
+    : chuongCuaThe(snapshot, cua.dangCho ? cua.chuong : undefined, dangChay);
+  const buoc =
+    dangChay && !dungNen
+      ? buocCuaChuong(song, snapshot.transport.last_step, denLuotBienTap(snapshot))
+      : undefined;
   return (
     <section className="the tdDangLam" data-tt={tt.ma} aria-label={TD.theDangLam}>
       <p className="tdTt">
-        <span className={`tdDot ${tt.mau}${dangChay ? ' dap' : ''}`} aria-hidden="true" />
+        <span className={`tdDot ${tt.mau}${dangChay && !ket ? ' dap' : ''}`} aria-hidden="true" />
         <span className="tdTtNhan">{tt.nhan}</span>
         {tt.phu ? <span className="tdTtPhu">· {tt.phu}</span> : null}
       </p>
@@ -58,9 +82,27 @@ export function TheDangLam({
           {CHU.chuong} {so(chuong.so)}
           {chuong.ten ? <> · {chuong.ten}</> : null}
         </h2>
+      ) : dungNen && (dangChay || ket) ? (
+        <h2 className="tdChuong">{LOI_LLM.dungNen}</h2>
       ) : null}
 
-      {dangChay ? <p className="tdMoTa">{moTa(song, vai, buoc)}</p> : null}
+      {ket ? (
+        <div className="tdKet" role="status">
+          <p className="tdMoTa" title={ket.loi.tho}>
+            {cauLoi(ket.loi)}
+          </p>
+          {onChonKhu ? (
+            <button type="button" className="nutPhu" onClick={() => onChonKhu('cau-hinh')}>
+              {LOI_LLM.moCauHinh}
+            </button>
+          ) : null}
+        </div>
+      ) : dangChay ? (
+        <p className="tdMoTa" title={song?.buoc}>
+          {moTa(song, vai, buoc, ncc)}
+        </p>
+      ) : null}
+      {dungNen && dangChay && !ket ? <p className="tdMoTaPhu">{LOI_LLM.dungNenPhu}</p> : null}
       {buoc ? <DaiBuoc b={buoc} /> : null}
 
       {viec}
@@ -168,24 +210,54 @@ export interface BuocChuong {
 export function buocCuaChuong(
   song: CongDoanSong | undefined,
   lastStep: string | undefined,
+  bienTap = false,
 ): BuocChuong | undefined {
   const tuSong = chiSoBuoc(song?.buoc);
   if (tuSong !== undefined && song?.dangChay) return { hienTai: tuSong, dangLam: true };
   const xong = tuSong ?? chiSoBuoc(lastStep);
   if (xong === undefined) return undefined;
-  return { hienTai: (xong + 1) % BUOC_CHUONG.length, dangLam: false, vuaXong: xong };
+  // Chốt xong KHÔNG phải lúc nào cũng tới biên tập: Biên tập viên chấm định kỳ (mỗi
+  // `CHU_KY_BIEN_TAP` chương (lib/nhanXetDinhKy.ts), hoặc cuối hồi ở truyện phân tầng). Ngoài lượt đó, sau Chốt là
+  // Kế hoạch của chương kế — đúng việc engine làm. Bản trước luôn sáng "Biên tập" và nói
+  // "kế tiếp là biên tập" trong lúc engine đã lên kế hoạch chương sau.
+  const ke = xong === 3 && !bienTap ? 0 : (xong + 1) % BUOC_CHUONG.length;
+  return { hienTai: ke, dangLam: false, vuaXong: xong };
 }
+
 
 function moTa(
   song: CongDoanSong | undefined,
   vai: string | undefined,
   b: BuocChuong | undefined,
+  ncc?: string,
 ): string {
   const ai = vai ? nhanVai(vai) : 'AI';
   if (b?.dangLam) return TD.moTaDangLam(ai, b.hienTai);
+  if (b?.vuaXong === 3 && b.hienTai === 0) return TD.moTaXongChuong(ai);
   if (b?.vuaXong !== undefined) return TD.moTaVuaXong(ai, b.vuaXong, b.hienTai);
-  if (song?.buoc) return TD.moTaTho(ai, song.buoc);
+  if (song?.buoc) {
+    // Lỗi LLM, giao việc và công cụ đi qua cùng một chỗ dịch với thanh dưới và Diễn biến;
+    // nguyên văn nằm ở `title` của dòng.
+    const loi = giaiLoi(song.buoc, { ncc, vai });
+    if (loi) return cauLoi(loi);
+    if (song.loai?.toUpperCase() === 'DISPATCH') {
+      const viec = /\(([\s\S]*)\)\s*$/.exec(song.buoc)?.[1]?.trim();
+      return TD.moTaGiaoViec(ai, viec);
+    }
+    const congCu = giaiCongCu(song.buoc);
+    if (congCu) return song.dangChay ? TD.moTaDangCongCu(ai, congCu) : TD.moTaVuaCongCu(ai, congCu);
+    return TD.moTaTho(ai, giaiGiaoViec(song.buoc) ?? song.buoc);
+  }
   return TD.moTaChoLuot;
+}
+
+/** Chặng dựng nền: chưa có chương nào xong và việc đang ở tay Kiến trúc sư / chặng trước viết. */
+export function laDungNen(snap: Snapshot, vai: string | undefined): boolean {
+  const b = snap.book;
+  if (b.completed_chapters > 0 || b.phase === 'complete') return false;
+  if (snap.in_progress_chapter) return false;
+  if (vai && nhanVai(vai) === nhanVai('architect')) return true;
+  return ['init', 'premise', 'outline'].includes(b.phase);
 }
 
 /**

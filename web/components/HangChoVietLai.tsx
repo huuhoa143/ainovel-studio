@@ -3,7 +3,7 @@
 import { DOC_DUYET } from '@/lib/chu/doc-duyet';
 import { soTu } from '@/lib/dinhdang';
 import type { Khu } from '@/lib/khu';
-import { CHU, GIAI_THICH, TRANG_THAI_CHUONG, kyTheoTone, nhanKetLuan } from '@/lib/nhan';
+import { CHU, GIAI_THICH, kyTheoTone, nhanKetLuan, trangThaiDong } from '@/lib/nhan';
 import type { ChapterRow, Review, Snapshot } from '@/lib/types';
 
 import { BanDuyet } from './BanDuyet';
@@ -132,7 +132,7 @@ function MotChuong({
   onChon: () => void;
   onChonKhu?: (k: Khu) => void;
 }) {
-  const tt = TRANG_THAI_CHUONG[r.stage];
+  const tt = trangThaiDong(r);
   const tu = soTu(r.words);
   const kl = nhanKetLuan(duyet?.verdict);
   const soVanDe = duyet?.issues?.length ?? 0;

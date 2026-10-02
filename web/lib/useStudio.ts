@@ -22,6 +22,7 @@ import {
   layWorkshop,
 } from './api';
 import { nhanSuKienUi } from './dongSuKien';
+import { nhanVai } from './nhan';
 import { KHU_MAC_DINH, chuanKhu, laKhu, type Khu } from './khu';
 import { KHU_DAU_MAN, manCuaKhu, type Man } from './man';
 import type { Profile, Snapshot, StreamEvent, Workshop } from './types';
@@ -103,16 +104,26 @@ function docPayload(p: unknown): PayloadEvent {
   return p as PayloadEvent;
 }
 
-function congDoanTu(ev: StreamEvent): CongDoanSong | undefined {
+export function congDoanTu(ev: StreamEvent): CongDoanSong | undefined {
   const buoc = ev.summary?.trim();
   if (!buoc) return undefined;
 
   const pl = docPayload(ev.payload);
   const chuaXong = !!pl.FinishedAt && pl.FinishedAt.startsWith(THOI_GIAN_RONG);
+  const loai = ev.category || pl.Category || undefined;
+  const laGiaoViec = loai?.toUpperCase() === 'DISPATCH';
+  // Sự kiện giao việc ĐÃ XONG ("architect_short (…)" kèm FinishedAt) nói rằng một vai vừa làm
+  // xong — không phải việc đang diễn ra. Lấy nó làm "đang làm" là đúng lỗi đo được trên truyện
+  // thật: Người viết đã chạy mà thẻ vẫn ghi "Kiến trúc sư đang làm". Bỏ qua, giữ việc trước.
+  if (laGiaoViec && !!pl.ID && !chuaXong) return undefined;
+  // Vai của một lần giao việc là BÊN NHẬN (tên đứng đầu dòng tóm tắt), không phải `agent` —
+  // trường đó là `engine` ở sự kiện bắt đầu, tức kênh chứ không phải người làm.
+  const nhan = laGiaoViec ? /^\s*([a-z][\w-]*)/i.exec(buoc)?.[1] : undefined;
+  const vaiNhan = nhan && nhanVai(nhan) !== nhan ? nhan : undefined;
   return {
     buoc,
-    vai: ev.agent || pl.Agent || undefined,
-    loai: ev.category || pl.Category || undefined,
+    vai: vaiNhan || ev.agent || pl.Agent || undefined,
+    loai,
     dangChay: !!pl.ID && chuaXong,
     luc: ev.time,
     loi: pl.Failed === true || pl.Level === 'error' || ev.category === 'ERROR',

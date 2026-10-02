@@ -385,3 +385,10 @@ test('không có cảnh báo thì không vẽ khối cảnh báo rỗng', () => 
   const { container } = ve(true);
   expect(container.querySelector('.canhbao')).toBeNull();
 });
+
+test('nghỉ với bộ đệm chỉ có lượt RỖNG (mở lượt rồi lỗi) → không vẽ khung "Đoạn viết gần nhất"', () => {
+  // Đo trên truyện thật: Kiến trúc sư thử lại mãi một lỗi, mỗi lần mở một lượt không chữ;
+  // bấm Tạm dừng thì hiện một khung có tiêu đề mà không có gì bên trong.
+  const { container } = ve(false, {}, moLuot(moLuot(BO_DEM_RONG)));
+  expect(container.querySelector('.tdVan')).toBeNull();
+});

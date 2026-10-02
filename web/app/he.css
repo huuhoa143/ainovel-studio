@@ -435,6 +435,23 @@ select {
   gap: 2px;
   padding: 0 8px;
   align-items: center;
+  /* Bỏ `mask-image` của bản cũ (globals.css). Mask trên một khung cuộn có `container-type`
+     và ô con `sticky` là tổ hợp Chrome có lúc không vẽ lại sau khi bộ ô đổi — đo được trên
+     truyện thật: bấm Tạm dừng, ô "bước" biến mất khỏi DOM, và CẢ dải (kể cả ô trạng thái
+     ghim) trống trơn cho tới lần vẽ lại sau. Mép mờ giờ là một lớp phủ dính ở cuối dải. */
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+.trans .dai::after {
+  content: '';
+  position: sticky;
+  right: 0;
+  flex: none;
+  align-self: stretch;
+  width: 26px;
+  margin-left: -26px;
+  background: linear-gradient(90deg, transparent, var(--bg));
+  pointer-events: none;
 }
 .trans .cell {
   border-right: 0;
@@ -548,4 +565,9 @@ select {
 .rail .mucSach .thuMuc {
   font: 400 11.5px var(--mono);
   color: var(--ink-3);
+}
+/* "Đang kẹt": máy báo chạy nhưng chỉ thử lại mãi một lỗi — hổ phách, không đập. */
+.trans .cell.ghim.ket .m,
+.trans .ky.amber {
+  color: var(--amber);
 }

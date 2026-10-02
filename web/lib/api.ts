@@ -714,8 +714,29 @@ export function xoaSach(book: string): Promise<{ book: string; deleted: boolean 
  * nên gọi được nghĩa là địa chỉ gốc đúng và khóa còn sống. Lỗi trả về đã được server dịch
  * sang câu nói ra nguyên nhân ("khóa API sai hoặc hết hạn") thay vì một mã HTTP trần.
  */
+/**
+ * Kết quả lượt thử gọi công cụ — `tools` của câu trả lời liệt kê model, chỉ có khi xin.
+ *
+ * `checked: false` kèm `note` nghĩa là CHƯA thử (chưa chọn model, giao thức chưa hỗ trợ) —
+ * khác với thử rồi mà hỏng (`checked: true, ok: false`, `reason` đã dịch sang tiếng Việt).
+ */
+export interface KetQuaCongCu {
+  model?: string;
+  checked: boolean;
+  ok: boolean;
+  reason?: string;
+  note?: string;
+  /** Câu gốc của nhà cung cấp, cho `title`. */
+  raw?: string;
+}
+
+/**
+ * `congCu: true` xin thêm MỘT lượt chat tí hon kèm công cụ để biết model có gọi công cụ được
+ * không — chỉ nút Kiểm tra gửi cờ này. Bộ chọn model nạp danh sách thì không (khỏi tốn tiền).
+ */
 export function lietKeModel(
   provider?: string,
+  tuyChon: { congCu?: boolean; model?: string } = {},
 ): Promise<{
   provider: string;
   models: string[];
@@ -728,10 +749,15 @@ export function lietKeModel(
    * mô tả model GỐC của hãng). Vắng mặt khi nhà cung cấp không khai.
    */
   windows?: Record<string, number>;
+  tools?: KetQuaCongCu;
 }> {
   // Qua đường GHI dù là GET: server đặt `/api/models` sau hàng rào chống CSRF vì nó phát
   // một yêu cầu ra ngoài kèm khóa API. `doc()` không gắn header rào nên sẽ ăn 403.
-  const q = provider ? `?provider=${encodeURIComponent(provider)}` : '';
+  const ts = new URLSearchParams();
+  if (provider) ts.set('provider', provider);
+  if (tuyChon.congCu) ts.set('tools', '1');
+  if (tuyChon.model) ts.set('model', tuyChon.model);
+  const q = ts.toString() ? `?${ts.toString()}` : '';
   return ghiDoc(`/api/models${q}`);
 }
 
@@ -744,7 +770,16 @@ export function thuKetNoi(nhap: {
   type?: string;
   base_url?: string;
   api_key?: string;
-}): Promise<{ provider: string; models: string[]; count: number; windows?: Record<string, number> }> {
+  /** Model để thử gọi công cụ; vắng thì server thử `auto` nếu có. */
+  model?: string;
+  tools?: boolean;
+}): Promise<{
+  provider: string;
+  models: string[];
+  count: number;
+  windows?: Record<string, number>;
+  tools?: KetQuaCongCu;
+}> {
   return ghi('/api/models/try', 'POST', nhap);
 }
 

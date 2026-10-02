@@ -59,6 +59,7 @@ func (o *observer) handleToolUpdate(ev agentcore.Event) {
 			a.summary = fmt.Sprintf("%s → %s", ev.Progress.Agent, toolName)
 		})
 		o.emitFallbackStreamHeader(ev.Progress.Tool)
+		o.emitNonStreamToolContent(ev.Progress.Tool, ev.Progress.Args)
 	case agentcore.ProgressToolEnd:
 		delete(o.streamExtractors, ev.Progress.Agent)
 		if ev.Progress.Agent == "" {
@@ -377,4 +378,25 @@ func displayToolName(tool string, args json.RawMessage) string {
 		}
 	}
 	return tool
+}
+
+// emitNonStreamToolContent cho đường KHÔNG stream tham số (provider trả nguyên khối args
+// trong ProgressToolStart) đi qua đúng bộ trích của đường stream, để hai kiểu provider ra
+// cùng một khung văn sống.
+//
+// Thiếu bước này thì với provider không stream args, nội dung draft_chapter KHÔNG BAO GIỜ
+// lên khung "AI đang viết": emitFallbackStreamHeader bỏ qua mọi tool có bộ trích (vì header
+// do bộ trích tự in), còn bộ trích thì chỉ được nạp ở handleSubagentDelta — nhánh stream.
+func (o *observer) emitNonStreamToolContent(tool string, args []byte) {
+	if len(args) == 0 {
+		return
+	}
+	ext := newToolExtractor(tool)
+	if ext == nil {
+		return
+	}
+	if emitted := ext.Feed(string(args)); emitted != "" {
+		o.streamClear()
+		o.emitStreamDelta(emitted, false)
+	}
 }

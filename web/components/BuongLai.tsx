@@ -11,6 +11,7 @@ import { TD } from '@/lib/chu/tien-do';
 import { useVuaCoTin } from '@/lib/dauDoi';
 import { so } from '@/lib/dinhdang';
 import type { Khu } from '@/lib/khu';
+import { phatHienKet } from '@/lib/loiLlm';
 import { CHU, GIAI_THICH, nhanPhamViXem, nhanPhase, DH } from '@/lib/nhan';
 import {
   type MucXem as Muc,
@@ -141,6 +142,12 @@ export function BuongLai({
    */
   const dsPhanQuyet = snapshot.decisions ?? [];
   const oSongVanSong = useVuaCoTin(vanSong);
+  // Tên nhà cung cấp để câu lỗi nói đúng nơi hỏng ("lingoreup không còn model…").
+  const ncc = snapshot.transport.last_call?.provider;
+  const ket = dangChay ? phatHienKet(suKien, { ncc }) : undefined;
+  // Lượt rỗng (mở lượt rồi lỗi, chưa sinh chữ nào) không phải "văn" — đếm nó là vẽ một khung
+  // "Đoạn viết gần nhất" trống trơn lúc máy nghỉ.
+  const coChu = vanSong.luot.some((l) => l.chu.trim().length > 0);
   const oSongSuKien = useVuaCoTin(suKien[0]?.seq ?? 0);
   const oSongChuong = vuaChot.size > 0;
   const oSongNhatKy = useVuaCoTin(
@@ -211,6 +218,8 @@ export function BuongLai({
               snapshot={snapshot}
               song={song}
               dangChay={dangChay}
+              ket={ket}
+              onChonKhu={onChonKhu}
               viec={
                 dangChay ? null : (
                   <ViecTiepTheo
@@ -239,9 +248,9 @@ export function BuongLai({
           {/* Văn đang viết: khối đọc được khi có chữ, MỘT dòng gợi ý khi máy chạy mà chưa có
               chữ. Lúc nghỉ và bộ đệm rỗng thì không vẽ gì: thẻ đang làm đã nói "bấm Viết tiếp",
               một dải gạch đứt nhắc lại câu đó chỉ là thêm một thứ để đọc. */}
-          {dangChay || vanSong.luot.length > 0 ? (
+          {dangChay || coChu ? (
           <div
-            className={`tdVan${vanSong.luot.length === 0 ? ' rong' : ''}${
+            className={`tdVan${coChu ? '' : ' rong'}${
               oSongVanSong ? ' dangSong' : ''
             }`}
           >
@@ -294,7 +303,7 @@ export function BuongLai({
                 <span className="dem">{CHU.soDongSuKien(suKien.length)}</span>
               </div>
               <div className="tdOThan">
-                <DongSuKien suKien={suKien} dangChay={dangChay} />
+                <DongSuKien suKien={suKien} dangChay={dangChay} ncc={ncc} />
               </div>
             </section>
           </div>

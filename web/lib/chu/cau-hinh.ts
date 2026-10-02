@@ -5,6 +5,18 @@
  * giẫm lên các màn khác. Từ vựng theo PRODUCT.md — vai là Điều phối, Kiến trúc sư, Người viết,
  * Biên tập viên; xưng "bạn".
  */
+
+/** Nhãn của độ suy luận; giá trị gửi đi vẫn là mã gốc. */
+const NHAN_DO_SUY_LUAN: Record<string, string> = {
+  off: 'Tắt',
+  low: 'Thấp',
+  medium: 'Vừa',
+  high: 'Cao',
+  xhigh: 'Rất cao',
+  max: 'Tối đa',
+};
+
+/** Chữ của màn. */
 export const CH = {
   tieuDe: 'Model & khóa API',
   tieuDeLanDau: 'Kết nối model để bắt đầu',
@@ -31,7 +43,7 @@ export const CH = {
   vai: 'Vai',
   modelChuaKhai: 'không còn trong danh sách của nhà cung cấp',
   modelKhongCoThat: 'nhà cung cấp không có model này',
-  coDoSuyLuan: (muc: string) => `độ suy luận ${muc}`,
+  coDoSuyLuan: (muc: string) => `độ suy luận ${(NHAN_DO_SUY_LUAN[muc] ?? muc).toLowerCase()}`,
 
   /* ── chọn model ── */
   timModel: 'Tìm model hoặc nhà cung cấp…',
@@ -56,6 +68,8 @@ export const CH = {
   apDungNgay: (ten: string) => `Áp dụng ngay cho ${ten}`,
   dangApDung: 'Đang áp dụng…',
   daApDung: (ten: string, gio: string) => `Đã áp dụng cho ${ten} lúc ${gio}`,
+  /** Sau "Áp dụng ngay" xuôi — câu "vẫn dùng thiết lập lúc mở" lúc này đã sai. */
+  phienDaApDung: (ten: string, gio: string) => `Truyện ${ten} đang dùng thiết lập mới từ ${gio}.`,
   kieuVanCanMoLai: 'Kiểu văn chỉ đổi khi bạn mở lại phiên.',
 
   /* ── hai tệp ── */
@@ -76,6 +90,10 @@ export const CH = {
   chuaKiem: 'Chưa kiểm tra',
   ketNoiDuoc: (n: number, gio: string) => `Kết nối được · ${n} model · ${gio}`,
   ketNoiLoi: 'Không kết nối được',
+  congCuDuoc: (m: string) => `${m} gọi công cụ được`,
+  congCuKhong: (m: string) =>
+    `Model ${m} không gọi công cụ được — Kiến trúc sư, Người viết và Biên tập viên sẽ không chạy`,
+  congCuLyDo: (ly: string) => `Lý do: ${ly}.`,
   sua: 'Sửa',
   xoa: 'Xóa',
   dungChoVai: (ds: string) => `Đang dùng cho: ${ds}`,
@@ -127,6 +145,14 @@ export const CH = {
   kieuVanLa: (k: string) => `Kiểu văn "${k}" không có thật nên đang bị bỏ qua. Chọn một kiểu có sẵn.`,
   doSuyLuan: 'Độ suy luận mặc định',
   theoModel: 'Theo mặc định của model',
+  /** Nhãn hiển thị — giá trị gửi đi vẫn là mã gốc. Mã lạ hiện nguyên văn. */
+  nhanKieuVan: {
+    default: 'Mặc định',
+    fantasy: 'Kỳ ảo',
+    romance: 'Lãng mạn',
+    suspense: 'Hồi hộp',
+  } as Record<string, string>,
+  nhanDoSuyLuan: NHAN_DO_SUY_LUAN,
 
   /* ── chuyển dây chuyền ── */
   chuyenTieuDe: (ncc: string) => `Chuyển model mặc định sang ${ncc}?`,

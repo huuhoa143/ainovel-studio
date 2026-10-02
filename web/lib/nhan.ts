@@ -65,11 +65,22 @@ export function kyTheoTone(mau: Tone): string {
 /* ── công đoạn của một chương (bảng chương, inspector) ─────────────────── */
 
 export const TRANG_THAI_CHUONG: Record<Stage, NhanTrangThai> = {
-  done: { nhan: 'đã duyệt', ky: '●', mau: 'teal' },
+  // "đã xong", không "đã duyệt": `done` chỉ nói chương đã chốt. Biên tập viên chấm định kỳ, nên
+  // phần lớn chương xong mà chưa ai duyệt — truyện 3 chương thật hiện "đã duyệt" cả ba trong
+  // khi Nhận xét biên tập ghi 0. Chương có nhận xét thật thì `trangThaiDong` nói "đã duyệt".
+  done: { nhan: 'đã xong', ky: '●', mau: 'teal' },
   drafting: { nhan: 'đang viết', ky: '▶', mau: 'gold' },
   rewrite: { nhan: 'cần viết lại', ky: '■', mau: 'amber' },
   pending: { nhan: 'chưa viết', ky: '○', mau: 'muted' },
 };
+
+/** Chương đã xong VÀ đã có nhận xét của Biên tập viên. */
+export const DA_DUYET: NhanTrangThai = { nhan: 'đã duyệt', ky: '●', mau: 'teal' };
+
+/** Trạng thái hiển thị của một dòng chương — "đã duyệt" chỉ khi có nhận xét thật. */
+export function trangThaiDong(r: { stage: Stage; reviewed?: boolean }): NhanTrangThai {
+  return r.stage === 'done' && r.reviewed ? DA_DUYET : TRANG_THAI_CHUONG[r.stage];
+}
 
 /* ── khối trên trục sản xuất (tập, cung) ──────────────────────────────── */
 
@@ -94,7 +105,7 @@ export const TRANG_THAI_KHOI: Record<BlockState, NhanTrangThai> = {
 /* ── vạch trên lane chương (1 vạch = 1 chương) ────────────────────────── */
 
 export const TRANG_THAI_VACH: Record<MarkState, NhanTrangThai> = {
-  done: { nhan: 'đã duyệt', ky: '●', mau: 'teal' },
+  done: { nhan: 'đã xong', ky: '●', mau: 'teal' },
   running: { nhan: 'đang viết', ky: '▶', mau: 'gold' },
   rewrite: { nhan: 'cần viết lại', ky: '■', mau: 'amber' },
   gate: { nhan: 'chờ duyệt', ky: '◆', mau: 'violet' },
@@ -213,8 +224,17 @@ const VAI: Record<string, string> = {
   engine: 'Hệ thống',
 };
 
+/**
+ * Engine đặt tên biến thể theo `<vai>_<kiểu>` (architect_short / architect_long, writer_first_chapter,
+ * writer_feedback …). Người dùng chỉ cần biết VAI — nên tra theo tiền tố trước dấu gạch dưới khi
+ * tên đầy đủ không có trong bảng. `coordinator` là tên cũ của Điều phối.
+ */
 export function nhanVai(ma: string): string {
-  return VAI[ma] ?? ma;
+  const k = (ma ?? '').trim().toLowerCase();
+  if (VAI[k]) return VAI[k];
+  if (k === 'coordinator') return VAI.arbiter ?? ma;
+  const goc = k.split('_')[0] ?? '';
+  return VAI[goc] ?? ma;
 }
 
 export function nhanToVai(owners: string[] | undefined): string {
@@ -1768,7 +1788,7 @@ export const GIAI_THICH = {
    * Hai bản của cùng một lời giải thích thì có ngày lệch, và lúc đó không có cách nào
    * biết bản nào đúng.
    */
-  nghiemThuChuaCoKetLuan: 'Biên tập viên chưa có nhận xét cho chương này. Nhận xét sẽ có sau khi chương được chốt.',
+  nghiemThuChuaCoKetLuan: 'Biên tập viên chưa chấm chương này — họ chấm định kỳ, không chấm từng chương. Bạn vẫn đọc được chương trước khi quyết định.',
   nghiemThuChoDay: 'Đang ở chế độ chỉ xem nên không duyệt được',
   nghiemThuHuyHieuDanToi: 'AI đang chờ bạn duyệt chương. Bấm để xem nhận xét và quyết định.',
   /**
@@ -1912,7 +1932,7 @@ export const GIAI_THICH = {
    * nói đúng phần còn đúng: bề mặt đã hỏi store, store không có gì để trả.
    */
   chuongTrongStore: 'Chương này chưa có nội dung — có thể chưa được viết.',
-  banDuyetChuaCo: 'Chương này chưa có nhận xét. Biên tập viên nhận xét sau khi chương được chốt.',
+  banDuyetChuaCo: 'Chương này chưa có nhận xét. Biên tập viên chấm định kỳ, không chấm từng chương.',
 
   /* ── bề mặt Kiểm định ───────────────────────────────────────────────── */
 
