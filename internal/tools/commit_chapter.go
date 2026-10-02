@@ -166,6 +166,17 @@ func (t *CommitChapterTool) Execute(_ context.Context, args json.RawMessage) (js
 	}
 	if existingPending == nil || existingPending.Stage == domain.CommitStageStarted {
 		if err := t.validateCommitArgs(a); err != nil {
+			// Lấy từ bản gốc (c090029): commit viết lại đã đông có thể mang tham số mà luật
+			// mới (vd. chặn phục bút gieo ở chương sau) không cho qua. Giữ nguyên payload
+			// bất biến thì mỗi lần thử lại đều lặp đúng lỗi đó — giải đông để Writer sửa
+			// tham số rồi nộp lại; bản thảo và chương đã chốt không bị đụng.
+			if existingPending != nil && existingPending.Rewrite &&
+				(errors.Is(err, errs.ErrToolArgs) || errors.Is(err, errs.ErrToolPrecondition)) {
+				if clearErr := t.store.Signals.ClearPendingCommit(); clearErr != nil {
+					return nil, fmt.Errorf(i18n.F("返工提交校验失败（%v），且清理冻结提交失败: %w: %w"), err, errs.ErrStoreWrite, clearErr)
+				}
+				return nil, fmt.Errorf(i18n.F("旧版遗留的返工提交未通过校验，已解除冻结；请修正后重新提交: %w"), err)
+			}
 			return nil, err
 		}
 	}

@@ -614,26 +614,48 @@ func (t *ContextTool) buildChapterReferencePack(envelope *chapterContextEnvelope
 	envelope.References["references"] = t.writerReferences(state.chapter)
 }
 
-func (t *ContextTool) buildArchitectContext(result map[string]any, warn func(string, error)) {
+func (t *ContextTool) buildArchitectContext(result map[string]any, warn func(string, error), volume, arc int) error {
 	envelope := newArchitectContextEnvelope()
 	result["memory_policy"] = domain.NewArchitectMemoryPolicy()
-	t.buildArchitectPlanning(&envelope, warn)
+	if err := t.buildArchitectPlanning(&envelope, warn, volume, arc); err != nil {
+		return err
+	}
 	t.buildArchitectFoundation(&envelope, warn)
 	t.buildArchitectReferences(&envelope, warn)
 	envelope.apply(result)
+	return nil
 }
 
-func (t *ContextTool) buildArchitectPlanning(envelope *architectContextEnvelope, warn func(string, error)) {
+func (t *ContextTool) buildArchitectPlanning(envelope *architectContextEnvelope, warn func(string, error), requestedVolume, requestedArc int) error {
 	runMeta, err := t.store.RunMeta.Load()
 	warn("run_meta", err)
 	if runMeta != nil && runMeta.PlanningTier != "" {
 		envelope.Planning["planning_tier"] = runMeta.PlanningTier
 	}
+	progress, progressErr := t.store.Progress.Load()
+	warn("progress_for_planning", progressErr)
 
 	var layered []domain.VolumeOutline
 	if l, err := t.store.Outline.LoadLayeredOutline(); err == nil && len(l) > 0 {
 		layered = l
-		envelope.Planning["layered_outline"] = layered
+		// Chỉ khung tập/hồi đi toàn cục; chi tiết chương chỉ có ở MỘT hồi (hồi hiện tại hoặc
+		// hồi được xin bằng volume+arc). Bản cũ gửi nguyên dàn ý — truyện vài trăm chương là
+		// tràn ngữ cảnh của Kiến trúc sư (bản gốc: 7217f42, 47df100).
+		latestCompleted := 0
+		if progress != nil {
+			latestCompleted = progress.LatestCompleted()
+		}
+		if requestedVolume > 0 {
+			if _, ok := findPlanningArc(layered, requestedVolume, requestedArc); !ok {
+				return fmt.Errorf("planning scope v%da%d not found", requestedVolume, requestedArc)
+			}
+		}
+		detailVolume, detailArc := planningDetailScope(layered, progress, requestedVolume, requestedArc)
+		outline, detailIncluded := projectLayeredOutlineForPlanning(layered, latestCompleted, detailVolume, detailArc)
+		envelope.Planning["layered_outline"] = outline
+		if detailIncluded {
+			envelope.Planning["outline_detail"] = map[string]int{"volume": detailVolume, "arc": detailArc}
+		}
 		var skeletonArcs []map[string]any
 		for _, v := range layered {
 			for _, a := range v.Arcs {
@@ -653,6 +675,9 @@ func (t *ContextTool) buildArchitectPlanning(envelope *architectContextEnvelope,
 		}
 	} else {
 		warn("layered_outline", err)
+		if requestedVolume > 0 {
+			return fmt.Errorf("planning scope requires a layered outline")
+		}
 	}
 
 	var compass *domain.StoryCompass
@@ -683,6 +708,107 @@ func (t *ContextTool) buildArchitectPlanning(envelope *architectContextEnvelope,
 	// 让架构师在裁定 complete_book / append_volume 时一眼看到对照面。
 	// 散落在 progress / compass / foreshadow / layered_outline 里靠 LLM 脑算容易漏。
 	envelope.Planning["completion_signals"] = t.completionSignals(layered, compass, warn)
+	return nil
+}
+
+// planningVolumeOutline là phép chiếu chỉ-đọc của dàn ý cho Kiến trúc sư: toàn cục chỉ giữ
+// khung tập/hồi, chỉ hồi hiện tại hoặc hồi được xin mới mang chi tiết chương — để chi tiết
+// không phình theo quy mô dàn ý. Chép từ bản gốc ainovel-cli (7217f42 + 47df100).
+type planningVolumeOutline struct {
+	Index int                  `json:"index"`
+	Title string               `json:"title"`
+	Theme string               `json:"theme"`
+	Final bool                 `json:"final,omitempty"`
+	Arcs  []planningArcOutline `json:"arcs"`
+}
+
+type planningArcOutline struct {
+	Index             int                   `json:"index"`
+	Title             string                `json:"title"`
+	Goal              string                `json:"goal"`
+	Status            string                `json:"status"`
+	StartChapter      int                   `json:"start_chapter,omitempty"`
+	EndChapter        int                   `json:"end_chapter,omitempty"`
+	ChapterCount      int                   `json:"chapter_count,omitempty"`
+	EstimatedChapters int                   `json:"estimated_chapters,omitempty"`
+	Chapters          []domain.OutlineEntry `json:"chapters,omitempty"`
+	ChaptersOmitted   bool                  `json:"chapters_omitted,omitempty"`
+}
+
+// planningDetailScope chọn hồi DUY NHẤT mang đủ chương trong lượt này: xin rõ thì theo xin;
+// mặc định là hồi của tiến độ hiện tại; chưa có tiến độ thì hồi đã mở đầu tiên.
+func planningDetailScope(volumes []domain.VolumeOutline, progress *domain.Progress, requestedVolume, requestedArc int) (int, int) {
+	if requestedVolume > 0 {
+		return requestedVolume, requestedArc
+	}
+	if progress != nil {
+		if arc, ok := findPlanningArc(volumes, progress.CurrentVolume, progress.CurrentArc); ok && arc.IsExpanded() {
+			return progress.CurrentVolume, progress.CurrentArc
+		}
+	}
+	for _, volume := range volumes {
+		for _, arc := range volume.Arcs {
+			if arc.IsExpanded() {
+				return volume.Index, arc.Index
+			}
+		}
+	}
+	return 0, 0
+}
+
+func findPlanningArc(volumes []domain.VolumeOutline, volumeIndex, arcIndex int) (*domain.ArcOutline, bool) {
+	for vi := range volumes {
+		if volumes[vi].Index != volumeIndex {
+			continue
+		}
+		for ai := range volumes[vi].Arcs {
+			if volumes[vi].Arcs[ai].Index == arcIndex {
+				return &volumes[vi].Arcs[ai], true
+			}
+		}
+	}
+	return nil, false
+}
+
+func projectLayeredOutlineForPlanning(volumes []domain.VolumeOutline, latestCompleted, detailVolume, detailArc int) ([]planningVolumeOutline, bool) {
+	projected := make([]planningVolumeOutline, 0, len(volumes))
+	chapter := 1
+	detailIncluded := false
+	for _, volume := range volumes {
+		pv := planningVolumeOutline{
+			Index: volume.Index, Title: volume.Title, Theme: volume.Theme, Final: volume.Final,
+			Arcs: make([]planningArcOutline, 0, len(volume.Arcs)),
+		}
+		for _, arc := range volume.Arcs {
+			pa := planningArcOutline{
+				Index: arc.Index, Title: arc.Title, Goal: arc.Goal,
+				EstimatedChapters: arc.EstimatedChapters,
+			}
+			if len(arc.Chapters) == 0 {
+				pa.Status = "skeleton"
+				pv.Arcs = append(pv.Arcs, pa)
+				continue
+			}
+			pa.StartChapter = chapter
+			pa.EndChapter = chapter + len(arc.Chapters) - 1
+			pa.ChapterCount = len(arc.Chapters)
+			if pa.EndChapter <= latestCompleted {
+				pa.Status = "completed"
+			} else {
+				pa.Status = "expanded"
+			}
+			if volume.Index == detailVolume && arc.Index == detailArc {
+				pa.Chapters = arc.Chapters
+				detailIncluded = true
+			} else {
+				pa.ChaptersOmitted = true
+			}
+			chapter = pa.EndChapter + 1
+			pv.Arcs = append(pv.Arcs, pa)
+		}
+		projected = append(projected, pv)
+	}
+	return projected, detailIncluded
 }
 
 func (t *ContextTool) completionSignals(layered []domain.VolumeOutline, compass *domain.StoryCompass, warn func(string, error)) map[string]any {

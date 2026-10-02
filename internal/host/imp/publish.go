@@ -58,12 +58,9 @@ func publishFoundation(st *store.Store, f *Foundation) error {
 	if _, err := st.Checkpoints.AppendArtifact(domain.GlobalScope(), "world_rules", "world_rules.json"); err != nil {
 		return fmt.Errorf("checkpoint world_rules: %w", err)
 	}
-	// layered + flat outline
+	// layered outline 是唯一来源，Store 同步重建 flat outline。
 	if err := st.Outline.SaveLayeredOutline(f.Volumes); err != nil {
 		return fmt.Errorf("layered outline: %w", err)
-	}
-	if err := st.Outline.SaveOutline(domain.FlattenOutline(f.Volumes)); err != nil {
-		return fmt.Errorf("flat outline: %w", err)
 	}
 	// 大纲阶段的进度是引擎重算路由的依据（总章数/分层/当前卷弧），写入失败会留下不一致的
 	// 已发布状态，必须暴露而非吞掉（RFC §12.2）。

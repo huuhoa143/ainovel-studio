@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -425,7 +426,7 @@ func (e *engine) trackDeadlock(ctx context.Context, inst **flow.Instruction) (st
 		return false
 	}
 	if e.repeats >= deadlockAbortAt {
-		e.pauseWithNotify(notify.KindDeadlock, fmt.Sprintf(i18n.F("僵局熔断: 指令连续 %d 次无进展(%s),已暂停等待人工介入"), e.repeats, in.Agent))
+		e.pauseStuck(notify.KindDeadlock, in, fmt.Sprintf(i18n.F("僵局熔断: 指令连续 %d 次无进展(%s),已暂停等待人工介入"), e.repeats, in.Agent))
 		return true
 	}
 	// Arbiter 僵局咨询(repeats ∈ [consultAt, abortAt))。裁定 retry 不清零计数。
@@ -445,7 +446,7 @@ func (e *engine) trackDeadlock(ctx context.Context, inst **flow.Instruction) (st
 		*inst = &flow.Instruction{Agent: decision.Dispatch.Agent, Task: decision.Dispatch.Task, Reason: decision.Reason}
 		return false
 	default: // abort
-		e.pauseWithNotify(notify.KindDeadlock, i18n.F("僵局裁定: ")+decision.Reason)
+		e.pauseStuck(notify.KindDeadlock, in, i18n.F("僵局裁定: ")+decision.Reason)
 		return true
 	}
 }
@@ -513,9 +514,37 @@ func (e *engine) handleWorkerError(ctx context.Context, inst *flow.Instruction, 
 		e.mu.Unlock()
 		return false
 	default: // abort
-		e.pauseWithNotify(notify.KindWorkerFailure, i18n.F("失败裁定: ")+decision.Reason+contentFilterAdvice(werr))
+		e.pauseStuck(notify.KindWorkerFailure, inst, i18n.F("失败裁定: ")+decision.Reason+contentFilterAdvice(werr))
 		return true
 	}
+}
+
+// pauseStuck 在引擎放弃一条指令时暂停:返工章先出队再停。仅用于引擎已判定该指令
+// 走不通的出路(僵局熔断、僵局/失败裁定 abort),裁定不可用等基础设施故障仍走
+// pauseWithNotify——那是外部问题,不该赔上一章返工。
+func (e *engine) pauseStuck(kind string, inst *flow.Instruction, body string) {
+	if e.dropStuckRewrite(inst) {
+		body += fmt.Sprintf(i18n.F("；第 %d 章已移出返工队列(保留上一版终稿),继续创作将从后续章节推进"), inst.Chapter)
+	}
+	e.pauseWithNotify(kind, body)
+}
+
+// dropStuckRewrite 把卡死的返工章移出队列。PendingRewrites 是持久化事实,引擎放弃
+// 这条指令时不出队的话,重启会立刻重放同一条死指令,把整本书永久锁死(issue #110)。
+// 返回 true 表示确实出队了。
+func (e *engine) dropStuckRewrite(inst *flow.Instruction) bool {
+	if inst == nil || inst.Agent != "writer" || inst.Chapter <= 0 {
+		return false
+	}
+	progress, err := e.store.Progress.Load()
+	if err != nil || progress == nil || !slices.Contains(progress.PendingRewrites, inst.Chapter) {
+		return false
+	}
+	if err := e.store.Progress.CompleteRewrite(inst.Chapter); err != nil {
+		slog.Warn(i18n.F("卡死返工章出队失败"), "module", "engine", "chapter", inst.Chapter, "err", err)
+		return false
+	}
+	return true
 }
 
 // contentFilterAdvice 给内容审核拦截的暂停附上用户可执行的出路。
@@ -550,7 +579,10 @@ func (e *engine) failureFacts(kind string, inst *flow.Instruction, workerErr err
 	f := arbiter.FailureFacts{Kind: kind, Agent: inst.Agent, Task: inst.Task, Repeats: e.repeats}
 	if workerErr != nil {
 		f.Error = workerErr.Error()
-		f.ErrorKind = agentcore.ErrorKind(workerErr)
+		f.ErrorKind = errorKind(workerErr, f.Error)
+		if f.ErrorKind == "" {
+			f.ErrorKind = "unknown"
+		}
 	}
 	missing, err := e.store.FoundationMissing()
 	if err != nil {

@@ -4,12 +4,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
 	"testing"
 
 	"github.com/huuhoa143/ainovel-studio/internal/domain"
+	"github.com/huuhoa143/ainovel-studio/internal/errs"
 	"github.com/huuhoa143/ainovel-studio/internal/llmcontract"
 	"github.com/huuhoa143/ainovel-studio/internal/store"
 )
@@ -58,6 +60,66 @@ func TestCommitChapterRejectsUnknownForeshadowReferenceBeforePending(t *testing.
 	}
 	if pending, err := s.Signals.LoadPendingCommit(); err != nil || pending != nil {
 		t.Fatalf("invalid args must not create pending commit: pending=%+v err=%v", pending, err)
+	}
+}
+
+// Chép từ bản gốc (08c13b2): viết lại một chương sớm không được đẩy tới/khép lại phục bút
+// gieo ở chương SAU nó. Sổ phục bút của fork cộng dồn nên đọc PlantedAt ngay trên sổ.
+func TestCommitChapterRejectsForwardForeshadowReference(t *testing.T) {
+	s := store.NewStore(t.TempDir())
+	if err := s.Init(); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Progress.Init("test", 5); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.World.UpdateForeshadow(3, []domain.ForeshadowUpdate{{ID: "f3", Action: "plant", Description: "黑影身份"}}); err != nil {
+		t.Fatal(err)
+	}
+	args, _ := json.Marshal(map[string]any{
+		"chapter": 2, "title": "第二章", "summary": "推进", "characters": []string{"主角"}, "key_events": []string{"发现线索"},
+		"foreshadow_updates": []map[string]any{{"id": "f3", "action": "resolve"}},
+	})
+	_, err := NewCommitChapterTool(s).Execute(context.Background(), args)
+	if !errors.Is(err, errs.ErrToolPrecondition) || !strings.Contains(err.Error(), "f3") || strings.Contains(err.Error(), "unknown id") {
+		t.Fatalf("phục bút gieo ở chương sau phải bị từ chối, got %v", err)
+	}
+	if pending, err := s.Signals.LoadPendingCommit(); err != nil || pending != nil {
+		t.Fatalf("tham số sai không được tạo pending commit: pending=%+v err=%v", pending, err)
+	}
+}
+
+// Chép từ bản gốc (c090029): commit viết lại đã đông mà không qua luật hiện hành thì phải
+// được gỡ đông, nếu không mỗi lần thử lại lặp đúng lỗi cũ và khóa cả cuốn.
+func TestCommitChapterUnfreezesInvalidPendingRewrite(t *testing.T) {
+	s := store.NewStore(t.TempDir())
+	if err := s.Init(); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Progress.Init("test", 5); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Progress.MarkChapterComplete(2, 3000, "", ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.World.UpdateForeshadow(3, []domain.ForeshadowUpdate{{ID: "f3", Action: "plant", Description: "黑影身份"}}); err != nil {
+		t.Fatal(err)
+	}
+	payload, _ := json.Marshal(map[string]any{
+		"chapter": 2, "title": "第二章", "summary": "推进", "characters": []string{"主角"}, "key_events": []string{"发现线索"},
+		"foreshadow_updates": []map[string]any{{"id": "f3", "action": "resolve"}},
+	})
+	if err := s.Signals.SavePendingCommit(domain.PendingCommit{
+		Chapter: 2, Stage: domain.CommitStageStarted, Rewrite: true, RewriteMode: "rewrite", Payload: payload,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	_, err := NewCommitChapterTool(s).Execute(context.Background(), payload)
+	if !errors.Is(err, errs.ErrToolPrecondition) {
+		t.Fatalf("payload đông sai luật phải bị từ chối, got %v", err)
+	}
+	if pending, err := s.Signals.LoadPendingCommit(); err != nil || pending != nil {
+		t.Fatalf("commit đông phải được gỡ: pending=%+v err=%v", pending, err)
 	}
 }
 

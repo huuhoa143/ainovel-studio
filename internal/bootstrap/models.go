@@ -9,12 +9,13 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/voocel/agentcore"
-	"github.com/voocel/agentcore/llm"
 	"github.com/huuhoa143/ainovel-studio/internal/errs"
 	"github.com/huuhoa143/ainovel-studio/internal/i18n"
 	"github.com/huuhoa143/ainovel-studio/internal/llmcontract"
 	"github.com/huuhoa143/ainovel-studio/internal/llmretry"
+	"github.com/voocel/agentcore"
+	"github.com/voocel/agentcore/llm"
+	"github.com/voocel/litellm"
 )
 
 // FailoverEvent 表示一次显式 provider 切换。
@@ -566,6 +567,9 @@ func createModelFromConfig(providerKey, model string, pc ProviderConfig, cache m
 		llm.WithStreamIdleTimeout(streamIdle),
 		llm.WithProviderExtra(providerExtra),
 		llm.WithExtra(pc.ExtraBody),
+		// 部分上游的 tool_use id 带 '#'、':' 等字符，发出前的校验只接受 [A-Za-z0-9_-]；
+		// 归一化后 tool_result 按同一映射成对改写。
+		llm.WithClientOptions(litellm.WithMessageRepair(litellm.RepairNormalizeToolUseIDs)),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("provider %s (%s): %w: %w", providerKey, providerType, errs.ErrProvider, err)

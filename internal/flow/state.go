@@ -36,9 +36,9 @@ func LoadState(store *storepkg.Store) (State, error) {
 	}
 	s.Progress = progress
 
-	if n := len(progress.CompletedChapters); n > 0 {
-		s.LastCompleted = progress.CompletedChapters[n-1]
-	}
+	// Lấy từ bản gốc (c090029): chương lớn nhất, không phải phần tử cuối — sau khi một
+	// chương được mở lại rồi chốt lần nữa, nó bị nối vào cuối danh sách.
+	s.LastCompleted = progress.LatestCompleted()
 
 	// 弧边界仅在分层模式且有已完成章节时才计算
 	if progress.Layered && s.LastCompleted > 0 {
