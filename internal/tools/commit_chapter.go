@@ -376,7 +376,7 @@ func (t *CommitChapterTool) Execute(_ context.Context, args json.RawMessage) (js
 	if progress != nil && progress.Layered {
 		reviewRequired, reviewReason = domain.ShouldArcReview(arcEnd, volumeEnd, vol, arc)
 	} else {
-		reviewRequired, reviewReason = domain.ShouldReview(completedCount)
+		reviewRequired, reviewReason = domain.ShouldReview(completedCount, progress.TotalChapters)
 	}
 
 	// 7. 构造结构化信号
@@ -755,7 +755,7 @@ func (t *CommitChapterTool) buildSkipResult(chapter int, progress *domain.Progre
 		}
 		result.ReviewRequired, result.ReviewReason = domain.ShouldArcReview(result.ArcEnd, result.VolumeEnd, result.Volume, result.Arc)
 	} else if progress != nil {
-		result.ReviewRequired, result.ReviewReason = domain.ShouldReview(len(progress.CompletedChapters))
+		result.ReviewRequired, result.ReviewReason = domain.ShouldReview(len(progress.CompletedChapters), progress.TotalChapters)
 	}
 
 	if progress != nil {
@@ -820,6 +820,17 @@ func (t *CommitChapterTool) applyCompletion(result *domain.CommitResult, progres
 		return false, nil
 	}
 	if progress.TotalChapters > 0 && result.NextChapter > progress.TotalChapters {
+		// 终审先于收官：最后一章还没有全局审阅就不 MarkComplete。Route 规则 11 会派
+		// Editor 做终审（可能把章节退回返工，规则 3 照常处理）；审完后大纲已耗尽，
+		// 规则 12 交给规划师用 save_foundation(complete_book) 收官。完本期任何派发都会
+		// 被 precheck 丢弃，所以终审必须发生在 MarkComplete 之前，而不是之后。
+		reviewed, err := t.store.World.HasGlobalReview(progress.TotalChapters)
+		if err != nil {
+			return false, fmt.Errorf("check final review: %w: %w", errs.ErrStoreRead, err)
+		}
+		if !reviewed {
+			return false, nil
+		}
 		if err := t.store.Progress.MarkComplete(); err != nil {
 			return false, fmt.Errorf("mark book complete: %w: %w", errs.ErrStoreWrite, err)
 		}

@@ -69,7 +69,7 @@ func LoadState(store *storepkg.Store) (State, error) {
 
 	// 非分层全局审阅事实:仅在触发点读盘(其余组合 Route 不消费该字段)。
 	if !progress.Layered && s.LastCompleted > 0 {
-		if due, _ := domain.ShouldReview(len(progress.CompletedChapters)); due {
+		if due, _ := domain.ShouldReview(len(progress.CompletedChapters), progress.TotalChapters); due {
 			s.HasGlobalReview, err = store.World.HasGlobalReview(s.LastCompleted)
 			if err != nil {
 				return s, fmt.Errorf("load global review: %w", err)

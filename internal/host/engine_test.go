@@ -355,7 +355,44 @@ func TestEngine_WritesBookToCompletion(t *testing.T) {
 		MaxTurns:       10,
 		StopAfterTools: []string{"commit_chapter"},
 	}
-	e, events, done := newTestEngine(t, st, subagent.NewRunner(writer), nil)
+	// 写完大纲最后一章不再直接完本：先由 Editor 做终审，再由规划师 complete_book 收官。
+	editor := subagent.Config{
+		Name: "editor", Description: "test editor", SystemPrompt: "test", MaxTurns: 6,
+		Model: &scriptedChatModel{fn: func(msgs []agentcore.Message) agentcore.Message {
+			for _, m := range msgs {
+				if m.Role == agentcore.RoleTool {
+					return testTextMsg("done")
+				}
+			}
+			dims := []map[string]any{}
+			for _, d := range []string{"consistency", "character", "pacing", "continuity", "foreshadow", "hook", "aesthetic"} {
+				dims = append(dims, map[string]any{"dimension": d, "score": 85, "comment": "达标(引用:原文)"})
+			}
+			return testToolCallMsg("save_review", map[string]any{
+				"chapter": 2, "scope": "global", "dimensions": dims, "issues": []map[string]any{},
+				"contract_status": nil, "contract_misses": []string{}, "contract_notes": nil,
+				"verdict": "accept", "summary": "全书终审通过",
+			})
+		}},
+		Tools:          []agentcore.Tool{tools.NewSaveReviewTool(st)},
+		StopAfterTools: []string{"save_review"},
+	}
+	architect := subagent.Config{
+		Name: "architect_long", Description: "test architect", SystemPrompt: "test", MaxTurns: 4,
+		Model: &scriptedChatModel{fn: func(msgs []agentcore.Message) agentcore.Message {
+			for _, m := range msgs {
+				if m.Role == agentcore.RoleTool {
+					return testTextMsg("done")
+				}
+			}
+			return testToolCallMsg("save_foundation", map[string]any{
+				"type": "complete_book", "content": map[string]any{}, "reason": "大纲已写完",
+			})
+		}},
+		Tools:          []agentcore.Tool{tools.NewSaveFoundationTool(st)},
+		StopAfterTools: []string{"save_foundation"},
+	}
+	e, events, done := newTestEngine(t, st, subagent.NewRunner(writer, editor, architect), nil)
 
 	if !e.start(nil) {
 		t.Fatal("engine start")
@@ -367,7 +404,13 @@ func TestEngine_WritesBookToCompletion(t *testing.T) {
 		t.Fatalf("load progress: %v", err)
 	}
 	if progress.Phase != domain.PhaseComplete {
-		t.Fatalf("两章写满应完本, got phase=%s completed=%v", progress.Phase, progress.CompletedChapters)
+		for _, ev := range *events {
+			t.Logf("event %s/%s: %s", ev.Category, ev.Agent, ev.Summary)
+		}
+		t.Fatalf("两章写满并终审后应完本, got phase=%s completed=%v", progress.Phase, progress.CompletedChapters)
+	}
+	if ok, err := st.World.HasGlobalReview(2); err != nil || !ok {
+		t.Fatalf("完本前必须有末章终审 reviews/02-global.json: ok=%v err=%v", ok, err)
 	}
 	if len(progress.CompletedChapters) != 2 {
 		t.Fatalf("应完成 2 章, got %v", progress.CompletedChapters)

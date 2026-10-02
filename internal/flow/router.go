@@ -181,7 +181,7 @@ func Route(s State) *Instruction {
 	//     原为 commit_chapter 返回值里的 review_required 信号,现按事实推导——
 	//     返回值只是事实的镜像,Route 从 store 直接看同一事实。
 	if !p.Layered && s.LastCompleted > 0 {
-		if due, reason := domain.ShouldReview(len(p.CompletedChapters)); due && !s.HasGlobalReview {
+		if due, reason := domain.ShouldReview(len(p.CompletedChapters), p.TotalChapters); due && !s.HasGlobalReview {
 			return &Instruction{
 				Agent:  "editor",
 				Task:   fmt.Sprintf(i18n.F("对前 %d 章做全局审阅（save_review scope=global, chapter=%d）"), s.LastCompleted, s.LastCompleted),

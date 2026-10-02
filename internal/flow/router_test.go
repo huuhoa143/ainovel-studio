@@ -226,7 +226,8 @@ func TestRoute_NonLayeredOutlineExhaustedDispatchesArchitect(t *testing.T) {
 		CompletedChapters: []int{1, 2, 3},
 		TotalChapters:     3,
 	}
-	got := Route(State{Progress: p, LastCompleted: 3, PlanningTier: domain.PlanningTierShort})
+	// 终审已落盘（HasGlobalReview）后，大纲耗尽才轮到规划师决定收官或续接。
+	got := Route(State{Progress: p, LastCompleted: 3, PlanningTier: domain.PlanningTierShort, HasGlobalReview: true})
 	if got == nil || got.Agent != "architect_short" {
 		t.Fatalf("expected architect_short at outline exhaustion, got %+v", got)
 	}
@@ -234,6 +235,38 @@ func TestRoute_NonLayeredOutlineExhaustedDispatchesArchitect(t *testing.T) {
 		if !strings.Contains(got.Task, want) {
 			t.Errorf("task missing %q: %s", want, got.Task)
 		}
+	}
+}
+
+// 短书的终审：3 章的书到不了 ReviewInterval，写完大纲最后一章时必须先派 Editor
+// 做一次全局审阅，而不是直接交给规划师收官——否则整本书一次审阅都没有。
+func TestRoute_NonLayeredFinalChapterDispatchesFinalReview(t *testing.T) {
+	p := &domain.Progress{
+		Phase:             domain.PhaseWriting,
+		Flow:              domain.FlowWriting,
+		CompletedChapters: []int{1, 2, 3},
+		TotalChapters:     3,
+	}
+	got := Route(State{Progress: p, LastCompleted: 3, PlanningTier: domain.PlanningTierShort})
+	if got == nil || got.Agent != "editor" {
+		t.Fatalf("expected editor final review before completion, got %+v", got)
+	}
+	if !strings.Contains(got.Task, "chapter=3") {
+		t.Errorf("final review must target the last chapter: %s", got.Task)
+	}
+}
+
+// 未写完大纲、也没到间隔：不派审阅，照常续写。
+func TestRoute_NonLayeredMidBookNoFinalReview(t *testing.T) {
+	p := &domain.Progress{
+		Phase:             domain.PhaseWriting,
+		Flow:              domain.FlowWriting,
+		CompletedChapters: []int{1, 2},
+		TotalChapters:     3,
+	}
+	got := Route(State{Progress: p, LastCompleted: 2, PlanningTier: domain.PlanningTierShort})
+	if got == nil || got.Agent != "writer" {
+		t.Fatalf("expected writer to continue mid-book, got %+v", got)
 	}
 }
 
