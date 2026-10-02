@@ -24,6 +24,27 @@ func TestLoadStateReturnsProgressReadError(t *testing.T) {
 	}
 }
 
+// Lấy từ bản gốc (c090029): LastCompleted là chương lớn nhất, kể cả khi danh sách chương
+// đã chốt không theo thứ tăng dần.
+func TestLoadStateLastCompletedIsMaxChapter(t *testing.T) {
+	dir := t.TempDir()
+	st := storepkg.NewStore(dir)
+	if err := st.Init(); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	raw := `{"phase":"writing","completed_chapters":[1,3,2]}`
+	if err := os.WriteFile(filepath.Join(dir, "meta", "progress.json"), []byte(raw), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	s, err := LoadState(st)
+	if err != nil {
+		t.Fatalf("LoadState: %v", err)
+	}
+	if s.LastCompleted != 3 {
+		t.Fatalf("LastCompleted = %d, muốn 3", s.LastCompleted)
+	}
+}
+
 // helper：构造一个处于 Writing 阶段、分层模式的 Progress。
 func writingProgress(completed []int, flow domain.FlowState) *domain.Progress {
 	return &domain.Progress{

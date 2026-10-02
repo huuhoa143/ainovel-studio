@@ -39,7 +39,7 @@ type Instruction struct {
 type State struct {
 	Progress *domain.Progress
 
-	// 上一个已完成章节（Progress.CompletedChapters 末尾）；为 0 表示尚未开始写作。
+	// 已完成章节中的最大章节号；为 0 表示尚未开始写作。
 	LastCompleted int
 
 	// 上一章的弧边界信息；IsArcEnd=false 时其他字段无意义。

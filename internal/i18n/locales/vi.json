@@ -1841,5 +1841,7 @@
  "某章返工反复失败时引擎会自动将其移出队列并继续后续创作，无需人工清理。": "Khi một chương viết lại thất bại nhiều lần, engine tự đưa nó ra khỏi hàng đợi rồi viết tiếp các chương sau, không cần dọn tay.",
  "；第 %d 章已移出返工队列(保留上一版终稿),继续创作将从后续章节推进": "; chương %d đã được đưa ra khỏi hàng đợi viết lại (giữ bản chốt trước đó), viết tiếp sẽ đi từ các chương sau",
  "卡死返工章出队失败": "Không đưa được chương viết lại bị kẹt ra khỏi hàng đợi",
- "foreshadow_updates[%d] 伏笔 %q 种植于第 %d 章，不能在第 %d 章推进或回收: %w": "foreshadow_updates[%d]: phục bút %q được gieo ở chương %d, không thể đẩy tới hay khép lại ở chương %d: %w"
+ "foreshadow_updates[%d] 伏笔 %q 种植于第 %d 章，不能在第 %d 章推进或回收: %w": "foreshadow_updates[%d]: phục bút %q được gieo ở chương %d, không thể đẩy tới hay khép lại ở chương %d: %w",
+ "返工提交校验失败（%v），且清理冻结提交失败: %w: %w": "Commit viết lại không qua kiểm tra (%v), và không gỡ được commit đang bị đông: %w: %w",
+ "旧版遗留的返工提交未通过校验，已解除冻结；请修正后重新提交: %w": "Commit viết lại còn sót từ phiên bản cũ không qua kiểm tra, đã gỡ đông; hãy sửa rồi nộp lại: %w"
 }
