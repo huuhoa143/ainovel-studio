@@ -47,6 +47,13 @@ export const DOC_DUYET = {
   chuongSauLa: 'Chương sau',
   chuongTruocLa: 'Chương trước',
   hetChuong: 'Đây là chương mới nhất đã có.',
+  /**
+   * Lối quay về khi đang mở một chương MỚI CÓ KẾ HOẠCH, chưa viết chữ nào.
+   *
+   * Không dùng `hetChuong` cho ca này: câu đó khẳng định chương đang mở LÀ chương mới nhất
+   * đã có, mà nó còn chưa có gì — và nó in ngay dưới dòng "Chương này chưa có nội dung".
+   */
+  veChuongDaViet: 'Chương đã viết gần nhất',
   xemNhanXetDay: 'Mở trong Nhận xét biên tập',
   khongMoDuoc: 'Không mở được chương này.',
   thuLai: 'Thử lại',

@@ -121,12 +121,23 @@ export function KiemDinh({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chuongChon]);
 
-  // Nhận xét phải thuộc ĐÚNG chương đang chọn. Trong lúc snapshot mới còn trên đường về,
-  // `selected` vẫn là của chương trước — hiện nó dưới tiêu đề chương mới là gán nhận xét
-  // của chương này cho chương khác.
-  const dungChuong = sel && sel.chapter === chuongChon;
+  // Nhận xét phải thuộc ĐÚNG chương đang chọn, và hỏi CHÍNH bản duyệt xem nó của chương
+  // nào — không hỏi `sel.chapter`.
+  //
+  // Hai ca khác nhau cùng rơi vào đây và chốt cũ chỉ bắt được một:
+  //
+  //   · snapshot mới còn trên đường về, `sel` vẫn của chương trước → `sel.chapter` lệch,
+  //     chốt cũ bắt được.
+  //   · server NGÃ VỀ bản duyệt gần nhất trước đó (`LoadLastReview`, snapshot.go) → `sel`
+  //     mang đúng số chương đang chọn nhưng `sel.review.chapter` thì không. Chốt cũ cho
+  //     qua. ĐO ĐƯỢC trên truyện thật: chương 4 mới có kế hoạch, chưa viết chữ nào, hiện
+  //     "Chương 4 · 89/100 điểm trung bình" — điểm của bản duyệt toàn truyện nộp ở chương 3.
+  //
+  // `review.chapter` là trường server luôn ghi theo bản duyệt thật (reviewFrom), nên nó là
+  // câu trả lời duy nhất không đoán.
+  const dungChuong = !!sel?.review && sel.review.chapter === chuongChon;
   const duyet = dungChuong ? sel.review : undefined;
-  const dangVe = !!sel && chuongChon !== undefined && !dungChuong;
+  const dangVe = !!sel?.review && chuongChon !== undefined && !dungChuong;
   const dong = hang.find((r) => r.chapter === chuongChon);
 
   return (

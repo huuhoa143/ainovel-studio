@@ -171,3 +171,32 @@ test('mục lục mặc định chỉ hiện chương có nhận xét; bấm "T�
   fireEvent.click(screen.getByRole('button', { name: DOC_DUYET.locTatCa(5) }));
   expect(so()).toEqual(['1', '2', '3', '4', '5']);
 });
+
+test('server ngã về bản duyệt chương khác → nói "đang mở", không gán điểm cho chương này', () => {
+  // Chốt cũ so `sel.chapter` với chương đang chọn, mà server đặt `sel.chapter` = ĐÚNG chương
+  // được hỏi rồi mới ngã về bản duyệt gần nhất trước đó (`LoadLastReview`). Nên chốt ấy cho
+  // qua, và bề mặt in "Chương 4 · 89/100" cho một chương chưa viết chữ nào — đo được thật.
+  const { container } = ve(
+    {
+      chapters: [
+        { chapter: 3, stage: 'done', title: 'Chạy lại', reviewed: true },
+        { chapter: 4, stage: 'pending', title: 'Chậm ba giây' },
+      ],
+      selected: {
+        chapter: 4,
+        title: 'Chậm ba giây',
+        review: {
+          chapter: 3,
+          scope: 'global',
+          verdict: 'accept',
+          dimensions: [{ name: 'nhịp', score: 89 }],
+        },
+      },
+    },
+    { chuongChon: 4 },
+  );
+
+  expect(container.querySelector('.duyetthan')).toBeNull();
+  expect(container.textContent).not.toContain('89');
+  expect(screen.getByText(DOC_DUYET.dangMoNhanXet)).toBeDefined();
+});

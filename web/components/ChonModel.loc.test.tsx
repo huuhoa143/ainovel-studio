@@ -49,3 +49,28 @@ test('ô tìm rỗng thì hiện đủ mọi nhóm', () => {
   mo();
   expect(tenNhom()).toEqual(['lingoreup', '9Router', 'lingo2']);
 });
+
+test('Esc đóng hộp VÀ trả tiêu điểm về nút đã mở', () => {
+  // Tiêu điểm đang nằm trong hộp; hộp biến mất thì trình duyệt thả nó về `body`. ĐO ĐƯỢC
+  // trên studio thật: sau Esc, `document.activeElement` là một thẻ <script> của Next —
+  // người dùng bàn phím bị ném về đầu tài liệu, cách chỗ đang làm việc cả trang Tab.
+  const o = mo();
+  const nut = screen.getByRole('button', { name: 'Đổi model mặc định' });
+  expect(document.activeElement).toBe(o);
+
+  fireEvent.keyDown(o, { key: 'Escape' });
+
+  expect(screen.queryByRole('dialog')).toBeNull();
+  expect(document.activeElement).toBe(nut);
+});
+
+test('chọn bằng CHUỘT không giật tiêu điểm về nút', () => {
+  // Vế ngược: người dùng chuột đã chỉ tay sang chỗ khác, kéo tiêu điểm về nút lúc đó là
+  // giật mất chỗ họ vừa bấm tới.
+  const o = mo();
+  const nut = screen.getByRole('button', { name: 'Đổi model mặc định' });
+  fireEvent.click(screen.getAllByRole('option')[0]!);
+  expect(screen.queryByRole('dialog')).toBeNull();
+  expect(document.activeElement).not.toBe(nut);
+  expect(o.isConnected).toBe(false);
+});

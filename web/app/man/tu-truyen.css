@@ -1079,6 +1079,22 @@
   text-underline-offset: 3px;
   cursor: pointer;
 }
+/* Nút ĐỨNG RIÊNG một dòng phải đạt sàn 24px của WCAG 2.5.8 — đo được 19px.
+   Hai nút cùng lớp `.lienKet` nhưng KHÁC vai, và chỉ một cái cần sàn này:
+     · "Chưa rõ ý? Bàn ý tưởng với AI trước" nằm TRONG một câu, nên nó rơi đúng
+       ngoại lệ "Inline" của 2.5.8 (bề cao bị chính dòng chữ quanh nó quy định);
+       nống nó lên 24px sẽ xé dòng chữ ấy ra.
+     · "Đổi trong Model & khóa API" đứng một mình sau khối `<dl>` — không câu nào
+       quanh nó, nên không có ngoại lệ nào để dựa.
+   Lề âm để chữ vẫn thẳng cột với khối bên trên, cùng lối đã dùng cho `.ihetca`. */
+#tac-pham-moi .tpmSe > .lienKet {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  margin-left: -6px;
+  padding: 0 6px;
+  border-radius: 7px;
+}
 #tac-pham-moi .lienKet:hover {
   color: var(--ink);
   text-decoration-color: currentColor;

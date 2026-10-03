@@ -72,6 +72,12 @@ export function DocTruyen({
   const i = docDuoc.findIndex((r) => r.chapter === chuongChon);
   const truoc = i > 0 ? docDuoc[i - 1] : undefined;
   const sau = i >= 0 && i < docDuoc.length - 1 ? docDuoc[i + 1] : undefined;
+  // Chương ĐANG CHỌN không nằm trong danh sách đọc được — nó mới có kế hoạch. Mục lục vẫn
+  // liệt kê nó (kế hoạch của chương sắp viết là thứ đáng xem), nên vào được ca này là
+  // chuyện thường, không phải sự cố.
+  const ngoaiTam = i < 0 && docDuoc.length > 0;
+  // Chương cuối ĐỌC ĐƯỢC, để mời quay về từ một chương chưa viết.
+  const cuoiDocDuoc = ngoaiTam ? docDuoc[docDuoc.length - 1] : undefined;
 
   const chon = useCallback(
     (n: number) => {
@@ -184,6 +190,7 @@ export function DocTruyen({
             chuong={chuongChon}
             doc={doc}
             sau={sau}
+            quayVe={cuoiDocDuoc}
             onChon={chon}
             viTri={i >= 0 ? DOC_DUYET.viTri(i + 1, docDuoc.length) : undefined}
             chuaCoNhanXet={cauChuaCoNhanXet(snapshot)}
@@ -386,6 +393,7 @@ function ThanChuong({
   chuong,
   doc,
   sau,
+  quayVe,
   onChon,
   viTri,
   chuaCoNhanXet,
@@ -395,6 +403,8 @@ function ThanChuong({
   chuong: number;
   doc: CheDoDoc;
   sau: ChapterRow | undefined;
+  /** Chương cuối ĐỌC ĐƯỢC, chỉ có khi chương đang mở chưa viết — lối quay về. */
+  quayVe: ChapterRow | undefined;
   onChon: (n: number) => void;
   viTri: string | undefined;
   chuaCoNhanXet: string;
@@ -474,10 +484,23 @@ function ThanChuong({
         )}
 
         <footer className="docCuoi">
+          {/* BA ca, không hai — và ca thứ ba là một bề mặt tự mâu thuẫn mà bài kiểm cũ
+              không có. Khi chương đang mở CHƯA VIẾT, `sau` rỗng (nó không nằm trong danh
+              sách đọc được) nên bản trước rơi vào vế "hết chương" và in "Đây là chương mới
+              nhất đã có." ngay dưới dòng "Chương này chưa có nội dung" — hai câu phủ định
+              nhau cách nhau một dòng. Đo được trên truyện thật ở chương 4 mới lên kế hoạch. */}
           {sau ? (
             <button type="button" className="docTiep" onClick={() => onChon(sau.chapter)}>
               <span className="nhan">{DOC_DUYET.chuongSauLa}</span>
               <span className="ten">{DOC_DUYET.tenChuong(sau.chapter, sau.title)}</span>
+              <span className="mui" aria-hidden="true">
+                <BieuTuong ten="mui" co={18} />
+              </span>
+            </button>
+          ) : quayVe ? (
+            <button type="button" className="docTiep" onClick={() => onChon(quayVe.chapter)}>
+              <span className="nhan">{DOC_DUYET.veChuongDaViet}</span>
+              <span className="ten">{DOC_DUYET.tenChuong(quayVe.chapter, quayVe.title)}</span>
               <span className="mui" aria-hidden="true">
                 <BieuTuong ten="mui" co={18} />
               </span>

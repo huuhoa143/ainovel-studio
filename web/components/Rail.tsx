@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { Khu } from '@/lib/khu';
 import type { Man } from '@/lib/man';
@@ -151,6 +151,24 @@ export function Rail({
       neoCho.current = undefined;
     }
   }, [khu]);
+
+  /**
+   * Ghi nhớ neo cần cuộn tới, để effect ngay trên xử lý sau khi khu đích đã render.
+   *
+   * Khối `neoCho` và chú thích của nó ĐÃ CÓ SẴN, nhưng không chỗ nào gán vào nó: bản sửa
+   * mà chú thích ấy mô tả mới làm một nửa, và nửa bị chính nó gọi là hỏng
+   * (`requestAnimationFrame` trong `onClick`) vẫn là đường duy nhất đang chạy.
+   *
+   * `daMo` là ca khu đích ĐANG mở: `khu` không đổi nên effect không chạy lần nào, và một
+   * cú bấm vào mục neo sẽ không làm gì cả. Lúc đó cuộn thẳng, vì DOM đã có sẵn.
+   */
+  const datNeo = useCallback((neo: string, daMo: boolean) => {
+    if (daMo) {
+      document.getElementById(neo)?.scrollIntoView({ block: 'start' });
+      return;
+    }
+    neoCho.current = neo;
+  }, []);
 
   const rows = snapshot?.chapters ?? [];
 
@@ -403,6 +421,7 @@ export function Rail({
               dem={phanQuyet}
               chuGiai={GIAI_THICH.namTrongDongSanXuat}
               neo="nhat-ky-phan-quyet"
+              onNeo={datNeo}
               phu
             />
             <MucNguon
@@ -676,6 +695,7 @@ function MucDi({
   chuGiai,
   canhBao,
   neo,
+  onNeo,
   phu,
   nhanPhu,
   dauChot,
@@ -690,6 +710,8 @@ function MucDi({
   chuGiai?: string;
   canhBao?: boolean;
   neo?: string;
+  /** Giao neo cho `Rail` cuộn SAU khi khu đích render. Xem `datNeo`. */
+  onNeo?: (neo: string, daMo: boolean) => void;
   phu?: boolean;
   /** Họ 10 — chỉ mục "Bản thảo" truyền vào. Xem chú thích ở `Rail`. */
   dauChot?: number;
@@ -730,13 +752,8 @@ function MucDi({
       title={chuGiai}
       onClick={() => {
         onChonKhu(di);
-        if (neo) {
-          // Cuộn sau khi khu đích đã render. requestAnimationFrame đủ vì React
-          // đã dựng DOM xong ở nhịp vẽ kế tiếp.
-          requestAnimationFrame(() => {
-            document.getElementById(neo)?.scrollIntoView({ block: 'start' });
-          });
-        }
+        // Neo giao cho `Rail`: khu đích có thể chưa mount ở nhịp vẽ này. Xem `datNeo`.
+        if (neo) onNeo?.(neo, khu === di);
       }}
     >
       <span className="g" aria-hidden="true">

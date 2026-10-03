@@ -506,7 +506,22 @@ func (s *server) handleChapter(w http.ResponseWriter, r *http.Request) {
 	}{Chapter: n, Title: tieuDe, Words: nd.Words, Text: nd.Text, Source: nd.Nguon}
 
 	if sel := buildSelection(st, n); sel != nil {
-		out.Contract, out.Review = sel.Contract, sel.Review
+		out.Contract = sel.Contract
+		// CHỈ nhận xét của CHÍNH chương này.
+		//
+		// `buildSelection` cố tình ngã về `LoadLastReview` — bản duyệt gần nhất TRƯỚC
+		// chương đang chọn — và bề mặt Kiểm định dùng đúng cái ngã ấy, nhưng nói rõ
+		// "đang mở nhận xét của chương N". Route này thì không có chỗ nói: nó trả về
+		// một chương, và giao diện đọc truyện gắn `verdict` của nó thành huy hiệu
+		// kết luận NGAY DƯỚI tiêu đề chương.
+		//
+		// Hệ quả đo được trên truyện thật: chương 4 mới có kế hoạch, chưa viết một chữ
+		// nào, lại đeo huy hiệu xanh "● đạt" — vì bản duyệt toàn truyện (scope=global)
+		// nộp ở chương 3 được ngã về. Một chương trắng mang kết luận "đạt" là bề mặt
+		// nói dối về đúng thứ người đọc dùng để quyết định.
+		if sel.Review != nil && sel.Review.Chapter == n {
+			out.Review = sel.Review
+		}
 	}
 	writeJSON(w, out)
 }

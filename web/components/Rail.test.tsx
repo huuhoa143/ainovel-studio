@@ -165,3 +165,58 @@ test('số ở "Nhận xét biên tập" là số chương CÓ nhận xét, khô
   expect(nut.textContent).toContain('1');
   expect(nut.textContent).not.toContain('3');
 });
+
+/* ── neo cuộn của mục "Nhật ký quyết định" ───────────────────────────── */
+
+test('mục neo cuộn tới đúng id SAU khi khu đích render, không ở nhịp bấm', () => {
+  // `neoCho` + effect đã có sẵn trong Rail kèm chú thích giải thích vì sao phải cuộn trong
+  // effect — nhưng KHÔNG chỗ nào gán vào `neoCho`, nên đường duy nhất đang chạy là cái
+  // `requestAnimationFrame` mà chính chú thích ấy gọi là "ĐO ĐƯỢC không chạy".
+  //
+  // Bài này canh sợi dây đó bằng chính hiện tượng đã đo: ở nhịp BẤM, khu đích chưa mount
+  // nên neo chưa có trong DOM; nó chỉ xuất hiện sau khi `khu` đổi.
+  const goi: string[] = [];
+  Element.prototype.scrollIntoView = function (this: Element) {
+    if (this.id) goi.push(this.id);
+  };
+
+  const { rerender } = render(
+    <Rail
+      snapshot={snap({})}
+      hoSo={undefined}
+      khu="ban-thao"
+      man={manCuaKhu('ban-thao')}
+      onChonKhu={vi.fn()}
+      onChonMan={vi.fn()}
+      canBan={false}
+      tenCuonNgan="Trấn Yêu Ký"
+      dauChot={0}
+    />,
+  );
+
+  const vh = screen.getByRole('button', { name: new RegExp(DH.vanHanh) });
+  if (vh.getAttribute('aria-expanded') === 'false') fireEvent.click(vh);
+  fireEvent.click(screen.getByRole('button', { name: new RegExp(DH.nhatKy) }));
+  expect(goi, 'chưa đổi khu thì neo chưa có trong DOM — không được cuộn ở nhịp bấm').not.toContain(
+    'nhat-ky-phan-quyet',
+  );
+
+  // Khu đích đã mount: neo giờ mới tồn tại.
+  const neo = document.createElement('div');
+  neo.id = 'nhat-ky-phan-quyet';
+  document.body.append(neo);
+  rerender(
+    <Rail
+      snapshot={snap({})}
+      hoSo={undefined}
+      khu="dong-san-xuat"
+      man={manCuaKhu('dong-san-xuat')}
+      onChonKhu={vi.fn()}
+      onChonMan={vi.fn()}
+      canBan={false}
+      tenCuonNgan="Trấn Yêu Ký"
+      dauChot={0}
+    />,
+  );
+  expect(goi).toContain('nhat-ky-phan-quyet');
+});

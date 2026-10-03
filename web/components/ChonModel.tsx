@@ -65,6 +65,7 @@ export function ChonModel({
   const [tro, datTro] = useState(0);
   const goc = useRef<HTMLDivElement>(null);
   const oTim = useRef<HTMLInputElement>(null);
+  const nut = useRef<HTMLButtonElement>(null);
   const idDs = useId();
 
   // Đóng khi bấm ra ngoài. `mousedown` chứ không `click`: bấm vào một dòng phải chọn xong
@@ -82,6 +83,22 @@ export function ChonModel({
     if (mo) oTim.current?.focus();
     else datTim('');
   }, [mo]);
+
+  /**
+   * Đóng bằng BÀN PHÍM thì trả tiêu điểm về nút đã mở.
+   *
+   * Tiêu điểm đang nằm TRONG hộp; hộp biến mất thì trình duyệt thả tiêu điểm về `body`, và
+   * người dùng bàn phím bị ném về đầu tài liệu — đo được: sau Esc, `document.activeElement`
+   * là một thẻ `<script>` của Next, cách chỗ đang làm việc cả trang Tab.
+   *
+   * CHỈ cho đường bàn phím. Đóng bằng chuột (bấm ra ngoài, hoặc chọn xong một dòng) thì
+   * người dùng đã chỉ tay sang chỗ khác rồi — kéo tiêu điểm về nút lúc đó là giật mất chỗ
+   * họ vừa bấm tới. Cùng luật mà `MenuThe` ở Tủ truyện đã theo.
+   */
+  const dongBangPhim = () => {
+    datMo(false);
+    nut.current?.focus();
+  };
 
   const q = tim.trim().toLowerCase();
   const hien = useMemo(
@@ -112,6 +129,7 @@ export function ChonModel({
   return (
     <div className="chonModel" ref={goc}>
       <button
+        ref={nut}
         type="button"
         className={chinh ? 'nutChinh' : 'nutPhu'}
         aria-haspopup="listbox"
@@ -148,7 +166,7 @@ export function ChonModel({
                 if (d) chon(d.provider, d.model);
               } else if (e.key === 'Escape') {
                 e.preventDefault();
-                datMo(false);
+                dongBangPhim();
               }
             }}
           />

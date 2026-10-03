@@ -271,3 +271,35 @@ test('thẻ đóng chỉ có nút xem nhận xét, bấm là chọn chương', (
   fireEvent.click(nut);
   expect(onChon).toHaveBeenCalledWith(3);
 });
+
+test('chương mới có kế hoạch: không nói "đã có", mà mời quay về chương đã viết', async () => {
+  // ĐO ĐƯỢC trên truyện thật: mở chương 4 (mới có kế hoạch sau khi viết thêm) thì bề mặt
+  // in "Chương này chưa có nội dung" rồi NGAY DƯỚI in "Đây là chương mới nhất đã có."
+  // Hai câu phủ định nhau cách nhau một dòng.
+  const onChon = vi.fn();
+  const s = snap({
+    chapters: [
+      { chapter: 1, stage: 'done', title: 'Tên 1' },
+      { chapter: 2, stage: 'done', title: 'Tên 2' },
+      { chapter: 3, stage: 'pending', title: 'Tên 3' },
+    ],
+  }) as Snapshot;
+  render(<DocTruyen snapshot={s} tacPham="b" chuongChon={3} onChonChuong={onChon} />);
+  const ve = await screen.findByRole('button', { name: new RegExp(DOC_DUYET.veChuongDaViet) });
+
+  expect(screen.queryByText(DOC_DUYET.hetChuong)).toBeNull();
+  expect(ve.textContent).toContain(DOC_DUYET.tenChuong(2, 'Tên 2'));
+  fireEvent.click(ve);
+  expect(onChon).toHaveBeenCalledWith(2);
+});
+
+test('chương cuối ĐÃ VIẾT vẫn nói "đây là chương mới nhất đã có"', async () => {
+  const s = snap({
+    chapters: [
+      { chapter: 1, stage: 'done', title: 'Tên 1' },
+      { chapter: 2, stage: 'done', title: 'Tên 2' },
+    ],
+  }) as Snapshot;
+  render(<DocTruyen snapshot={s} tacPham="b" chuongChon={2} onChonChuong={vi.fn()} />);
+  expect(await screen.findByText(DOC_DUYET.hetChuong)).toBeDefined();
+});
