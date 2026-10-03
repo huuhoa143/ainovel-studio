@@ -292,6 +292,11 @@ Góc mềm, cùng một họ: thẻ 14px (`--r-lg`), nút và ô nhập 8px, m�
 - **Dừng:** nền `panel`, viền `amber` 55%, chữ `amber` — dừng có chủ ý không phải lỗi nên không đỏ.
 - **Ghost (dkPhu):** không nền không viền, chữ `ink-3`; hover sang `panel-2`.
 - **Hành vi:** nhãn nói hệ quả ("Gửi góp ý và viết tiếp", "Đọc chương mới nhất"); nút ghi bị `disabled` khi đang gửi; nút chỉ hiện khi nó làm được việc (Chạy và Dừng loại trừ nhau).
+- **Sàn vùng bấm — 24px, và MỘT ngoại lệ.** Mọi nút cao tối thiểu 24px (WCAG 2.5.8). Ngoại lệ duy nhất là nút NẰM TRONG MỘT CÂU, nơi chiều cao của nó do chính dòng chữ quanh nó quy định — nống lên 24px sẽ xé dòng ấy ra. Hai ca đã đo:
+  - *trong câu, giữ nguyên:* "Chưa rõ ý? **Bàn ý tưởng với AI trước**" (19px) · "Đang viết **Chậm ba giây**, còn 2 việc cần bạn" (22px).
+  - *đứng riêng một dòng, phải nống:* "Đổi trong Model & khóa API" · "Xem đầy đủ" · "Chi tiết" · "← danh sách chương" — cả bốn từng ở 15–23px.
+
+  Cách nống: `min-height: 24px` cộng đệm ngang và một lề âm bằng đệm ấy, để chữ vẫn thẳng cột với khối trên. KHÔNG nống bằng cách tăng cỡ chữ hay đệm dọc — cả hai đều đổi nhịp đọc của khối chứa nó.
 
 ### Chips / Huy hiệu trạng thái (viên)
 - **Style:** viên thuốc, đệm 2px 8px, chữ label 500 11.5px. Mặc định nền `raised`, chữ `ink-2`.
@@ -312,6 +317,10 @@ Góc mềm, cùng một họ: thẻ 14px (`--r-lg`), nút và ô nhập 8px, m�
 - Mục 30px, bo 7px, chữ 500 13px `ink-2`, biểu tượng `ink-3`; hover `panel-2`; đang mở `raised` + `ink`. Số đếm 11px tabular canh phải.
 - Nhóm "Truyện": mỗi cuốn một hàng có bìa nhỏ màu riêng, mục con thụt 31px, nhóm con thụt 47px. Đốm 7px: teal = đang chạy, amber = có việc tồn. Nút "chờ duyệt" màu tím đứng ngay dưới cuốn có cửa nghiệm thu.
 - Chân rail: chip kết nối (đốm teal sống / vàng đang mở / đỏ mất).
+- **Dưới 860px: NGĂN KÉO, không phải dải ngang.** Thanh gọn 47px (nút ba vạch · tên bề mặt đang mở · tên truyện · chấm báo việc) mở ra một ngăn trượt từ mép trái, rộng `min(84vw, 300px)`. Ba đường đóng: chọn một đích, Esc, bấm tấm che; Esc trả tiêu điểm về nút mở.
+  - Ngăn giữ **nguyên** cây điều hướng của cột rộng — cùng mục, cùng nhóm, cùng thứ tự. Không dựng cây thứ hai cho màn hẹp: hai cây là hai thứ phải giữ cho khớp, và chúng sẽ lệch.
+  - Bản dải ngang trước đó rộng 3.904px trong khung 389px; tới "Văn phong" phải vuốt ~1.600px. Nó cũng buộc phải ẩn nhãn nhóm ("Thế giới truyện", "Vận hành") vì chúng không còn đứng trên nhóm nào.
+  - **KHÔNG ghim thêm tab bề mặt ra ngoài thanh gọn.** Đã cân và bỏ: thanh 390px đã chứa nút ba vạch, hai dòng chữ và chấm báo việc; thêm tab là dựng lại chính dải ngang vừa bỏ, và hai đường điều hướng song song sẽ phải giữ cho khớp. Hành động gấp duy nhất — duyệt chương — đã có dải riêng ở đầu canvas và nút ở thanh dưới, không đi qua rail.
 
 ### Bộ chọn đoạn (segmented)
 Rãnh `raised` bo 8px, đệm 2px; đoạn 26px bo 6px, chữ 500 12px `ink-3`; đoạn bật nền `panel` + bóng thẻ + `ink`. Dùng cho "Xem theo Tập / Hồi / Chương".

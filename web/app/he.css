@@ -365,8 +365,16 @@ body {
   }
 
   /* NGĂN: vẫn là cột như ở màn rộng, chỉ trượt vào từ mép trái. `fixed` nên nó
-     rời khỏi lưới — ô `rail` của lưới giờ thuộc về thanh gọn. */
-  .rail {
+     rời khỏi lưới — ô `rail` của lưới giờ thuộc về thanh gọn.
+
+     Phải kể CẢ `.rail.truot`: lớp `truot` (dấu trượt chỉ mục đang mở, lib/truot.ts)
+     mang `position: relative` ở globals.css với độ đặc hiệu (0,2,0), thắng `.rail`
+     (0,1,0) kể cả khi `.rail` nằm trong truy vấn media — media KHÔNG cộng đặc hiệu.
+     ĐO ĐƯỢC: ngăn tính ra `position: relative`, nên nó ở lại trong dòng chảy và cao
+     đúng bằng nội dung đã bị lưới kẹp — 227px thay vì kín màn hình.
+     `fixed` cũng là khối chứa cho con `absolute`, nên dấu trượt vẫn neo đúng. */
+  .rail,
+  .rail.truot {
     position: fixed;
     top: 0;
     bottom: 0;
