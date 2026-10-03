@@ -100,6 +100,25 @@ export function gio(iso: string | undefined): string | undefined {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
+/**
+ * Ngày của một mốc nhật ký, chỉ khi mốc ấy KHÔNG thuộc hôm nay: "hôm qua", "08/08", "08/08/25".
+ *
+ * Nhật ký chỉ in giờ:phút thì một mốc 21:36 của hôm trước đứng trên 17:40 trông như xếp sai thứ
+ * tự — dù nó đúng là mới nhất. Hôm nay thì không in ngày: đó là ca thường và giờ là đủ.
+ */
+export function ngayNgan(iso: string | undefined, bay: Date = new Date()): string | undefined {
+  if (!iso) return undefined;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return undefined;
+  const cungNgay = (a: Date, b: Date) =>
+    a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  if (cungNgay(d, bay)) return undefined;
+  const homQua = new Date(bay.getFullYear(), bay.getMonth(), bay.getDate() - 1);
+  if (cungNgay(d, homQua)) return 'hôm qua';
+  const dm = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+  return d.getFullYear() === bay.getFullYear() ? dm : `${dm}/${String(d.getFullYear() % 100).padStart(2, '0')}`;
+}
+
 /** "5 phút trước" / "2 ngày trước" — mốc gần đây đọc theo khoảng cách, không theo đồng hồ. */
 export function cachDay(iso: string | undefined, bay: Date = new Date()): string | undefined {
   if (!iso) return undefined;

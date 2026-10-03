@@ -2,7 +2,10 @@
 
 import { CHU_VH } from '@/lib/chu/van-hanh';
 import { so } from '@/lib/dinhdang';
-import { CHU, GIAI_THICH, TRANG_THAI_MAY, nhanVai } from '@/lib/nhan';
+import { layChiPhi } from '@/lib/api';
+import { CHU, GIAI_THICH, TRANG_THAI_MAY, maVaiGoc, nhanVai } from '@/lib/nhan';
+import { mayDangChay, vaiHienTai } from '@/lib/song';
+import { useHoSo } from '@/lib/useHoSo';
 import type { Snapshot } from '@/lib/types';
 
 import { BieuTuong } from './BieuTuong';
@@ -47,19 +50,33 @@ interface DongVai {
   chuong: number;
   phanQuyet: number;
   thatBai: number;
+  /** Token đầu vào + đầu ra mà vai này đã dùng (usage.json) — 0 khi chưa có số liệu. */
+  token: number;
   model: string[];
 }
 
-export function ToSanXuat({ snapshot }: { snapshot: Snapshot }) {
+export function ToSanXuat({ snapshot, tacPham }: { snapshot: Snapshot; tacPham?: string }) {
   const quyetDinh = snapshot.decisions ?? [];
-  const dong = xepVai(snapshot);
+  // Token theo vai — cùng nguồn với màn Chi phí. Chương có chủ và quyết định chỉ đo được MỘT
+  // phần công việc: Kiến trúc sư dựng nền tiêu cả nửa triệu token mà không sở hữu chương nào,
+  // và màn này từng ghi nó "Chưa làm việc" ngay cạnh dòng "Model lượt trước: Kiến trúc sư".
+  const chiPhi = useHoSo(tacPham, layChiPhi).du;
+  const tokenVai = new Map<string, number>();
+  for (const [ma, t] of Object.entries(chiPhi?.per_agent ?? {})) {
+    const goc = maVaiGoc(ma);
+    tokenVai.set(goc, (tokenVai.get(goc) ?? 0) + t.input + t.output);
+  }
+  const dong = xepVai(snapshot, tokenVai);
 
   // Không một chương nào có `owner` nghĩa là store chưa ghi checkpoint — KHÁC
   // với "mọi vai đều tham gia 0 chương". Ca đầu là không đo được, ca sau là một
   // phép đo cho kết quả 0, và chỉ ca sau mới được in ra số.
   const doDuocVai = snapshot.chapters.some((r) => r.owner && r.owner.length > 0);
 
-  const dangChay = snapshot.transport.state === 'running' ? snapshot.transport.agent : undefined;
+  // Vai đang làm: CÙNG phép chọn với thẻ "đang làm" và thanh dưới (`vaiHienTai`). `transport.agent`
+  // là vai của checkpoint gần nhất — đo được còn ghi `writer` suốt lượt Biên tập viên sửa chương.
+  const vaiDang = mayDangChay(snapshot) ? vaiHienTai(snapshot, undefined) : undefined;
+  const dangChay = vaiDang ? maVaiGoc(vaiDang) : undefined;
 
   return (
     <main className="canvas khuto vhMan" id="to-san-xuat">
@@ -131,7 +148,7 @@ function TheVai({
   doDuocVai: boolean;
   modelGanNhat: string | undefined;
 }) {
-  const daLam = v.chuong > 0 || v.phanQuyet > 0;
+  const daLam = v.chuong > 0 || v.phanQuyet > 0 || v.token > 0;
   const model = modelGanNhat ? [modelGanNhat] : v.model;
   const giai = CHU_VH.giaiVai[v.ma];
 
@@ -149,9 +166,11 @@ function TheVai({
             liveness, không phải một công đoạn đã ghi vào store. */}
         {dangLam ? (
           <TrangThai tt={TRANG_THAI_MAY.running} dap />
-        ) : !daLam ? (
-          <span className="vien">{CHU_VH.chuaLam}</span>
-        ) : null}
+        ) : (
+          // Cả hai ca đều có nhãn: bản trước chỉ vai CHƯA làm mới có, nên thẻ đã làm trông như
+          // thiếu một mảnh.
+          <span className={`vien${daLam ? ' teal' : ''}`}>{daLam ? CHU_VH.daLam : CHU_VH.chuaLam}</span>
+        )}
       </div>
 
       <div className="vhVaiModel">
@@ -203,7 +222,7 @@ function TheVai({
  * `decider` là chuỗi tự do ở tầng dữ liệu, và bỏ một vai lạ nghĩa là công của
  * nó biến mất khỏi bảng mà không ai biết.
  */
-function xepVai(snapshot: Snapshot): DongVai[] {
+function xepVai(snapshot: Snapshot, tokenVai: Map<string, number> = new Map()): DongVai[] {
   const quyetDinh = snapshot.decisions ?? [];
 
   const chuong = new Map<string, number>();
@@ -227,7 +246,7 @@ function xepVai(snapshot: Snapshot): DongVai[] {
     }
   }
 
-  const la = [...new Set([...chuong.keys(), ...phanQuyet.keys()])]
+  const la = [...new Set([...chuong.keys(), ...phanQuyet.keys(), ...tokenVai.keys()])]
     .filter((m) => !(ROSTER as readonly string[]).includes(m))
     .sort();
 
@@ -236,12 +255,13 @@ function xepVai(snapshot: Snapshot): DongVai[] {
     chuong: chuong.get(ma) ?? 0,
     phanQuyet: phanQuyet.get(ma) ?? 0,
     thatBai: thatBai.get(ma) ?? 0,
+    token: tokenVai.get(ma) ?? 0,
     model: [...(model.get(ma) ?? [])].sort(),
   }));
 }
 
 /** Chỉ nói điều đếm được, và nói kèm cửa sổ của nó. */
 function motTa(dong: DongVai[], soQuyetDinh: number): string {
-  const daChay = dong.filter((v) => v.chuong > 0 || v.phanQuyet > 0).length;
+  const daChay = dong.filter((v) => v.chuong > 0 || v.phanQuyet > 0 || v.token > 0).length;
   return `${dong.length} vai · ${daChay} đã làm việc · ${CHU.demPhanQuyetDaTai(soQuyetDinh)}`;
 }

@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/huuhoa143/ainovel-studio/internal/host"
+	"github.com/huuhoa143/ainovel-studio/internal/utils"
 )
 
 // Dòng VĂN SỐNG — chữ model đang sinh ra, đường từ engine tới trình duyệt.
@@ -85,9 +86,28 @@ func (d *dongVan) them(delta string) {
 	if d.vong.Len() > coVongToiDa {
 		s := d.vong.String()
 		d.vong.Reset()
-		d.vong.WriteString(s[len(s)-coVongToiDa/2:])
+		d.vong.WriteString(catDauGiuVai(s, coVongToiDa/2))
 	}
 	d.day(manhVan{Seq: d.seq, Chu: delta})
+}
+
+// catDauGiuVai giữ `n` byte cuối của s mà KHÔNG đảo vai các đoạn.
+//
+// utils.ThinkingSep là CÔNG TẮC chứ không phải nhãn: đoạn sau dấu thứ nhất là
+// suy nghĩ của model, sau dấu thứ hai là văn trở lại. Nên cắt đầu có thể nuốt
+// mất dấu MỞ và để lại dấu ĐÓNG — từ đó mọi đoạn phía sau đổi vai, văn bị vẽ
+// thành suy nghĩ và ngược lại. Hỏng IM LẶNG, vì không mất chữ nào.
+//
+// Đếm dấu trong phần bỏ đi; lẻ thì mở lại một dấu ở đầu phần giữ.
+func catDauGiuVai(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	giu := s[len(s)-n:]
+	if strings.Count(s[:len(s)-n], utils.ThinkingSep)%2 == 1 {
+		return utils.ThinkingSep + giu
+	}
+	return giu
 }
 
 // day thêm vào hàng và bỏ mục cũ nhất khi đầy. Gọi trong lúc đã giữ khóa.

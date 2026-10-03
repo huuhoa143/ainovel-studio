@@ -2,7 +2,7 @@ import { expect, test } from 'vitest';
 
 import { giaiCongCu } from './congCu';
 import { giaiDong, giaiGiaoViec, giaiLoi, gopSuKien } from './loiLlm';
-import { trangThaiDong } from './nhan';
+import { trangThaiDong, giaiCongDoan } from './nhan';
 import { cauChuaCoNhanXet, denLuotBienTap } from './nhanXetDinhKy';
 import { congDoanTu } from './useStudio';
 import type { StreamEvent } from './types';
@@ -97,16 +97,39 @@ test('sự kiện giao việc ĐÃ XONG không thành "việc đang làm"; giao 
 });
 
 test('chương xong chỉ "đã duyệt" khi có nhận xét thật', () => {
-  expect(trangThaiDong({ stage: 'done' }).nhan).toBe('đã xong');
-  expect(trangThaiDong({ stage: 'done', reviewed: true }).nhan).toBe('đã duyệt');
-  expect(trangThaiDong({ stage: 'drafting' }).nhan).toBe('đang viết');
+  expect(trangThaiDong({ stage: 'done' }, false).nhan).toBe('đã xong');
+  expect(trangThaiDong({ stage: 'done', reviewed: true }, false).nhan).toBe('đã duyệt');
+  expect(trangThaiDong({ stage: 'drafting' }, true).nhan).toBe('đang viết');
+  // Máy không chạy thì bản nháp dở KHÔNG được gọi là "đang viết".
+  expect(trangThaiDong({ stage: 'drafting' }, false).nhan).toBe('viết dở');
 });
 
 test('lượt chấm định kỳ: mỗi 5 chương ở truyện thường', () => {
-  const s = (n: number, phase = 'writing') =>
-    snap({ book: { ...snap({}).book, completed_chapters: n, phase } });
+  const s = (n: number, phase = 'writing', tong = 30) =>
+    snap({ book: { ...snap({}).book, completed_chapters: n, total_chapters: tong, phase } });
   expect(denLuotBienTap(s(2))).toBe(false);
   expect(denLuotBienTap(s(5))).toBe(true);
-  expect(cauChuaCoNhanXet(s(3, 'complete'))).toMatch(/kết thúc trước lượt chấm đầu tiên/);
+  expect(cauChuaCoNhanXet(s(3, 'complete', 3))).toMatch(/kết thúc trước lượt chấm đầu tiên/);
   expect(cauChuaCoNhanXet(s(7))).toMatch(/cứ 5 chương một lần/);
+});
+
+test('lượt chấm cuối: viết xong chương cuối của dàn ý thì tới lượt chấm, kể cả truyện ngắn', () => {
+  // Cùng hai vế với `domain.ShouldReview`. Truyện 3 chương không bao giờ chạm mốc 5, nên
+  // lượt chấm duy nhất của nó là lượt cuối — giao diện từng hứa "cứ 5 chương" với nó.
+  const s = (n: number, tong: number) =>
+    snap({ book: { ...snap({}).book, completed_chapters: n, total_chapters: tong, phase: 'writing' } });
+  expect(denLuotBienTap(s(2, 3))).toBe(false);
+  expect(denLuotBienTap(s(3, 3))).toBe(true);
+  expect(denLuotBienTap(s(12, 12))).toBe(true);
+  expect(cauChuaCoNhanXet(s(1, 3))).toMatch(/Truyện 3 chương: Biên tập viên chấm toàn truyện một lần/);
+});
+
+test('mọi bước engine ghi vào checkpoint đều có tên tiếng Việt — thanh dưới không in mã thô', () => {
+  // Danh sách lấy từ checkpoints.jsonl của các truyện thật (cả luồng viết lẫn dựng nền).
+  const buoc = [
+    'plan', 'draft', 'consistency_check', 'commit', 'edit', 'review', 'arc_summary', 'volume_summary',
+    'premise', 'characters', 'world_rules', 'outline', 'layered_outline', 'foundation_audit',
+    'expand_arc', 'append_volume', 'revise_outline', 'update_compass', 'complete_book',
+  ];
+  for (const b of buoc) expect(giaiCongDoan(b), b).toBeTruthy();
 });

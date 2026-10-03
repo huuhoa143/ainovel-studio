@@ -91,16 +91,32 @@ export function ChiPhi({ tacPham, snapshot }: { tacPham: string | undefined; sna
   );
 }
 
+/**
+ * Model đã dùng token mà chi phí bằng 0 — tức engine KHÔNG BIẾT GIÁ của nó, không phải miễn phí.
+ *
+ * Đo được trên `kiraai · kira-mini-1.0`: 523 nghìn token đầu vào, `cost_usd: 0`, và màn này in
+ * "Đã tiêu $0,00" kèm viên xanh "Số liệu đầy đủ". Số token thì đủ thật; số TIỀN thì không ai
+ * biết. Nói 0 là nói sai với người đang trả tiền.
+ */
+export function modelChuaBietGia(du: CostDoc): string[] {
+  return Object.entries(du.per_model ?? {})
+    .filter(([, t]) => t.input + t.output > 0 && !(t.cost_usd > 0))
+    .map(([m]) => m.replace(/^[^/]+\//, ''))
+    .sort();
+}
+
 /** Ba ô số: tổng, giá mỗi chương, bộ đệm tiết kiệm — mỗi ô kèm mẫu số của nó. */
 function OSoChiPhi({ du, snapshot }: { du: CostDoc; snapshot: Snapshot }) {
   const xong = snapshot.book.completed_chapters;
   const gia = snapshot.transport.cost_per_chapter;
+  // Mọi model đều chưa biết giá → tổng 0 là "không biết", không phải "$0".
+  const khongBietTong = du.overall.cost_usd === 0 && modelChuaBietGia(du).length > 0;
   return (
     <div className="vhSo">
       <OSo
         nhan={CHU_VH.daTieu}
-        so={tongTien(du.overall.cost_usd) ?? CHU.khongCo}
-        phu={CHU_VH.daTieuTren(xong)}
+        so={khongBietTong ? CHU_VH.chuaBietGia : (tongTien(du.overall.cost_usd) ?? CHU.khongCo)}
+        phu={khongBietTong ? CHU_VH.chuaBietGiaPhu(du.overall.input + du.overall.output) : CHU_VH.daTieuTren(xong)}
       />
       {/* Giá mỗi chương CÓ nguồn thật — tổng chia số chương đã xong — nhưng cửa sổ của nó
           phải viết cạnh nó, nếu không nó bị đọc thành "chương kế tiếp sẽ tốn chừng này". */}
@@ -419,6 +435,7 @@ function OCache({ co, n }: { co: boolean; n: number }) {
  */
 function DoTin({ du, snapshot }: { du: CostDoc; snapshot: Snapshot }) {
   const thieu = du.missing_assistant_usage;
+  const chuaBiet = modelChuaBietGia(du);
   const dut = du.overall.cache_breaks;
   const capNhat = du.updated_at ? (ngayGio(du.updated_at) ?? du.updated_at) : undefined;
 
@@ -430,6 +447,11 @@ function DoTin({ du, snapshot }: { du: CostDoc; snapshot: Snapshot }) {
             <span aria-hidden="true">■</span>
             {CHU_VH.thieuLuot(thieu)}
           </span>
+        ) : chuaBiet.length > 0 ? (
+          <span className="vien amber">
+            <span aria-hidden="true">■</span>
+            {CHU_VH.chuaBietGia}
+          </span>
         ) : (
           <span className="vien teal">
             <span aria-hidden="true">●</span>
@@ -437,7 +459,11 @@ function DoTin({ du, snapshot }: { du: CostDoc; snapshot: Snapshot }) {
           </span>
         )}
         <span className="vhTinCau">
-          {thieu > 0 ? GIAI_THICH.chiPhiThieuUsage(thieu) : CHU_VH.soLieuDayDuCau}
+          {thieu > 0
+            ? GIAI_THICH.chiPhiThieuUsage(thieu)
+            : chuaBiet.length > 0
+              ? CHU_VH.chuaBietGiaCau(chuaBiet.join(', '))
+              : CHU_VH.soLieuDayDuCau}
         </span>
       </div>
       <p className="vhTinPhu">

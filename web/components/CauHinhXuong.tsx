@@ -99,7 +99,7 @@ export function CauHinhXuong({
 
         {du ? (
           <>
-            <PhienDangMo du={du} />
+            <PhienDangMo du={du} onDaApDung={tai} />
             {coNcc ? <KenhVaiChung du={du} napVe={napVe} onXong={daLuu} /> : null}
             <DanhSachNhaCungCap du={du} napVe={napVe} onXong={daLuu} />
             {coNcc ? <ThietLapKhac du={du} onXong={daLuu} /> : null}
@@ -116,49 +116,57 @@ export function CauHinhXuong({
 /* ── phiên đang mở ─────────────────────────────────────────────────────── */
 
 /**
- * Truyện đang mở phiên giữ thiết lập lúc mở. Nói ra, kèm lối áp dụng ngay.
+ * Truyện đang mở phiên giữ thiết lập lúc mở. Chỉ nói ra khi thiết lập ấy THẬT SỰ lệch tệp.
  *
  * "Áp dụng ngay" nạp lại phần MODEL từ tệp vào engine đang mở (`ApplyConfigFromDisk`), không
  * cần đóng rồi mở lại phiên. Kiểu văn vẫn chỉ ăn ở lần mở sau — câu phụ nói rõ.
+ *
+ * Bản trước hiện dải cho MỌI phiên đang mở và nhớ "đã áp dụng" bằng state phía web: phiên và
+ * tệp cùng là lingo2·auto vẫn bị cảnh báo, bấm áp dụng xong dải vẫn nằm đó, tải lại trang thì
+ * câu "vẫn dùng thiết lập lúc mở" quay về. Giờ server so phiên với tệp (`engine_stale`), áp dụng
+ * xong thì nạp lại tờ cấu hình và dải tự biến mất — không còn bộ nhớ thứ hai để lệch.
  */
-function PhienDangMo({ du }: { du: CauHinhDoc }) {
-  if (du.engine_open.length === 0) return null;
+function PhienDangMo({ du, onDaApDung }: { du: CauHinhDoc; onDaApDung: () => void }) {
+  const [vua, datVua] = useState<{ ten: string; luc: string } | null>(null);
+  const lech = du.engine_stale ?? du.engine_open;
+  const xacNhan = vua && !lech.includes(vua.ten) && (
+    <p className="the chBao teal" role="status">
+      {CH.phienDaApDung(vua.ten, vua.luc)}
+    </p>
+  );
+  if (lech.length === 0) return xacNhan || null;
   return (
-    <div className="the chBao amber">
-      {du.engine_open.map((ten) => (
-        <MotPhien key={ten} ten={ten} dauVet={dauVetModel(du)} />
-      ))}
-      <span className="phu">{CH.kieuVanCanMoLai}</span>
-    </div>
+    <>
+      {xacNhan}
+      <div className="the chBao amber">
+        {lech.map((ten) => (
+          <MotPhien
+            key={ten}
+            ten={ten}
+            onXong={() => {
+              datVua({ ten, luc: gio(Date.now()) });
+              onDaApDung();
+            }}
+          />
+        ))}
+        <span className="phu">{CH.kieuVanCanMoLai}</span>
+      </div>
+    </>
   );
 }
 
-function MotPhien({ ten, dauVet }: { ten: string; dauVet: string }) {
+function MotPhien({ ten, onXong }: { ten: string; onXong: () => void }) {
   const tt = useTrangThaiLuu();
-  const [luc, datLuc] = useState<string | null>(null);
-  // Cấu hình model đổi SAU khi đã áp dụng → phiên lại đang chạy thiết lập cũ, nên câu "đang
-  // dùng thiết lập mới" phải lui về. Áp dụng tự nó không đổi cấu hình, nên không tự xóa mình.
-  const [vetLucApDung, datVetLucApDung] = useState<string | null>(null);
-  const conHieuLuc = luc !== null && vetLucApDung === dauVet;
   return (
     <div className="chPhien">
-      {/* Áp dụng xuôi rồi thì câu "vẫn dùng thiết lập lúc mở" là sai — nói trạng thái mới. */}
-      <span>{conHieuLuc ? CH.phienDaApDung(ten, luc) : CH.phienDangMo(ten)}</span>
+      <span>{CH.phienDangMo(ten)}</span>
       <span className="chPhienNut">
-        <TrangThaiLuu tt={tt.tt} nhanXong={conHieuLuc ? CH.daApDung(ten, luc) : undefined} />
+        <TrangThaiLuu tt={tt.tt} />
         <button
           type="button"
           className="nutPhu"
           disabled={tt.dang}
-          onClick={() =>
-            void tt.chay(
-              () => apDungCauHinh(ten),
-              () => {
-                datLuc(gio(Date.now()));
-                datVetLucApDung(dauVet);
-              },
-            )
-          }
+          onClick={() => void tt.chay(() => apDungCauHinh(ten), onXong)}
         >
           {tt.dang ? CH.dangApDung : CH.apDungNgay(ten)}
         </button>
@@ -805,11 +813,6 @@ function ThietLapKhac({ du, onXong }: { du: CauHinhDoc; onXong: () => void }) {
       </form>
     </section>
   );
-}
-
-/** Dấu vết phần MODEL của cấu hình — đổi khi mặc định, vai hay nhà cung cấp đổi. */
-function dauVetModel(du: CauHinhDoc): string {
-  return JSON.stringify([du.provider, du.model, du.roles ?? null, du.providers]);
 }
 
 function gio(ms: number): string {

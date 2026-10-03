@@ -187,9 +187,10 @@ export function BuongLai({
           <CuaNghiemThu
             advance={snapshot.advance}
             runtime={snapshot.runtime}
+            stop={snapshot.stop}
             tacPham={tacPham}
             choGhi={choGhi}
-            dangChay={dangChay}
+            soChuongXong={snapshot.book.completed_chapters}
             onDoi={onDoi}
           />
 
@@ -219,6 +220,7 @@ export function BuongLai({
               song={song}
               dangChay={dangChay}
               ket={ket}
+              suKien={suKien}
               onChonKhu={onChonKhu}
               viec={
                 dangChay ? null : (
@@ -238,6 +240,7 @@ export function BuongLai({
                   chuongChon={chuongChon}
                   onChonChuong={onChonChuong}
                   vuaChot={vuaChot}
+                  dangChay={dangChay}
                 />
               }
               chiTiet={dangChay ? <DaiTrangThai snapshot={snapshot} /> : null}
@@ -333,6 +336,7 @@ export function BuongLai({
           capabilities={snapshot.capabilities}
           tacPham={tacPham}
           dangChay={dangChay}
+          daXong={snapshot.book.phase === 'complete'}
           onDoi={onDoi}
         />
       </div>

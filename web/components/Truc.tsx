@@ -18,7 +18,7 @@ import {
   viTriMoc,
   type CuaSoTruc,
 } from '@/lib/truc';
-import type { Capabilities, ChapterMark, LaneBlock, MarkState, Timeline } from '@/lib/types';
+import type { Capabilities, LaneBlock, Timeline, VachChuong, VachHien } from '@/lib/types';
 
 /**
  * Trục sản xuất ba lane: Tập → Cung → Chương.
@@ -33,7 +33,10 @@ export function Truc({
   chuongChon,
   onChonChuong,
   vuaChot,
+  dangChay,
 }: {
+  /** Máy có đang chạy thật không — vạch `running` chỉ được nói "đang viết" khi có. */
+  dangChay: boolean;
   timeline: Timeline;
   capabilities: Capabilities;
   chuongChon: number | undefined;
@@ -49,7 +52,10 @@ export function Truc({
    */
   vuaChot: ReadonlySet<number>;
 }) {
-  const marks = timeline.chapters ?? [];
+  // Chuẩn hóa MỘT lần ở cửa vào: mọi nhãn, màu, chú giải và câu tóm tắt bên dưới đọc từ đây.
+  const marks: VachChuong[] = (timeline.chapters ?? []).map((m) =>
+    m.state === 'running' && !dangChay ? { ...m, state: 'vietDo' } : m,
+  );
   const tong = marks.length;
 
   // layered_outline === false → truyện ngắn/vừa, không có tập/cung. Ẩn hai lane
@@ -192,7 +198,7 @@ function LaneChuong({
   onChonChuong,
   vuaChot,
 }: {
-  marks: ChapterMark[];
+  marks: VachChuong[];
   chuongChon: number | undefined;
   onChonChuong: (n: number) => void;
   /** Họ 09 — chương vừa chuyển sang `done`. Xem `lib/chotChuong.ts`. */
@@ -390,10 +396,11 @@ function CuaSoNoi({
   );
 }
 
-function demTrangThai(marks: Pick<ChapterMark, 'state'>[]): Record<MarkState, number> {
-  const d: Record<MarkState, number> = {
+function demTrangThai(marks: Pick<VachChuong, 'state'>[]): Record<VachHien, number> {
+  const d: Record<VachHien, number> = {
     done: 0,
     running: 0,
+    vietDo: 0,
     rewrite: 0,
     gate: 0,
     pending: 0,
@@ -410,14 +417,14 @@ function demTrangThai(marks: Pick<ChapterMark, 'state'>[]): Record<MarkState, nu
  */
 function tomTatTruc(
   hien: number,
-  dem: Record<MarkState, number>,
+  dem: Record<VachHien, number>,
   cs: CuaSoTruc,
   tong: number,
 ): string {
   const phan: string[] = cs.thuPhong
     ? [`chương ${cs.from}–${cs.to} trong ${tong} chương`]
     : [`${tong} chương`];
-  for (const [ma, n] of Object.entries(dem) as [MarkState, number][]) {
+  for (const [ma, n] of Object.entries(dem) as [VachHien, number][]) {
     if (n > 0) phan.push(`${n} ${TRANG_THAI_VACH[ma].nhan}`);
   }
   return phan.join(', ');
@@ -428,9 +435,9 @@ function tomTatTruc(
  * tác phẩm không có chương nào bị trả về chỉ dạy người đọc một trạng thái họ
  * không cần tìm.
  */
-function ChuGiai({ marks }: { marks: Pick<ChapterMark, 'state'>[] }) {
+function ChuGiai({ marks }: { marks: Pick<VachChuong, 'state'>[] }) {
   const co = new Set(marks.map((m) => m.state));
-  const thuTu: MarkState[] = ['done', 'running', 'rewrite', 'gate', 'pending'];
+  const thuTu: VachHien[] = ['done', 'running', 'vietDo', 'rewrite', 'gate', 'pending'];
   const hien = thuTu.filter((s) => co.has(s));
   if (hien.length === 0) return null;
 
@@ -453,12 +460,14 @@ function ChuGiai({ marks }: { marks: Pick<ChapterMark, 'state'>[] }) {
 }
 
 /** Cùng công thức màu với `.chlane i` để chú giải không lệch khỏi trục. */
-function mauVach(s: MarkState): string {
+function mauVach(s: VachHien): string {
   switch (s) {
     case 'done':
       return 'color-mix(in oklch, var(--teal) 62%, var(--panel))';
     case 'running':
       return 'var(--gold-fill)';
+    case 'vietDo':
+      return 'color-mix(in oklch, var(--gold) 34%, var(--panel))';
     case 'rewrite':
       return 'color-mix(in oklch, var(--amber) 68%, var(--panel))';
     case 'gate':

@@ -32,9 +32,21 @@ test('lỗi hết tuyến bị cắt vẫn dịch được, kèm số lần th�
   expect(l.tho).toBe(HET_TUYEN);
 });
 
-test('bản đầy đủ nói rõ là thiếu model gọi công cụ', () => {
+test('bản đầy đủ nói ra từng nhóm lý do', () => {
   const l = giaiLoi(HET_TUYEN_DU, { ncc: 'lingoreup' })!;
-  expect(l.cau).toBe('lingoreup không còn model nào gọi công cụ được');
+  expect(l.cau).toBe(
+    'lingoreup không còn model nào dùng được cho bước này: 159 model không gọi được công cụ, 229 model chưa có khóa',
+  );
+});
+
+test('có tuyến bị loại vì yêu cầu quá dài + 429: chỉ đường tới model ngữ cảnh lớn', () => {
+  const l = giaiLoi(
+    'writer thất bại: routing_exhausted: All models exhausted: 388 routes checked (124 no usable key configured, 118 prompt too large for the model, 146 model lacks tool-calling). Add more API keys or wait for rate limits to reset. Soonest reset ~47s. [rate_limit, HTTP 429, openai]',
+    { ncc: 'lingo2', vai: 'writer' },
+  )!;
+  expect(cauLoi(l)).toBe(
+    'lingo2 không còn model nào dùng được cho bước này: 118 model không chứa nổi độ dài yêu cầu, 146 model không gọi được công cụ, 124 model chưa có khóa, số còn lại đang bị giới hạn lượt (429). Chọn riêng cho Người viết một model ngữ cảnh lớn, gọi được công cụ ở Model & khóa API — hoặc chờ vài phút cho hết giới hạn lượt.',
+  );
 });
 
 test('mã HTTP và lỗi mạng thường gặp đều có câu tiếng Việt', () => {

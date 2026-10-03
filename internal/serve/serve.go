@@ -321,8 +321,9 @@ func (s *server) handleWorkshop(w http.ResponseWriter, r *http.Request) {
 	// giá trị zero của bool nên không cần gán tường minh cho ca đó.
 	if s.may != nil {
 		for i := range ws.Books {
-			if _, err := s.may.dangMo(ws.Books[i].ID); err == nil {
+			if p, err := s.may.dangMo(ws.Books[i].ID); err == nil {
 				ws.Books[i].EngineOpen = true
+				ws.Books[i].Stop = chieuTruongSong(p.eng.Snapshot()).Stop
 			}
 		}
 	}
@@ -366,6 +367,7 @@ func (s *server) handleStudio(w http.ResponseWriter, r *http.Request) {
 			snap.Advance = ts.Advance
 			snap.Context = ts.Context
 			snap.Runtime = ts.Runtime
+			snap.Stop = ts.Stop
 		}
 	}
 	writeJSON(w, snap)

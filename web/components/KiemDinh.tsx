@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { DOC_DUYET } from '@/lib/chu/doc-duyet';
 import { cauChuaCoNhanXet } from '@/lib/nhanXetDinhKy';
 import type { Khu } from '@/lib/khu';
+import { trangThaiCua } from '@/lib/nghiemThu';
 import { CHU, GIAI_THICH, kyTheoTone, nhanKetLuan, trangThaiDong } from '@/lib/nhan';
 import type { ChapterRow, Review, Snapshot, Stage } from '@/lib/types';
 
@@ -12,6 +13,7 @@ import { BanDuyet } from './BanDuyet';
 import { BieuTuong } from './BieuTuong';
 import { CuaNghiemThu } from './CuaNghiemThu';
 import { MucLucChuong } from './MucLucChuong';
+import { OCanThiep } from './OCanThiep';
 
 /**
  * Kiểm định: bản duyệt 7 chiều của Editor, ở bề rộng đọc được.
@@ -79,7 +81,7 @@ export function KiemDinh({
   tacPham: string | undefined;
   /** undefined = chưa biết (đang hỏi `/api/config`) — xem `useMay`. */
   choGhi: boolean | undefined;
-  /** Engine có đang viết dở không — quyết định NHÃN nút gửi của dải. Xem `CuaNghiemThu`. */
+  /** Engine có đang viết dở không — quyết định NHÃN nút gửi của ô góp ý dưới dải. */
   dangChay: boolean;
   chuongChon: number | undefined;
   onChonChuong: (n: number) => void;
@@ -139,11 +141,25 @@ export function KiemDinh({
       <CuaNghiemThu
         advance={snapshot.advance}
         runtime={snapshot.runtime}
+        stop={snapshot.stop}
         tacPham={tacPham}
         choGhi={choGhi}
-        dangChay={dangChay}
+        soChuongXong={snapshot.book.completed_chapters}
         onDoi={onDoi}
       />
+      {/* Nút "trả về viết lại" của dải mở ô góp ý chung (`moGopY`) — trang này không có ô ấy ở
+          đáy như Tiến độ, nên đặt nó ngay dưới dải, chỉ lúc dải đang chờ. Thiếu nó thì nút trả về
+          ở đúng trang người ta đọc nhận xét xong là một nút chết. */}
+      {trangThaiCua(snapshot.advance, snapshot.runtime, snapshot.stop).dangCho ? (
+        <div className="kdGopY">
+          <OCanThiep
+            capabilities={snapshot.capabilities}
+            tacPham={tacPham}
+            dangChay={dangChay}
+            onDoi={onDoi}
+          />
+        </div>
+      ) : null}
 
       <div className="kiemlayout">
         <MucLucChuong
@@ -164,7 +180,13 @@ export function KiemDinh({
               </div>
             ) : null
           }
-          phu={(r) => <PhuDong r={r} review={r.chapter === chuongChon ? duyet : undefined} />}
+          phu={(r) => (
+            <PhuDong
+              r={r}
+              review={r.chapter === chuongChon ? duyet : undefined}
+              dangChay={dangChay}
+            />
+          )}
         />
 
         <div className="duyetwrap">
@@ -214,7 +236,15 @@ export function KiemDinh({
 }
 
 /** Phần phải của một dòng mục lục: công đoạn; chương đang chọn thì thêm kết luận + điểm. */
-function PhuDong({ r, review }: { r: ChapterRow; review: Review | undefined }) {
+function PhuDong({
+  r,
+  review,
+  dangChay,
+}: {
+  r: ChapterRow;
+  review: Review | undefined;
+  dangChay: boolean;
+}) {
   const kl = nhanKetLuan(review?.verdict);
   if (kl) {
     return (
@@ -224,7 +254,7 @@ function PhuDong({ r, review }: { r: ChapterRow; review: Review | undefined }) {
       </span>
     );
   }
-  const tt = trangThaiDong(r);
+  const tt = trangThaiDong(r, dangChay);
   return (
     <span className={`kdCd ${tt.mau}`} title={tt.nhan}>
       <span aria-hidden="true">{tt.ky}</span>
@@ -273,5 +303,9 @@ function motTa(hang: ChapterRow[]): string {
   // "đã duyệt" ở đây từng đếm mọi chương `done` — tức 725 "đã duyệt" trong khi chỉ 51 chương có
   // nhận xét thật. Đếm đúng thứ màn này nói về: chương có nhận xét.
   const coNhanXet = hang.filter((r) => r.reviewed).length;
-  return `${hang.length} chương đã viết · ${coNhanXet} có nhận xét`;
+  // "Đã viết" = có bản viết (xong hoặc đang bị trả về), không phải "có một hàng": chương mới có
+  // kế hoạch cũng có hàng — đo được ở cửa duyệt dàn ý, màn này nói "1 chương đã viết" khi chưa
+  // có chữ nào.
+  const daViet = hang.filter((r) => r.stage === 'done' || r.stage === 'rewrite').length;
+  return `${daViet} chương đã viết · ${coNhanXet} có nhận xét`;
 }

@@ -175,10 +175,20 @@ export function tinhTrangNguon<T>(tai: TaiVe<T>): React.ReactNode | null {
 export function MucRong({
   mang,
   muc,
+  coKhi,
 }: {
   mang: unknown[] | null | undefined;
   muc: string;
+  /**
+   * Câu nói mục này CÓ từ lúc nào, khi đó không phải lúc dựng nền. Phục bút được gieo lúc chốt
+   * từng chương — câu mặc định "tạo khi dựng nền truyện" nói sai ngay ở cửa duyệt dàn ý, lúc
+   * nền đã dựng xong mà chưa có phục bút nào (đúng ra là chưa tới lúc).
+   */
+  coKhi?: string;
 }) {
+  if (coKhi && (mang === null || mang === undefined || mang.length === 0)) {
+    return <p className="trongSect">{coKhi}</p>;
+  }
   if (mang === null || mang === undefined) {
     return <p className="trongSect">{GIAI_THICH.chuaDungNen(muc)}</p>;
   }

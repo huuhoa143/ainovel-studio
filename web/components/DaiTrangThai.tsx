@@ -81,6 +81,12 @@ function OVai({ agents }: { agents: Vai[] | null }) {
  */
 function NhanhVai({ nut }: { nut: NutVai }) {
   const v = nut.vai;
+  // `task` thường chỉ là "vai → công cụ(tham số)" — tức nói lại đúng hai ô đứng trước nó.
+  // Đo được: "Người viết → Đọc tài liệu truyện" rồi ngay dưới "Người viết: đọc tài liệu truyện".
+  // Ca đó gộp tham số vào ô công cụ ("Đọc tài liệu cho chương 2") và bỏ dòng thứ hai.
+  const sauMuiTen = v.task?.split('→')[1]?.trim();
+  const lapLai = !!v.tool && !!sauMuiTen && sauMuiTen.startsWith(v.tool);
+  const congCu = lapLai ? sauMuiTen : v.tool;
   return (
     <li>
       <span className="vaiten">{nhanVai(v.role)}</span>
@@ -88,9 +94,9 @@ function NhanhVai({ nut }: { nut: NutVai }) {
       {/* Tên công cụ dịch qua CÙNG một bảng với Diễn biến và thanh dưới (`lib/congCu.ts`);
           tên lạ giữ nguyên, nguyên văn luôn ở `title`. Mũi tên là trang trí. */}
       {v.tool ? (
-        <span className="vaicongcu" title={v.tool}>
+        <span className="vaicongcu" title={congCu}>
           <span aria-hidden="true">→ </span>
-          {giaiCongCu(v.tool) ?? v.tool}
+          {giaiCongCu(congCu) ?? congCu}
         </span>
       ) : null}
 
@@ -104,7 +110,7 @@ function NhanhVai({ nut }: { nut: NutVai }) {
 
       {/* Việc kiểu "engine → architect_short (Hãy xây dựng…)" là dòng nội bộ: đọc thành câu
           "Điều phối giao việc cho Kiến trúc sư", nguyên văn ở `title`. */}
-      {v.task ? (
+      {v.task && !lapLai ? (
         <span className="vaiviec" title={v.task}>
           {giaiGiaoViec(v.task) ?? v.task}
         </span>

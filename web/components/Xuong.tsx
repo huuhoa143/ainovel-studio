@@ -314,6 +314,8 @@ function DaiCanBan({
           <span className="biaNho" style={{ background: nenBia(v.sach.id) }} aria-hidden="true" />
           <span className="ten">{tenSach(v.sach)}</span>
           <span className="cau">
+            {v.tuDung ? T.tuDungXemLyDo : null}
+            {v.tuDung && (v.tamDung || v.canThiep) ? ' · ' : null}
             {v.tamDung ? CHU.daKyTamDung : null}
             {v.tamDung && v.canThiep ? ' · ' : null}
             {v.canThiep ? CHU.daKyCanThiep : null}
@@ -336,7 +338,7 @@ function DaiCanBan({
 }
 
 /** Trạng thái một dòng của thẻ: chữ + màu chấm. Màu không bao giờ là kênh duy nhất. */
-function trangThai(b: Book): { chu: string; mau: 'gold' | 'teal' | 'muted'; luc?: string } {
+function trangThai(b: Book): { chu: string; mau: 'gold' | 'teal' | 'muted' | 'red'; luc?: string } {
   if (b.activity === 'running') {
     return {
       chu: b.phase === 'writing' ? T.dangVietChuong(b.completed_chapters + 1) : hoaDau(nhanPhase(b.phase)),
@@ -344,6 +346,10 @@ function trangThai(b: Book): { chu: string; mau: 'gold' | 'teal' | 'muted'; luc?
     };
   }
   if (b.phase === 'complete' || b.activity === 'complete') return { chu: T.hoanThanh, mau: 'teal' };
+  // Engine tự dừng vì lỗi: "Đang nghỉ" ở đây đọc ra là "bạn cho nó nghỉ".
+  if (b.stop && (b.stop.kind === 'stuck' || b.stop.kind === 'budget')) {
+    return { chu: T.tuDung, mau: 'red', luc: T.luc(b.stop.at) };
+  }
   return {
     chu: b.phase === 'init' ? hoaDau(nhanPhase(b.phase)) : T.tamNghi,
     mau: 'muted',
@@ -415,11 +421,13 @@ function TheTruyen({
           <p className="theVien">
             {viec ? (
               <span className="vien amber" title={viec.lyDo ? `${viec.lyDo} — ${GIAI_THICH.canBanTuDia}` : GIAI_THICH.canBanTuDia}>
-                {viec.tamDung && viec.canThiep
-                  ? `${CHU.daKyTamDungNgan} · ${CHU.daKyCanThiepNgan}`
-                  : viec.tamDung
-                    ? CHU.daKyTamDungNgan
-                    : CHU.daKyCanThiepNgan}
+                {viec.tuDung
+                  ? T.tuDungXemLyDo
+                  : viec.tamDung && viec.canThiep
+                    ? `${CHU.daKyTamDungNgan} · ${CHU.daKyCanThiepNgan}`
+                    : viec.tamDung
+                      ? CHU.daKyTamDungNgan
+                      : CHU.daKyCanThiepNgan}
               </span>
             ) : null}
             {b.engine_open ? (

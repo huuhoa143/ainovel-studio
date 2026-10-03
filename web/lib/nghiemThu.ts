@@ -62,7 +62,17 @@ export interface TrangThaiCua {
  */
 const DA_DUNG = new Set(['paused', 'idle']);
 
-export function trangThaiCua(advance: TienDo | null, runtime: string | null): TrangThaiCua {
+export function trangThaiCua(
+  advance: TienDo | null,
+  runtime: string | null,
+  /**
+   * Lần dừng gần nhất (`snapshot.stop`). Engine dừng ở chế độ từng chương CHƯA chắc là đứng ở
+   * cửa: bạn bấm Tạm dừng giữa chương 2, hay engine tự dừng vì lỗi, cũng là `paused`. Đo được:
+   * tạm dừng giữa lúc viết chương 2, màn hình mời "Duyệt, viết chương 2" — duyệt một chương
+   * chưa viết xong. Vắng (engine mới mở lại, chưa dừng lần nào trong phiên) thì giữ phép suy cũ.
+   */
+  stop?: { kind: string } | null,
+): TrangThaiCua {
   if (!advance) return { dangCho: false, cheDoDuyet: false };
   const cheDoDuyet = advance.mode === 'review';
   return {
@@ -75,9 +85,22 @@ export function trangThaiCua(advance: TienDo | null, runtime: string | null): Tr
     //
     // Bản đầu chỉ có đường thứ nhất, và đó là một lỗi ĐO ĐƯỢC: engine viết xong chương 4 rồi
     // dừng với `hold: false`, nên dải nghiệm thu không bao giờ hiện ở luồng thường.
-    dangCho: cheDoDuyet && (advance.hold || DA_DUNG.has(runtime ?? '')),
+    dangCho: cheDoDuyet && (advance.hold || (DA_DUNG.has(runtime ?? '') && (!stop || stop.kind === 'gate'))),
     cheDoDuyet,
     chuong: advance.permit_chapter,
     lyDo: advance.hold_reason,
   };
+}
+
+/**
+ * Chương đang chờ duyệt — MỘT luật cho dải nghiệm thu và thẻ đang làm.
+ *
+ * Engine khai (`permit_chapter`) thì tin engine. Không khai — ca thường, vì trường đó
+ * `omitempty` — thì đó là chương VỪA viết xong. Đo được trên truyện thật: dải ghi "Chương 1
+ * đang chờ bạn duyệt" còn thẻ ngay dưới ghi "Chờ bạn duyệt · Chương 2" (thẻ lấy chương KẾ).
+ * Hai chỗ trên một màn tự tính thì sẽ lại lệch. Chưa có chương nào thì không có chương chờ —
+ * cửa đó là cửa duyệt dàn ý.
+ */
+export function chuongChoDuyet(cua: TrangThaiCua, soChuongXong: number): number | undefined {
+  return cua.chuong ?? (soChuongXong > 0 ? soChuongXong : undefined);
 }

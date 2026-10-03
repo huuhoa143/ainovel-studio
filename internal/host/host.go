@@ -57,6 +57,9 @@ type Host struct {
 	streamCh chan string
 	done     chan struct{}
 
+	// lanDung giữ lần dừng gần nhất và lỗi gần nhất — khóa riêng (xem lan_dung.go).
+	lanDung lanDungState
+
 	mu         sync.Mutex
 	lifecycle  lifecycle
 	cocreating bool   // 阶段共创占用：paused 窗口内堵住 import/simulate/continue 的并发介入
@@ -180,7 +183,7 @@ func New(cfg bootstrap.Config, bundle assets.Bundle) (*Host, error) {
 		lifecycle:       lifecycleIdle,
 	}
 	h.runCtx, h.runCancel = context.WithCancel(context.Background())
-	h.observer = newObserver(store, h.emitEvent, h.emitDelta, h.emitClear)
+	h.observer = newObserver(store, h.phatSuKien, h.emitDelta, h.emitClear)
 	// 宿主侧 Arbiter 与 Worker 共用同一条 ToolProgress → observer → 工作台链路。
 	h.runCtx = agentcore.WithToolProgress(h.runCtx, h.observer.workerProgress)
 	if cfg.Notify.IsEnabled() {
@@ -189,7 +192,7 @@ func New(cfg bootstrap.Config, bundle assets.Bundle) (*Host, error) {
 	// 预算哨兵:Engine 在每轮循环边界直接调用 HandleBoundary(不再经事件订阅)。
 	if sentinel := NewBudgetSentinel(cfg.Budget,
 		func() float64 { c, _, _, _, _ := usage.Totals(); return c },
-		func(reason string) { h.abortWithEvent(reason, "error") },
+		func(reason string) { h.abortWithEvent(reason, "error", DungNganSach) },
 		func(level, summary string) {
 			h.emitEvent(Event{Time: time.Now(), Category: "SYSTEM", Summary: summary, Level: level})
 			h.notifier.Send(notify.Notification{Kind: notify.KindBudget, Level: level, Title: i18n.F("ainovel: 预算"), Body: summary})
@@ -207,7 +210,7 @@ func New(cfg bootstrap.Config, bundle assets.Bundle) (*Host, error) {
 	// 统一前进闸门：执行一次性 hold，并阻止 review 模式下无许可的新章。
 	h.gate = NewChapterAdvanceGate(store,
 		func(reason string) {
-			h.abortWithEvent(reason, "info")
+			h.abortWithEvent(reason, "info", DungCuaDuyet)
 			h.notifier.Send(notify.Notification{Kind: notify.KindAdvanceGate, Level: "info", Title: i18n.F("ainovel: 等待验收"), Body: reason})
 		},
 		func(level, summary string) {
@@ -251,7 +254,7 @@ func New(cfg bootstrap.Config, bundle assets.Bundle) (*Host, error) {
 		notify: func(kind, level, title, body string) {
 			h.notifier.Send(notify.Notification{Kind: kind, Level: level, Title: title, Body: body})
 		},
-		onPause: func(summary string) { h.abortWithEvent(summary, "warn") },
+		onPause: func(summary string) { h.abortWithEvent(summary, "warn", DungTuKet) },
 		onDone:  h.runEnded,
 	}
 
@@ -448,6 +451,7 @@ func (h *Host) startEngine(initial *flow.Instruction) bool {
 		h.lifecycle = previous
 		return false
 	}
+	h.xoaLanDung()
 	return true
 }
 
@@ -854,16 +858,17 @@ func (h *Host) Steer(text string) error {
 
 // Abort 暂停当前引擎循环。
 func (h *Host) Abort() bool {
-	return h.abortWithEvent(i18n.F("用户手动暂停当前创作"), "warn")
+	return h.abortWithEvent(i18n.F("用户手动暂停当前创作"), "warn", DungNguoiDung)
 }
 
 // abortWithEvent 以指定原因事件执行暂停。预算停机与手动暂停共用同一停机机制，
 // 仅事件文案不同（预算停机=用户预先签署的 Abort 指令，语义等同手动暂停）。
-func (h *Host) abortWithEvent(summary, level string) bool {
+func (h *Host) abortWithEvent(summary, level, kind string) bool {
 	h.mu.Lock()
 	running := h.lifecycle == lifecycleRunning
 	if running {
 		h.lifecycle = lifecyclePaused
+		h.ghiLanDung(kind, summary)
 	}
 	cancelExclusive := h.exclusiveCancel
 	h.mu.Unlock()
@@ -872,14 +877,14 @@ func (h *Host) abortWithEvent(summary, level string) bool {
 		// 失败事件，observer 凭此标志识别为 abort 衍生噪声并抑制。
 		h.observer.setAborting(true)
 		h.engine.abort()
-		h.emitEvent(Event{Time: time.Now(), Category: "SYSTEM", Summary: summary, Level: level})
+		h.emitEvent(Event{Time: time.Now(), Category: "SYSTEM", Summary: summary, Level: level, Kind: KindDung(kind)})
 		return true
 	}
 	// Engine 未运行但独占作业（导入等）在跑：它同样在烧钱，预算硬停/手动暂停必须
 	// 能停掉它——否则预算政策对导入形同虚设（docs/import-pipeline.md §13.1）。
 	if cancelExclusive != nil {
 		cancelExclusive()
-		h.emitEvent(Event{Time: time.Now(), Category: "SYSTEM", Summary: summary, Level: level})
+		h.emitEvent(Event{Time: time.Now(), Category: "SYSTEM", Summary: summary, Level: level, Kind: KindDung(kind)})
 		return true
 	}
 	return false
@@ -962,6 +967,10 @@ func (h *Host) runEnded() {
 		})
 	} else {
 		wasRunning := h.lifecycle == lifecycleRunning
+		// Dừng theo lệnh: lifecycle đã là paused từ lúc bấm, nhưng snapshot báo "pausing" tới
+		// khi goroutine thoát (xem Snapshot). Phát một sự kiện để giao diện nạp lại và thấy
+		// "đã dừng" ngay, thay vì kẹt "đang dừng…" tới sự kiện ngẫu nhiên kế tiếp.
+		daDungHan := h.lifecycle == lifecyclePaused
 		if wasRunning {
 			h.lifecycle = lifecycleIdle
 		}
@@ -973,7 +982,7 @@ func (h *Host) runEnded() {
 		}
 		h.mu.Unlock()
 		if wasRunning {
-			summary := fmt.Sprintf(i18n.F("引擎停止 (已完成 %d 章)"), completed)
+			summary := summaryDung(completed)
 			slog.Warn(summary, "module", "host")
 			h.emitEvent(Event{Time: time.Now(), Category: "SYSTEM", Summary: summary, Level: "warn"})
 			// Ở nhánh này summary KHÔNG chứa tên sách, nên chèn ở đây — thông báo
@@ -982,6 +991,22 @@ func (h *Host) runEnded() {
 				Kind: notify.KindRunEnd, Level: "warn", Title: i18n.F("ainovel: 创作停止"),
 				Body: h.runEndBody(bocTenSach(name, summary)),
 			})
+		}
+		if wasRunning {
+			// Vòng engine tự kết thúc mà không ai bấm dừng và truyện chưa xong: đó cũng là một
+			// lần dừng cần nói lý do, không phải một lần "tạm dừng" bình thường.
+			h.ghiLanDung(DungTuKet, summaryDung(completed))
+		}
+		if daDungHan {
+			// Chỉ mời "bấm Tiếp tục viết" khi người dùng tự dừng. Engine tự dừng vì lỗi thì lý
+			// do đã phát ngay trước đó, và câu mời ấy sẽ là mời đâm lại vào đúng bức tường đó.
+			if n := h.LanDung(); n != nil && n.Kind == DungNguoiDung {
+				h.emitEvent(Event{Time: time.Now(), Category: "SYSTEM", Level: "info",
+					Summary: i18n.F("已暂停，可随时继续创作")})
+			} else {
+				h.emitEvent(Event{Time: time.Now(), Category: "SYSTEM", Level: "info",
+					Summary: i18n.F("引擎已完全停止")})
+			}
 		}
 	}
 
@@ -1045,11 +1070,29 @@ func (h *Host) AskUser() *tools.AskUserTool { return h.askUser }
 
 // ── 事件发射 ──
 
+// emitEvent là đường phát của host và engine: lên log, lên kênh TUI, và — với sự kiện SYSTEM /
+// ERROR — vào runtime queue mà studio web đọc.
+//
+// Trước đây chỉ có `phatSuKien`, tức sự kiện của host chưa bao giờ tới được web: "Người dùng tạm
+// dừng", "Đã dừng hẳn", lý do bế tắc, chạm ngân sách, cập nhật luật viết… chỉ nằm trong log. Đo
+// được trên truyện thật: bấm Tạm dừng, snapshot nạp lại lúc engine còn đang thoát ("pausing"), rồi
+// không còn sự kiện nào kích nạp lại — thanh điều khiển kẹt "Đang dừng…" mãi dù engine đã dừng
+// từ lâu. Observer KHÔNG đi đường này (xem newObserver): nó tự ghi sự kiện của mình, đi qua đây
+// nữa là ghi trùng.
 func (h *Host) emitEvent(ev Event) {
+	h.phatSuKien(ev)
+	if (ev.Category == "SYSTEM" || ev.Category == "ERROR") && h.observer != nil {
+		h.observer.persistEvent(ev)
+	}
+}
+
+// phatSuKien: log + kênh TUI, không ghi runtime queue. Đường của observer.
+func (h *Host) phatSuKien(ev Event) {
 	// 退出期 Close() 可能已 close(h.events)，此时并发 emit 的通道发送会 panic
 	// （select/default 挡不住关通道发送）。emitEvent 是所有事件的唯一漏斗，在此兜住
 	// 竞态即可覆盖引擎/asyncWG 之外的同步 emit 者（Abort/abortWithEvent、预算哨兵等）。
 	defer func() { recover() }()
+	h.nhoLoi(ev)
 	// 所有事件的唯一 slog 入口。observer 翻译的 agentcore 事件和 Host 自发的
 	// SYSTEM 事件（Start/Abort/Resume…）都在这里落日志，避免 ESC abort 与外部
 	// 终止在 tui.log 上无法区分。
@@ -1110,9 +1153,24 @@ func (h *Host) emitClear() {
 
 // ── Snapshot (TUI 状态聚合) ──
 
+// trangThaiBaoRa là RuntimeState mà snapshot nói ra ngoài.
+//
+// "paused" chỉ đúng khi goroutine engine cũ đã thoát hẳn. `abortWithEvent` đặt paused NGAY lúc
+// nhận lệnh rồi mới hủy context; trong lúc goroutine còn chạy defer thoát, `startEngine` từ chối
+// mọi lượt khởi động (`engine.isRunning()`). Báo "paused" trong khoảng đó là mời người dùng bấm
+// một nút chắc chắn bị từ chối — đo được: "Engine đang hoàn tất lần dừng trước". Cùng phép thử
+// với cửa khởi động, nên trạng thái nói ra và cửa không lệch nhau.
+func trangThaiBaoRa(state lifecycle, engineRunning bool) string {
+	if state == lifecyclePaused && engineRunning {
+		return "pausing"
+	}
+	return string(state)
+}
+
 func (h *Host) Snapshot() UISnapshot {
 	h.mu.Lock()
 	state := h.lifecycle
+	runtimeState := trangThaiBaoRa(state, h.engine.isRunning())
 	provider, model, _ := h.models.CurrentSelection("default")
 	modelWindow, _ := h.cfg.ResolveContextWindow(provider, model)
 	thinkingLevel := h.cfg.ResolveReasoningEffort("default")
@@ -1162,7 +1220,8 @@ func (h *Host) Snapshot() UISnapshot {
 		ModelContextWindow:     modelWindow,
 		ThinkingLevel:          thinkingLevel,
 		Style:                  style,
-		RuntimeState:           string(state),
+		RuntimeState:           runtimeState,
+		StopNote:               h.LanDung(),
 		IsRunning:              state == lifecycleRunning,
 		TotalInputTokens:       tokIn,
 		TotalOutputTokens:      tokOut,
@@ -1493,13 +1552,7 @@ func (h *Host) ApplyConfigFromDisk() error {
 	if err != nil {
 		return err
 	}
-	ung := bootstrap.CloneConfig(h.cfg)
-	ung.Provider = cfg.Provider
-	ung.ModelName = cfg.ModelName
-	ung.ReasoningEffort = cfg.ReasoningEffort
-	ung.Providers = cfg.Providers
-	ung.Roles = cfg.Roles
-	ung.FillDefaults()
+	ung := ghepModelTuTep(h.cfg, cfg)
 	if err := ung.ValidateBase(); err != nil {
 		return err
 	}
@@ -1517,6 +1570,48 @@ func (h *Host) ApplyConfigFromDisk() error {
 		Level:    "info",
 	})
 	return nil
+}
+
+// ghepModelTuTep là MỘT phép ghép phần model của tệp vào cấu hình phiên — dùng chung cho
+// ApplyConfigFromDisk (áp dụng) và ModelConfigInSync (hỏi "áp dụng có đổi gì không"), để câu
+// trả lời của câu hỏi luôn đúng với việc nút áp dụng sẽ làm.
+func ghepModelTuTep(cur, tep bootstrap.Config) bootstrap.Config {
+	ung := bootstrap.CloneConfig(cur)
+	ung.Provider = tep.Provider
+	ung.ModelName = tep.ModelName
+	ung.ReasoningEffort = tep.ReasoningEffort
+	ung.Providers = tep.Providers
+	ung.Roles = tep.Roles
+	ung.FillDefaults()
+	return ung
+}
+
+// ModelConfigInSync cho biết phần MODEL của phiên đang mở có khớp tệp cấu hình hiện tại không
+// — tức bấm "áp dụng ngay" lúc này có đổi được gì không.
+//
+// Studio cần câu này để chỉ báo "phiên đang dùng thiết lập cũ" khi nó THẬT SỰ cũ. Đo được: dải
+// cảnh báo hiện cho mọi phiên đang mở, kể cả khi phiên và tệp cùng là lingo2·auto, và bấm áp
+// dụng xong dải vẫn nằm đó — người dùng hỏi "bấm mà không mất, có thiếu logic gì không".
+func (h *Host) ModelConfigInSync() (bool, error) {
+	cfg, err := bootstrap.LoadConfig()
+	if err != nil {
+		return false, err
+	}
+	h.mu.Lock()
+	cur := bootstrap.CloneConfig(h.cfg)
+	h.mu.Unlock()
+	return phanModel(ghepModelTuTep(cur, cfg)) == phanModel(cur), nil
+}
+
+// phanModel tuần tự hóa đúng các trường mà ghepModelTuTep đụng tới. JSON của map có khóa đã
+// sắp xếp, nên hai cấu hình bằng nhau cho ra cùng một chuỗi.
+func phanModel(c bootstrap.Config) string {
+	b, _ := json.Marshal(struct {
+		Provider, ModelName, ReasoningEffort string
+		Providers                            any
+		Roles                                any
+	}{c.Provider, c.ModelName, c.ReasoningEffort, c.Providers, c.Roles})
+	return string(b)
 }
 
 // concreteThinkingRoles 是可应用推理强度的具体角色（与 agents.ApplyThinking 路由一致）。
@@ -1671,7 +1766,7 @@ func (h *Host) PauseForCoCreate() bool {
 	// 运行中复用 abortWithEvent 停机（running→paused + setAborting + Abort + 事件），与手动
 	// 暂停同序、不另抄一遍；已停止（idle/paused）只置标记，规划完经 Continue 续跑。
 	if running {
-		h.abortWithEvent(i18n.F("进入阶段共创，创作已暂停"), "info")
+		h.abortWithEvent(i18n.F("进入阶段共创，创作已暂停"), "info", DungNguoiDung)
 	} else {
 		h.emitEvent(Event{Time: time.Now(), Category: "SYSTEM", Summary: i18n.F("进入阶段共创"), Level: "info"})
 	}

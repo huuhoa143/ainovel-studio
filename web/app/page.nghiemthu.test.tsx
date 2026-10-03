@@ -92,7 +92,7 @@ Element.prototype.scrollIntoView = function () {
  */
 const nutTiepCuaDai = (c: HTMLElement) =>
   [...c.querySelectorAll<HTMLButtonElement>('.cuanghiemthu button')].find(
-    (n) => n.textContent === CHU.choDiTiep,
+    (n) => /^Duyệt(, viết chương| dàn ý)/.test(n.textContent ?? ''),
   )!;
 
 beforeEach(() => {

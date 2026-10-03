@@ -87,7 +87,7 @@ func bookFrom(st *store.Store, id string, p *domain.Progress, cps []domain.Check
 		Done:     len(p.CompletedChapters),
 		Total:    p.TotalChapters,
 		Words:    p.TotalWordCount,
-		Activity: activityOf(p, cps),
+		Activity: activityOf(st, p, cps),
 	}
 	if _, last, ok := runSpan(cps); ok {
 		b.UpdatedAt = last.UTC().Format(time.RFC3339)
@@ -112,9 +112,16 @@ func bookFrom(st *store.Store, id string, p *domain.Progress, cps []domain.Check
 // không gán "nguội" cho một bước draft dài đang chạy bình thường.
 const activityIdleAfter = 10 * time.Minute
 
-func activityOf(p *domain.Progress, cps []domain.Checkpoint) string {
+func activityOf(st *store.Store, p *domain.Progress, cps []domain.Checkpoint) string {
 	if p.Phase == domain.PhaseComplete {
 		return "complete"
+	}
+	// Checkpoint mới chỉ là DẤU VẾT của một phiên, không phải bằng chứng phiên còn sống. Đo
+	// được: khởi động lại studio giữa chừng, thẻ ghi "Đang viết · đã chạy 10 phút" và thanh
+	// dưới ghi "đang chạy" ngay cạnh nút "Viết tiếp", trong khi không còn engine nào. Không
+	// process nào giữ khóa thư mục thì không ai đang viết — bất kể checkpoint mới cỡ nào.
+	if !store.DangCoNguoiGiu(st.Dir()) {
+		return "idle"
 	}
 	_, last, ok := runSpan(cps)
 	if !ok || time.Since(last) > activityIdleAfter {
@@ -393,7 +400,7 @@ func chapterTitle(st *store.Store, chapter int) string {
 }
 
 func buildTransport(st *store.Store, p *domain.Progress, cps []domain.Checkpoint) Transport {
-	tr := Transport{State: activityOf(p, cps)}
+	tr := Transport{State: activityOf(st, p, cps)}
 
 	if meta, err := st.RunMeta.Load(); err == nil && meta != nil {
 		tr.Model = meta.Model
@@ -409,11 +416,10 @@ func buildTransport(st *store.Store, p *domain.Progress, cps []domain.Checkpoint
 		}
 	}
 
-	if first, last, ok := runSpan(cps); ok {
-		span := last.Sub(first)
-		ms := span.Milliseconds()
+	if lam, ok := thoiGianLam(cps); ok {
+		ms := lam.Milliseconds()
 		tr.ElapsedMs = &ms
-		if perHour, ok := throughput(len(p.CompletedChapters), span); ok {
+		if perHour, ok := throughput(len(p.CompletedChapters), lam); ok {
 			tr.ChaptersPerHour = &perHour
 		}
 	}
@@ -574,6 +580,7 @@ type truongSong struct {
 	Advance           *TienDo
 	Context           *NguCanh
 	Runtime           string
+	Stop              *LanDung
 }
 
 // chieuTruongSong chiếu host.UISnapshot (trạng thái sống của engine đang mở) thành phần
@@ -599,6 +606,10 @@ func chieuTruongSong(snap host.UISnapshot) truongSong {
 			Hold:          snap.HasAdvanceHold,
 			HoldReason:    snap.AdvanceHoldReason,
 		},
+	}
+	// Lần dừng chỉ có nghĩa khi engine KHÔNG chạy: lúc đang chạy nó là chuyện của lượt trước.
+	if n := snap.StopNote; n != nil && snap.RuntimeState != "running" {
+		ra.Stop = &LanDung{At: n.At.Format(time.RFC3339), Kind: n.Kind, Reason: n.Reason, LastError: n.LastError, LastErrorAgent: n.LastErrorAgent}
 	}
 	if snap.InProgressChapter > 0 {
 		n := snap.InProgressChapter
@@ -633,12 +644,13 @@ func anhXaVai(vao []host.AgentSnapshot) (dang []Vai, cho []string) {
 			continue
 		}
 		dang = append(dang, Vai{
-			Role:  a.Name,
-			State: a.State,
-			Tool:  a.Tool,
-			Turn:  a.Turn,
-			Task:  a.Summary,
-			Depth: 0,
+			Role:    a.Name,
+			State:   a.State,
+			Tool:    a.Tool,
+			Chapter: a.Chapter,
+			Turn:    a.Turn,
+			Task:    a.Summary,
+			Depth:   0,
 		})
 	}
 	return dang, cho

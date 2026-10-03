@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { LoiApi, canThiep } from '@/lib/api';
 import { CHU, GIAI_THICH } from '@/lib/nhan';
@@ -35,13 +35,34 @@ import { BieuTuong } from './BieuTuong';
  * vào lượt đang chạy có thể làm chương đang viết bị xếp lại vào hàng chờ, còn đánh thức là
  * bắt đầu một lượt mới và tiêu tiền.
  */
+/** id của ô góp ý — nút "Viết thêm" ở thanh dưới đưa con trỏ vào đây. */
+export const O_GOP_Y = 'o-gop-y';
+
+const SU_KIEN_GOP_Y = 'ainovel:mo-gop-y';
+
+/**
+ * Mở ô góp ý từ chỗ khác trên màn hình — điền sẵn chữ, đặt con trỏ, kèm một câu nói hệ quả.
+ *
+ * Ô này là ô góp ý DUY NHẤT. Bản trước cửa nghiệm thu mở thêm một ô của riêng nó ngay trong dải
+ * tím, cùng nhãn nút "Gửi góp ý và viết tiếp" với ô này ở cuối trang: hai ô làm cùng một việc
+ * trên một màn hình, người dùng không biết gõ vào đâu — và ô thứ hai còn không nhận con trỏ, không
+ * có chữ gợi ý. Giờ nút của cửa chỉ gọi hàm này.
+ */
+export function moGopY(y: { chu?: string; giai?: string } = {}) {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent(SU_KIEN_GOP_Y, { detail: y }));
+}
+
 export function OCanThiep({
   capabilities,
   tacPham,
   dangChay,
+  daXong = false,
   onDoi,
 }: {
   capabilities: Capabilities;
+  /** Truyện đã kết: ô này thành ô "viết thêm gì" — câu gửi đi là hướng mở lại truyện. */
+  daXong?: boolean;
   tacPham: string | undefined;
   dangChay?: boolean;
   /**
@@ -63,7 +84,26 @@ export function OCanThiep({
   const [chu, datChu] = useState('');
   const [dangGui, datDangGui] = useState(false);
   const [loi, datLoi] = useState<string | null>(null);
-  const [daLam, datDaLam] = useState<'steer' | 'continue' | null>(null);
+  const [daLam, datDaLam] = useState<'steer' | 'continue' | 'reopen' | null>(null);
+  // Câu nói hệ quả do nơi mở ô gửi kèm (vd. cửa duyệt: "Điều phối xem góp ý ảnh hưởng tới đâu…").
+  const [giai, datGiai] = useState<string | null>(null);
+  const oRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const nghe = (e: Event) => {
+      const y = (e as CustomEvent<{ chu?: string; giai?: string }>).detail ?? {};
+      if (y.chu !== undefined) datChu(y.chu);
+      datGiai(y.giai ?? null);
+      datLoi(null);
+      datDaLam(null);
+      const o = oRef.current;
+      if (!o) return;
+      o.focus();
+      o.scrollIntoView?.({ block: 'nearest' });
+    };
+    window.addEventListener(SU_KIEN_GOP_Y, nghe);
+    return () => window.removeEventListener(SU_KIEN_GOP_Y, nghe);
+  }, []);
 
   const gui = () => {
     if (!tacPham || !chu.trim()) return;
@@ -74,6 +114,7 @@ export function OCanThiep({
       .then((r) => {
         datDaLam(r.applied);
         datChu('');
+        datGiai(null);
         onDoi?.();
       })
       .catch((e: unknown) => datLoi(e instanceof LoiApi ? e.message : String(e)))
@@ -85,8 +126,10 @@ export function OCanThiep({
       <div className="steerbox">
         <BieuTuong ten="gopY" co={16} />
         <input
+          ref={oRef}
+          id={O_GOP_Y}
           type="text"
-          placeholder={CHU.viDuCanThiep}
+          placeholder={daXong ? CHU.viDuVietThem : CHU.viDuCanThiep}
           aria-label={CHU.canThiep}
           aria-describedby="vi-sao-can-thiep"
           // Câu đầy đủ vào `title` vì ở ca dùng được nó đã bị ẩn khỏi màn hình — xem chú
@@ -106,15 +149,26 @@ export function OCanThiep({
           readOnly={!bat}
         />
         <button type="button" onClick={gui} disabled={!bat || dangGui || !chu.trim()}>
-          {dangGui ? CHU.dangGui : dangChay ? CHU.tiemVaoLuotDangChay : CHU.danhThucLuotMoi}
+          {dangGui
+            ? CHU.dangGui
+            : daXong
+              ? CHU.vietThemTheoHuong
+              : dangChay
+                ? CHU.tiemVaoLuotDangChay
+                : CHU.danhThucLuotMoi}
           <BieuTuong ten="mui" co={14} />
         </button>
       </div>
 
       {loi ? <p className="loiDoc">{loi}</p> : null}
+      {giai && !daLam ? <p className="steerhint">{giai}</p> : null}
       {daLam ? (
         <p className="steerhint">
-          {daLam === 'steer' ? GIAI_THICH.daTiemVaoLuot : GIAI_THICH.daDanhThuc}
+          {daLam === 'steer'
+            ? GIAI_THICH.daTiemVaoLuot
+            : daLam === 'reopen'
+              ? GIAI_THICH.daMoLaiVietThem
+              : GIAI_THICH.daDanhThuc}
         </p>
       ) : null}
 

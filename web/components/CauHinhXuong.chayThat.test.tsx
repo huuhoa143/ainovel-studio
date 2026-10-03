@@ -112,12 +112,24 @@ test('Kiểu văn và Độ suy luận hiện nhãn tiếng Việt, giá trị g
   expect(LUU.mock.calls[0]![0]).toEqual({ style: 'romance', reasoning_effort: 'xhigh' });
 });
 
-test('Áp dụng ngay xuôi thì câu báo đổi sang trạng thái mới', async () => {
+test('Áp dụng ngay xuôi thì dải lệch biến mất, chỉ còn một dòng xác nhận', async () => {
+  DU_HIEN = { ...DU_HIEN, engine_stale: ['dong-ho-qua-lac'] };
   render(<CauHinhXuong />);
   const nut = await screen.findByRole('button', { name: 'Áp dụng ngay cho dong-ho-qua-lac' });
-  expect(document.body.textContent).toMatch(/vẫn dùng thiết lập lúc mở/);
+  expect(document.body.textContent).toMatch(/vẫn chạy model cũ/);
+  // Server áp xong thì phiên khớp tệp — lần đọc lại không còn cuốn này trong engine_stale.
+  DU_HIEN = { ...DU_HIEN, engine_stale: [] };
   fireEvent.click(nut);
   await waitFor(() => expect(document.body.textContent).toMatch(/dong-ho-qua-lac đang dùng thiết lập mới từ \d/));
-  expect(document.body.textContent).not.toMatch(/vẫn dùng thiết lập lúc mở/);
+  expect(document.body.textContent).not.toMatch(/vẫn chạy model cũ/);
+  expect(screen.queryByRole('button', { name: /Áp dụng ngay/ })).toBeNull();
   expect(AP_DUNG).toHaveBeenCalledWith('dong-ho-qua-lac');
+});
+
+test('phiên đang mở mà khớp tệp thì không có dải "áp dụng ngay"', async () => {
+  DU_HIEN = { ...DU_HIEN, engine_stale: [] };
+  render(<CauHinhXuong />);
+  await screen.findByLabelText('Độ suy luận mặc định');
+  expect(screen.queryByRole('button', { name: /Áp dụng ngay/ })).toBeNull();
+  expect(document.body.textContent).not.toMatch(/vẫn chạy model cũ/);
 });

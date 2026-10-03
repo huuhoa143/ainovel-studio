@@ -76,7 +76,9 @@ type observer struct {
 	// "用户手动暂停"事件重复）。真实异常（非 cancel）仍照常上报。
 	aborting atomic.Bool
 
-	streamThinking      bool
+	streamThinking bool
+	// streamLoiNoi: lượt stream hiện tại là lời model tự nói (đã phát tiêu đề) — xem emitLoiNoi.
+	streamLoiNoi        bool
 	lastThinkingByAgent map[string]string          // agent → 最近的累积 thinking 文本（用于提取增量 delta）
 	dispatchStarts      map[string]*activeCall     // dispatched agent → 进行中的 DISPATCH 调用
 	toolStarts          map[string]*activeCall     // agent → 进行中的 TOOL 调用
@@ -97,9 +99,12 @@ type agentExtractor struct {
 }
 
 type agentState struct {
-	name    string
-	state   string
-	tool    string
+	name  string
+	state string
+	tool  string
+	// chapter là tham số `chapter` của lượt gọi công cụ đang chạy (read_chapter, edit_chapter,
+	// draft_chapter…); 0 khi công cụ không nói tới chương nào.
+	chapter int
 	summary string
 	turn    int
 	context AgentContextSnapshot
@@ -136,7 +141,7 @@ func (o *observer) dispatchStart(agent, task string) {
 	summary := dispatchSummary(agent, task)
 	o.updateAgent(agent, func(a *agentState) {
 		a.state = "working"
-		a.tool = ""
+		a.tool, a.chapter = "", 0
 		a.summary = fmt.Sprintf("engine → %s", summary)
 	})
 	id := nextEventID()
@@ -156,7 +161,7 @@ func (o *observer) dispatchStart(agent, task string) {
 func (o *observer) dispatchFinish(agent string, failed bool) {
 	o.updateAgent(agent, func(a *agentState) {
 		a.state = "idle"
-		a.tool = ""
+		a.tool, a.chapter = "", 0
 	})
 	delete(o.lastThinkingByAgent, agent)
 	if call, ok := o.toolStarts[agent]; ok {
@@ -182,7 +187,7 @@ func (o *observer) finalize() {
 	defer o.agentMu.Unlock()
 	for _, a := range o.agents {
 		a.state = "idle"
-		a.tool = ""
+		a.tool, a.chapter = "", 0
 	}
 }
 
@@ -256,6 +261,7 @@ func (o *observer) agentSnapshots() []AgentSnapshot {
 			State:     a.state,
 			Summary:   a.summary,
 			Tool:      a.tool,
+			Chapter:   a.chapter,
 			Turn:      a.turn,
 			Context:   a.context,
 			UpdatedAt: a.updated,

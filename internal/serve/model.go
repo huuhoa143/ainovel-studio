@@ -52,6 +52,9 @@ type Book struct {
 	// EngineOpen do handleWorkshop đặt (cần s.may, một trường server — bookFrom/scanWorkshop
 	// chỉ biết store), cùng lý lẽ với Capabilities.Steer ở handleStudio.
 	EngineOpen bool `json:"engine_open"`
+	// Stop là lần dừng gần nhất của phiên đang mở (cùng phép chiếu với snapshot `stop`). Tủ
+	// truyện cần nó: một cuốn engine tự dừng vì lỗi là việc cần người, không phải "đang nghỉ".
+	Stop *LanDung `json:"stop,omitempty"`
 }
 
 // Workshop là toàn cảnh xưởng: mọi tác phẩm tìm thấy dưới thư mục gốc.
@@ -281,6 +284,20 @@ type Snapshot struct {
 	// được: `activity` suy từ mốc checkpoint trong store, nên nó còn nói "running" vài phút
 	// sau khi engine đã dừng — xem chú thích của `mayDangChay` trong web/lib/song.ts.
 	Runtime string `json:"runtime"`
+
+	// Stop là lần dừng gần nhất của phiên đang mở — ai dừng, vì sao, lỗi model cuối cùng.
+	// Vắng khi engine đóng, đang chạy lại, hoặc chưa dừng lần nào. Xem host/lan_dung.go.
+	Stop *LanDung `json:"stop,omitempty"`
+}
+
+// LanDung là host.StopNote chiếu ra hợp đồng.
+type LanDung struct {
+	At        string `json:"at"`
+	Kind      string `json:"kind"` // user | gate | budget | stuck
+	Reason    string `json:"reason"`
+	LastError string `json:"last_error,omitempty"`
+	// LastErrorAgent là vai gặp lỗi ấy (writer, architect_long…).
+	LastErrorAgent string `json:"last_error_agent,omitempty"`
 }
 
 // TienDo là chế độ đi tiếp và cửa nghiệm thu.
@@ -308,9 +325,12 @@ type Vai struct {
 	Role  string `json:"role"`
 	State string `json:"state"`
 	Tool  string `json:"tool,omitempty"`
-	Turn  int    `json:"turn,omitempty"`
-	Task  string `json:"task,omitempty"`
-	Depth int    `json:"depth"`
+	// Chapter là chương mà lượt gọi công cụ đang chạy nói tới (read_chapter(1), edit_chapter(1)…).
+	// Thẻ "đang làm" ưu tiên nó hơn "chương kế tiếp" — xem chuongTuThamSo ở host.
+	Chapter int    `json:"chapter,omitempty"`
+	Turn    int    `json:"turn,omitempty"`
+	Task    string `json:"task,omitempty"`
+	Depth   int    `json:"depth"`
 }
 
 // Selection là chi tiết của chương đang được chọn, cho panel inspector.

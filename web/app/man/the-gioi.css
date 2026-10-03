@@ -324,12 +324,20 @@
   display: block;
   max-width: none;
 }
+/* `minmax(0, 1fr)` chứ KHÔNG để cột tự co giãn theo nội dung.
+   Lưới một cột mà không khai cột thì cột ấy là `auto`, và `auto` lấy theo
+   max-content của mục rộng nhất — cộng với `min-width: auto` mặc định của một
+   `li`, không gì ép nó hẹp lại được. ĐO ĐƯỢC trên truyện thật: mở chi tiết một
+   chương làm danh sách rộng 2023px trong một ô 1206px, tức tràn 800px ra ngoài
+   phải màn hình, và `overflow-x: hidden` của thẻ bọc cắt luôn phần tràn —
+   người dùng mất hẳn nửa bảng tóm tắt mà không có thanh cuộn nào báo. */
 .tgDanY .cayCung,
 .tgDanY .cayChuong {
   margin: 0;
   padding: 0;
   border-left: 0;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 1px;
 }
 
@@ -481,9 +489,19 @@
   padding: 4px 6px 12px 82px;
 }
 
-/* Chương: một dòng gọn, bấm mở chi tiết. Không mũi tên — cả dòng là vùng bấm. */
+/* Chương: một dòng gọn, bấm mở chi tiết. Không mũi tên — cả dòng là vùng bấm.
+
+   Lề âm BÙ cho `padding-left` của thân Tập/Hồi (`.tgTapThan`/`.tgCungThan`, 82px):
+   chương nằm sâu hai cấp nhưng số chương phải thẳng hàng với mép nội dung, không
+   thụt vào theo cấp. Truyện KHÔNG phân tầng (`.tgPhang`) không có hai thân ấy nên
+   không có gì để bù — lề âm lúc đó kéo cột số chương ra NGOÀI mép trái của `main`,
+   và `overflow-x: hidden` của thẻ bọc cắt mất nó: đo được trên truyện thật, cả ba
+   chương mất số, chỉ còn chấm trạng thái. */
 .tgDanY .cayChuong {
   margin-left: -52px;
+}
+.tgDanY .cayChuong.tgPhang {
+  margin-left: 0;
 }
 .tgDanY .cayChuong > li > .nhanhdau,
 .tgDanY .tgChuongGap > summary {
@@ -686,8 +704,11 @@
 .tgNhanVat .nguoidau::before {
   content: none;
 }
+/* Ghim lên đỉnh: tên giờ xuống dòng được, và căn giữa thì vòng chữ tụt xuống theo
+   độ dài tên — mỗi thẻ trong lưới một độ cao khác nhau. */
 .tgNhanVat .nguoidau .tgVong {
   grid-row: 1 / span 2;
+  align-self: start;
 }
 .tgNhanVat .tgNvTen {
   display: flex;
@@ -695,25 +716,34 @@
   gap: 8px;
   min-width: 0;
 }
+/* Tên XUỐNG DÒNG, không cắt. Tên là thứ để nhận ra nhân vật, và cắt nó là cắt
+   đúng phần phân biệt: đo được trên truyện thật, "Đại úy (khách q…" ở lưới bốn
+   cột — phần bị mất chính là phần nói đây là ai. */
+.tgNhanVat .tgNvTen {
+  align-items: flex-start;
+}
 .tgNhanVat .tgNvTen .ten {
   font: 600 14px/1.35 var(--ui);
   color: var(--ink);
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 .tgNhanVat .tgNvTen .vien {
   flex: none;
 }
+/* Vai: tối đa HAI dòng. Một dòng cắt mất nửa câu ở mọi thẻ của lưới bốn cột
+   ("Người để lại đồng hồ; xuất hiện tr…"); hai dòng đủ cho vai thường gặp, và câu
+   đầy đủ vẫn nằm ở bảng chi tiết khi bấm thẻ. */
 .tgNhanVat .nguoidau .vai {
   grid-column: 2;
   font: 400 12.5px/1.45 var(--ui);
   color: var(--ink-2);
   min-width: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .tgNhanVat .nguoidau .biDanh {
   grid-column: 1 / -1;

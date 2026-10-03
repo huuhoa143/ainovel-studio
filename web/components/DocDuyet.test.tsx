@@ -97,7 +97,10 @@ test('vấn đề nghiêm trọng đứng trước, dẫn chứng là trích d�
 test('chương đang viết chưa có nhận xét thì nói vì sao', () => {
   render(
     <KiemDinh
-      snapshot={snap({ chapters: [{ chapter: 4, stage: 'drafting' }] })}
+      snapshot={snap({
+        chapters: [{ chapter: 4, stage: 'drafting' }],
+        book: { ...snap({}).book, completed_chapters: 3, total_chapters: 30 },
+      })}
       tacPham="b"
       choGhi
       dangChay
@@ -185,6 +188,21 @@ test('phím ←/→ chuyển chương theo danh sách, bỏ qua khi đang gõ tr
   onChon.mockClear();
   fireEvent.keyDown(screen.getByRole('searchbox'), { key: 'ArrowRight' });
   expect(onChon).not.toHaveBeenCalled();
+});
+
+test('vị trí và chương sau chỉ tính chương ĐỌC ĐƯỢC — chương mới có kế hoạch không được đếm', async () => {
+  const onChon = vi.fn();
+  const s = snap({
+    chapters: [
+      { chapter: 1, stage: 'done', title: 'Tên 1' },
+      { chapter: 2, stage: 'pending', title: 'Tên 2' },
+    ],
+  }) as Snapshot;
+  render(<DocTruyen snapshot={s} tacPham="b" chuongChon={1} onChonChuong={onChon} />);
+  await screen.findByRole('heading', { name: 'Chương 1 · Tên 1' });
+  expect(screen.getByText(DOC_DUYET.viTri(1, 1))).toBeDefined();
+  fireEvent.keyDown(window, { key: 'ArrowRight' });
+  expect(onChon).not.toHaveBeenCalledWith(2);
 });
 
 test('dòng tiêu đề lặp ở đầu văn bị bỏ', async () => {

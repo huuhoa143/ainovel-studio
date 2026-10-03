@@ -80,3 +80,15 @@ test('runtime rỗng hoặc không biết thì KHÔNG tự suy là đã dừng',
   expect(trangThaiCua({ mode: 'review', hold: false }, '').dangCho).toBe(false);
   expect(trangThaiCua(null, 'paused').dangCho).toBe(false);
 });
+
+test('chế độ từng chương: bạn tự dừng hay engine tự dừng KHÔNG phải cửa duyệt', () => {
+  const adv = { mode: 'review', hold: false } as const;
+  expect(trangThaiCua(adv, 'paused', { kind: 'gate' }).dangCho).toBe(true);
+  expect(trangThaiCua(adv, 'paused', { kind: 'user' }).dangCho).toBe(false);
+  expect(trangThaiCua(adv, 'paused', { kind: 'stuck' }).dangCho).toBe(false);
+  expect(trangThaiCua(adv, 'paused', { kind: 'budget' }).dangCho).toBe(false);
+  // Chưa dừng lần nào trong phiên: giữ phép suy cũ.
+  expect(trangThaiCua(adv, 'paused').dangCho).toBe(true);
+  // Hold do can thiệp ký: là cửa bất kể lý do dừng.
+  expect(trangThaiCua({ ...adv, hold: true }, 'running', { kind: 'user' }).dangCho).toBe(true);
+});

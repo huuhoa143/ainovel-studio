@@ -1,11 +1,11 @@
 package host
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
-	"encoding/json"
 	"github.com/voocel/agentcore"
 	"github.com/huuhoa143/ainovel-studio/internal/i18n"
 )
@@ -35,6 +35,7 @@ func (o *observer) handleToolUpdate(ev agentcore.Event) {
 				a.state = "working"
 				a.tool = ev.Progress.Tool
 				a.summary = fmt.Sprintf("%s → %s", ev.Progress.Agent, toolName)
+				a.chapter = chuongTuThamSo(ev.Progress.Args)
 			})
 			break
 		}
@@ -57,6 +58,7 @@ func (o *observer) handleToolUpdate(ev agentcore.Event) {
 			a.state = "working"
 			a.tool = ev.Progress.Tool
 			a.summary = fmt.Sprintf("%s → %s", ev.Progress.Agent, toolName)
+			a.chapter = chuongTuThamSo(ev.Progress.Args)
 		})
 		o.emitFallbackStreamHeader(ev.Progress.Tool)
 		o.emitNonStreamToolContent(ev.Progress.Tool, ev.Progress.Args)
@@ -388,4 +390,17 @@ func (o *observer) emitNonStreamToolContent(tool string, args []byte) {
 		o.streamClear()
 		o.emitStreamDelta(emitted, false)
 	}
+}
+
+// chuongTuThamSo đọc tham số `chapter` của một lượt gọi công cụ. Thẻ "đang làm" của studio cần
+// nó: khi Biên tập viên sửa lại chương 1 theo góp ý, "chương kế tiếp" là 2 nhưng việc thật đang
+// làm là chương 1 — đo được trên truyện thật, thẻ ghi "Chương 2 · Ba giây" suốt lượt sửa.
+func chuongTuThamSo(args []byte) int {
+	var a struct {
+		Chapter int `json:"chapter"`
+	}
+	if len(args) == 0 || json.Unmarshal(args, &a) != nil {
+		return 0
+	}
+	return a.Chapter
 }

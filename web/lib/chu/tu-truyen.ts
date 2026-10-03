@@ -83,9 +83,11 @@ export const TU_TRUYEN = {
   tomTatViec: (n: number) => (n === 1 ? 'một truyện có việc cần bạn.' : `${n} truyện có việc cần bạn.`),
   tomTatKhongViec: 'chưa có việc nào cần bạn.',
   canBanDe: 'Cần bạn xem',
-  canBanPhu: 'Những truyện bạn đã hẹn dừng hoặc còn góp ý chưa xử lý.',
+  canBanPhu: 'Những truyện tự dừng vì lỗi, bạn đã hẹn dừng, hoặc còn góp ý chưa xử lý.',
   dangVietChuong: (n: number) => `Đang viết chương ${n}`,
   tamNghi: 'Đang nghỉ',
+  tuDung: 'Đã tự dừng',
+  tuDungXemLyDo: 'Tự dừng vì lỗi — mở để xem',
   hoanThanh: 'Hoàn thành',
   chuongTren: (tong: string) => `/ ${tong} chương`,
   chuong: 'chương',
@@ -110,7 +112,7 @@ export const TU_TRUYEN = {
   chuaCoTenThuMuc: 'cần đặt tên thư mục',
   chuaRoY: 'Ý còn mơ hồ?',
   banTruoc: 'Bàn ý tưởng với AI trước',
-  buocLau: ['10–20 giây', '1–2 phút', 'liên tục'],
+  buocLau: ['10–30 giây', '1–4 phút', 'liên tục'],
 
   /* ── Bàn ý tưởng ── */
   cdChaoDe: 'Kể ý tưởng của bạn, dù còn mơ hồ',

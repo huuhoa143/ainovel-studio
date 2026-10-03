@@ -5,7 +5,7 @@
  * đọc được và thử được riêng.
  */
 
-import type { ChapterMark, LaneBlock, MarkState } from './types';
+import type { LaneBlock, VachChuong, VachHien } from './types';
 
 export interface KhoiDaDo extends LaneBlock {
   /** Trọng số flex-grow. Luôn > 0. */
@@ -58,7 +58,7 @@ export function hoVach(soChuong: number): number {
 export interface DaiVach {
   from: number;
   to: number;
-  state: MarkState;
+  state: VachHien;
   /** Số chương trong dải — cũng là trọng số độ rộng. */
   len: number;
   /** Dải này là MỘT chương vừa chốt, tách ra để hoạt ảnh họ 09 chạy đúng chỗ. */
@@ -79,7 +79,7 @@ export interface DaiVach {
  * Lane thưa (còn khoảng hở) vẫn vẽ từng chương để đếm được bằng mắt.
  */
 export function nhomVach(
-  marks: ChapterMark[],
+  marks: VachChuong[],
   /**
    * Chương VỪA chốt — mỗi chương trong tập này được TÁCH thành một dải riêng.
    *
@@ -132,7 +132,7 @@ export function chuongTaiDiem(d: DaiVach, ti: number): number {
  * Cũng không phải `completed_chapters`: một chương bị trả về viết lại nằm SAU
  * chương đã xong cuối cùng, và nó chính là chỗ cần nhìn.
  */
-export function bienSanXuat(marks: ChapterMark[]): number {
+export function bienSanXuat(marks: VachChuong[]): number {
   let bien = 1;
   for (const m of marks) {
     if (m.state !== 'pending' && m.chapter > bien) bien = m.chapter;
@@ -209,7 +209,7 @@ export function cuaSoTruc(tong: number, bien: number, beRongLane: number): CuaSo
 }
 
 /** Các vạch nằm trong cửa sổ. */
-export function vachTrongCuaSo(marks: ChapterMark[], cs: CuaSoTruc): ChapterMark[] {
+export function vachTrongCuaSo(marks: VachChuong[], cs: CuaSoTruc): VachChuong[] {
   return marks.filter((m) => m.chapter >= cs.from && m.chapter <= cs.to);
 }
 
@@ -221,11 +221,14 @@ export function vachTrongCuaSo(marks: ChapterMark[], cs: CuaSoTruc): ChapterMark
  * xem đã phải tránh. `pending` không tính — chương chưa tới nằm ngoài tầm mắt là
  * chuyện bình thường, chương bị trả về thì không.
  */
-export function vieccTonNgoaiCuaSo(marks: ChapterMark[], cs: CuaSoTruc): number {
+export function vieccTonNgoaiCuaSo(marks: VachChuong[], cs: CuaSoTruc): number {
   return marks.filter(
     (m) =>
       (m.chapter < cs.from || m.chapter > cs.to) &&
-      (m.state === 'rewrite' || m.state === 'running' || m.state === 'gate'),
+      (m.state === 'rewrite' ||
+        m.state === 'running' ||
+        m.state === 'vietDo' ||
+        m.state === 'gate'),
   ).length;
 }
 

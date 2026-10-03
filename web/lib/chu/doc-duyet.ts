@@ -85,7 +85,9 @@ export const DOC_DUYET = {
 
 /** Biên tập viên chấm định kỳ — xem `lib/nhanXetDinhKy.ts`. */
 export const NHAN_XET_DINH_KY = {
-  chuKy: (n: number) => `Biên tập viên chấm định kỳ, cứ ${n} chương một lần.`,
+  chuKy: (n: number) => `Biên tập viên chấm định kỳ, cứ ${n} chương một lần, và một lần cuối khi viết xong.`,
+  chamCuoi: (tong: number) =>
+    `Truyện ${tong} chương: Biên tập viên chấm toàn truyện một lần, ngay sau chương cuối.`,
   chuaToiLuot: 'Chương này chưa tới lượt chấm.',
   truyenNgan: 'Truyện ngắn này kết thúc trước lượt chấm đầu tiên, nên chưa có nhận xét nào.',
   cuoiHoi: 'Biên tập viên chấm ở cuối mỗi hồi. Chương này chưa tới lượt chấm.',

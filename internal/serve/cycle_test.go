@@ -135,7 +135,9 @@ func TestThroughput(t *testing.T) {
 	}{
 		{"bình thường", 47, 6*time.Hour + 12*time.Minute, true, 47 / 6.2},
 		{"chưa xong chương nào", 0, 3 * time.Hour, false, 0},
-		{"phiên quá ngắn thì con số vô nghĩa", 2, 20 * time.Second, false, 0},
+		{"phiên quá ngắn thì con số vô nghĩa", 5, 20 * time.Second, false, 0},
+		{"mới một hai chương thì chưa phải nhịp", 2, time.Hour, false, 0},
+		{"đủ ba chương thì đo", 3, time.Hour, true, 3},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -226,5 +228,36 @@ func TestLatestChapterCycles_ChuongNhapLienNhauKhongDo(t *testing.T) {
 	}
 	if c := latestChapterCycles(cps, time.Time{})[2]; c.Measurable {
 		t.Errorf("hai lần chốt cách 5ms không phải là thời lượng viết, được %v", c.Duration())
+	}
+}
+
+// Thời gian viết là thời gian máy LÀM, không phải đầu → cuối.
+//
+// Ca thật đã đo: ba bước liền nhau vài phút, rồi chương nằm chờ duyệt 55 phút,
+// rồi viết tiếp. runSpan nói 1 giờ 11 phút; máy chỉ làm khoảng 16 phút.
+func TestThoiGianLamBoKhoangNghi(t *testing.T) {
+	t0 := time.Date(2026, 10, 3, 9, 54, 0, 0, time.UTC)
+	at := func(m float64) domain.Checkpoint {
+		return domain.Checkpoint{OccurredAt: t0.Add(time.Duration(m * float64(time.Minute)))}
+	}
+	// Không theo thứ tự: hàm phải tự xếp, store không hứa thứ tự.
+	cps := []domain.Checkpoint{at(6), at(0), at(3), at(61), at(63), at(70)}
+
+	lam, ok := thoiGianLam(cps)
+	if !ok {
+		t.Fatal("phải đo được")
+	}
+	// 0→3→6 = 6 phút; 6→61 là chờ duyệt (bỏ); 61→63→70 = 9 phút.
+	if lam != 15*time.Minute {
+		t.Errorf("thời gian làm = %v, muốn 15m (khoảng chờ duyệt 55 phút phải bị bỏ)", lam)
+	}
+
+	// Một bước dài nhưng có thật (25 phút < ngưỡng nghỉ) vẫn được tính.
+	if lam, _ := thoiGianLam([]domain.Checkpoint{at(0), at(25)}); lam != 25*time.Minute {
+		t.Errorf("bước 25 phút bị coi là nghỉ: %v", lam)
+	}
+
+	if _, ok := thoiGianLam(nil); ok {
+		t.Error("không có checkpoint thì không đo được")
 	}
 }

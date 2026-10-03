@@ -76,7 +76,7 @@ export function BangChuong({
       </thead>
       <tbody>
         {rows.map((r) => {
-          const tt = trangThaiDong(r);
+          const tt = trangThaiDong(r, dangChay);
           const chon = r.chapter === chuongChon;
           const tu = soTu(r.words);
           const tl = thoiLuong(r.duration_ms);

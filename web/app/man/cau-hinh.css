@@ -68,6 +68,10 @@
   background: color-mix(in oklab, var(--amber) 9%, var(--panel));
   border-color: color-mix(in oklab, var(--amber) 32%, var(--line));
 }
+#cau-hinh .chBao.teal {
+  background: color-mix(in oklab, var(--teal) 7%, var(--panel));
+  border-color: color-mix(in oklab, var(--teal) 28%, var(--line));
+}
 #cau-hinh .chBao.red {
   flex-direction: row;
   align-items: center;

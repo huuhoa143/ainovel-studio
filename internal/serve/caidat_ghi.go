@@ -163,7 +163,31 @@ func (s *server) handleDocCauHinh(w http.ResponseWriter, r *http.Request) {
 		"providers":        ncc,
 		"presets":          mauNhaCungCap(),
 		"engine_open":      dangMo,
+		// Phiên nào đang chạy thiết lập model KHÁC tệp — chỉ những phiên này cần "áp dụng ngay".
+		"engine_stale": s.cuonCauHinhCu(),
 	})
+}
+
+// cuonCauHinhCu: các cuốn đang mở mà phần model của phiên lệch tệp cấu hình. Đọc lỗi thì tính
+// là lệch — nói thừa một dải cảnh báo còn hơn giấu một phiên đang chạy model cũ.
+func (s *server) cuonCauHinhCu() []string {
+	cu := []string{}
+	if s.may == nil {
+		return cu
+	}
+	s.may.mu.Lock()
+	ds := make([]*phienMay, 0, len(s.may.dang))
+	for _, p := range s.may.dang {
+		ds = append(ds, p)
+	}
+	s.may.mu.Unlock()
+	for _, p := range ds {
+		if khop, err := p.eng.ModelConfigInSync(); err != nil || !khop {
+			cu = append(cu, p.id)
+		}
+	}
+	sort.Strings(cu)
+	return cu
 }
 
 func (s *server) cuonDangMo() []string {

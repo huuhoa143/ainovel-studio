@@ -44,10 +44,91 @@ export const SO_LUOT_GIU = 3;
  * Lượt "văn" — đủ dài để là chữ của chương, không phải tham số công cụ. Sau lượt viết nháp,
  * engine phát liền vài lượt ngắn (`✻ check_consistency`, `✻ commit_chapter`, `plan` của
  * chương sau, mỗi lượt vài trăm ký tự). Chỉ đếm lượt thì ba lượt ngắn đó đẩy chương vừa viết
- * ra khỏi bộ đệm sau vài giây — khu "AI đang viết" còn lại toàn tham số. Cả hai loại lượt
- * đều mở bằng tiêu đề "✻ …", nên phân biệt bằng độ dài chứ không bằng ký hiệu.
+ * ra khỏi bộ đệm sau vài giây — khu "AI đang viết" còn lại toàn tham số. Độ dài chỉ lọc lời
+ * nói ngắn của model; lượt công cụ dài (tham số kế hoạch) bị loại bằng `loaiLuot`, không bằng
+ * độ dài.
  */
 export const DO_DAI_LUOT_VAN = 1500;
+
+/**
+ * Dấu ngăn đoạn SUY NGHĨ của model với văn nó viết ra.
+ *
+ * Engine đặt dấu này (`internal/utils.ThinkingSep`), và nó là CÔNG TẮC chứ không phải nhãn:
+ * đoạn sau dấu thứ nhất là suy nghĩ, sau dấu thứ hai là văn trở lại, cứ thế đổi vai. TUI đã
+ * đọc dấu này từ đầu (`panels_activity.go`) và vẽ suy nghĩ bằng chữ mờ nghiêng.
+ *
+ * Web thì CHƯA, và cái lỗ đó đo được trên truyện thật: `\x02` không vẽ ra ký tự nào, nên khu
+ * "Đoạn viết gần nhất" nối thẳng "Let me re-check the consistency, then commit…" vào cuối
+ * chương bằng ĐÚNG kiểu chữ serif khổ đọc của văn truyện. Người đọc không có cách nào biết
+ * câu đó không phải của truyện.
+ */
+export const DAU_NGHI = '\x02';
+
+/** Một đoạn trong lượt: văn của truyện, hay tiếng model tự nhủ. */
+export interface DoanVan {
+  nghi: boolean;
+  chu: string;
+}
+
+/**
+ * Tách một lượt thành các đoạn theo `DAU_NGHI`. Đoạn lẻ là suy nghĩ — cùng luật với TUI.
+ *
+ * Đoạn rỗng bị bỏ: hai dấu liền nhau là ca hợp lệ (model mở rồi đóng suy nghĩ mà không nói
+ * gì), và một đoạn rỗng vẽ ra là một khối trống không nói gì cả.
+ */
+export function tachNghi(chu: string): DoanVan[] {
+  if (!chu.includes(DAU_NGHI)) return chu === '' ? [] : [{ nghi: false, chu }];
+  return chu
+    .split(DAU_NGHI)
+    .map((c, i) => ({ nghi: i % 2 === 1, chu: c }))
+    .filter((d) => d.chu !== '');
+}
+
+/**
+ * Chỉ phần VĂN của lượt, bỏ hết suy nghĩ.
+ *
+ * Mọi phép đoán về lượt — nó là văn hay bước công cụ, nó đủ dài để giữ lại chưa — phải hỏi
+ * hàm này chứ không hỏi `l.chu` thô. Một lượt mở bằng suy nghĩ thì ký tự đầu của `l.chu` là
+ * `\x02`, không phải `✻`, nên phép thử thô coi cả lượt công cụ ấy là văn. Và một lượt chỉ
+ * toàn suy nghĩ dài 2000 ký tự sẽ chiếm chỗ của bản nháp thật trong bộ đệm ba lượt.
+ */
+export function vanThuan(chu: string): string {
+  return tachNghi(chu)
+    .filter((d) => !d.nghi)
+    .map((d) => d.chu)
+    .join('');
+}
+
+/**
+ * Lượt này là VĂN (chữ của truyện) hay một BƯỚC CÔNG CỤ — MỘT phép phân loại cho cả bộ đệm và
+ * khu hiển thị.
+ *
+ * Dựa trên dấu engine tự đặt, không đoán theo hình: mọi lượt công cụ đều mở bằng tiêu đề "✻ …"
+ * (bảng `toolDisplays` và `streamHeaderFallback` ở internal/host), còn `draft_chapter` — đường
+ * duy nhất chở văn truyện — phát trần nội dung, không tiêu đề. Đoán theo hình thì trượt: tham
+ * số `plan_chapter` được engine vẽ thành các dòng `characters: / event: / time:`, không có dấu
+ * ngoặc kép nào, nên phép thử JSON cũ coi nó là văn và in bằng chữ serif khổ đọc — đo được
+ * trên truyện thật, khu "Đoạn viết gần nhất" chỉ toàn tham số kế hoạch.
+ */
+export function loaiLuot(chu: string): 'van' | 'congCu' {
+  const dau = vanThuan(chu).trimStart();
+  if (dau.startsWith('✻')) return 'congCu';
+  const k = dau.slice(0, 1);
+  return k === '{' || k === '[' ? 'congCu' : 'van';
+}
+
+/** Tiêu đề và thân của một lượt công cụ: "✻ Lên kế hoạch chương\n…" → ["Lên kế hoạch chương", "…"]. */
+export function tachCongCu(chu: string): { tieuDe: string; than: string } {
+  const dau = vanThuan(chu).trimStart();
+  if (!dau.startsWith('✻')) return { tieuDe: '', than: chu };
+  const xuong = dau.indexOf('\n');
+  const dong = xuong < 0 ? dau : dau.slice(0, xuong);
+  return { tieuDe: dong.replace(/^✻\s*/, '').trim(), than: xuong < 0 ? '' : dau.slice(xuong + 1) };
+}
+
+/** Lượt văn đủ dài để giữ lại — xem `DO_DAI_LUOT_VAN`. */
+const laVanDai = (l: LuotVan) =>
+  loaiLuot(l.chu) === 'van' && vanThuan(l.chu).length >= DO_DAI_LUOT_VAN;
 
 /** Trần tổng byte của cả bộ đệm. Cùng con số với trần của server, vì cùng một lý do. */
 export const CO_TOI_DA = 512 * 1024;
@@ -117,9 +198,9 @@ function cat(bd: BoDemVan): BoDemVan {
   if (luot.length > SO_LUOT_GIU) {
     const giu = luot.slice(luot.length - SO_LUOT_GIU);
     // Lượt văn gần nhất không bị đẩy ra bởi các lượt công cụ ngắn tới sau nó.
-    if (!giu.some((l) => l.chu.length >= DO_DAI_LUOT_VAN)) {
+    if (!giu.some(laVanDai)) {
       const bo = luot.slice(0, luot.length - SO_LUOT_GIU);
-      const van = [...bo].reverse().find((l) => l.chu.length >= DO_DAI_LUOT_VAN);
+      const van = [...bo].reverse().find(laVanDai);
       luot = van ? [van, ...giu] : giu;
     } else {
       luot = giu;
@@ -135,8 +216,23 @@ function cat(bd: BoDemVan): BoDemVan {
   // Chỉ còn một lượt mà vẫn quá trần: cắt từ ĐẦU chữ của nó. Phần cuối là phần đang chảy.
   const cuoi = luot[luot.length - 1];
   if (luot.length === 1 && cuoi && cuoi.chu.length > CO_TOI_DA) {
-    luot = [{ ...cuoi, chu: cuoi.chu.slice(cuoi.chu.length - CO_TOI_DA) }];
+    luot = [{ ...cuoi, chu: catDau(cuoi.chu, CO_TOI_DA) }];
   }
 
   return luot === bd.luot ? bd : { luot, idKe: bd.idKe };
+}
+
+/**
+ * Cắt `n` ký tự cuối của một lượt, GIỮ NGUYÊN vai của từng đoạn.
+ *
+ * `DAU_NGHI` là công tắc, nên cắt đầu có thể nuốt mất dấu MỞ của một đoạn suy nghĩ và để lại
+ * dấu ĐÓNG. Từ đó mọi đoạn phía sau đảo vai: văn bị vẽ thành suy nghĩ và ngược lại — hỏng im
+ * lặng, vì chữ vẫn còn đủ. Đếm dấu trong phần bỏ đi; lẻ thì mở lại một dấu ở đầu phần giữ.
+ */
+export function catDau(chu: string, n: number): string {
+  if (chu.length <= n) return chu;
+  const giu = chu.slice(chu.length - n);
+  const bo = chu.slice(0, chu.length - n);
+  const le = (bo.split(DAU_NGHI).length - 1) % 2 === 1;
+  return le ? DAU_NGHI + giu : giu;
 }

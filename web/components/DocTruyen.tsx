@@ -8,6 +8,7 @@ import { cauChuaCoNhanXet } from '@/lib/nhanXetDinhKy';
 import { soTu } from '@/lib/dinhdang';
 import type { Khu } from '@/lib/khu';
 import { CHU, GIAI_THICH, kyTheoTone, nhanKetLuan, trangThaiDong } from '@/lib/nhan';
+import { mayDangChay } from '@/lib/song';
 import type { ChapterDetail, ChapterRow, Contract, Review, Snapshot } from '@/lib/types';
 
 import { BanDuyet } from './BanDuyet';
@@ -64,9 +65,13 @@ export function DocTruyen({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chuongChon]);
 
-  const i = hang.findIndex((r) => r.chapter === chuongChon);
-  const truoc = i > 0 ? hang[i - 1] : undefined;
-  const sau = i >= 0 && i < hang.length - 1 ? hang[i + 1] : undefined;
+  // Vị trí và chương trước/sau đi theo các chương ĐỌC ĐƯỢC (có bản viết), không theo mọi hàng:
+  // chương mới có kế hoạch cũng có hàng. Đo được trên truyện 3 chương — "Chương thứ 1 trên 2
+  // chương đã có" khi mới xong 1, và nút "chương sau" dẫn vào một chương chưa có chữ nào.
+  const docDuoc = hang.filter((r) => r.stage === 'done' || r.stage === 'rewrite');
+  const i = docDuoc.findIndex((r) => r.chapter === chuongChon);
+  const truoc = i > 0 ? docDuoc[i - 1] : undefined;
+  const sau = i >= 0 && i < docDuoc.length - 1 ? docDuoc[i + 1] : undefined;
 
   const chon = useCallback(
     (n: number) => {
@@ -170,7 +175,7 @@ export function DocTruyen({
           chuongChon={chuongChon}
           onChon={chon}
           nhan={CHU.chonChuongDeDoc}
-          phu={(r) => <PhuDong r={r} />}
+          phu={(r) => <PhuDong r={r} dangChay={mayDangChay(snapshot)} />}
         />
         {chuongChon ? (
           <ThanChuong
@@ -180,7 +185,7 @@ export function DocTruyen({
             doc={doc}
             sau={sau}
             onChon={chon}
-            viTri={i >= 0 ? DOC_DUYET.viTri(i + 1, hang.length) : undefined}
+            viTri={i >= 0 ? DOC_DUYET.viTri(i + 1, docDuoc.length) : undefined}
             chuaCoNhanXet={cauChuaCoNhanXet(snapshot)}
             onMoNhanXet={onChonKhu ? () => onChonKhu('kiem-dinh') : undefined}
           />
@@ -363,9 +368,9 @@ function DieuHuong({
 }
 
 /** Phần phải của một dòng mục lục: chỉ đánh dấu chương không ở trạng thái thường. */
-function PhuDong({ r }: { r: ChapterRow }) {
+function PhuDong({ r, dangChay }: { r: ChapterRow; dangChay: boolean }) {
   if (r.stage === 'done') return null;
-  const tt = trangThaiDong(r);
+  const tt = trangThaiDong(r, dangChay);
   return (
     <span className={`docCd ${tt.mau}`} title={tt.nhan}>
       <span aria-hidden="true">{tt.ky}</span>

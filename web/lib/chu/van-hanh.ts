@@ -26,6 +26,11 @@ export const CHU_VH = {
   /* chi phí — độ tin */
   soLieuDayDu: 'Số liệu đầy đủ',
   soLieuDayDuCau: 'Mọi lượt gọi model đều báo lại số liệu, nên các con số trên là đủ.',
+  chuaBietGia: 'Chưa biết giá',
+  chuaBietGiaPhu: (token: number) =>
+    `đã dùng ${new Intl.NumberFormat('vi-VN').format(token)} token — số token đủ, chỉ thiếu bảng giá`,
+  chuaBietGiaCau: (model: string) =>
+    `Chưa có bảng giá cho ${model}, nên số tiền hiện là 0 dù model đã được dùng. Số token vẫn đếm đủ; tiền thật xem ở trang của nhà cung cấp.`,
   thieuLuot: (n: number) => `Thiếu ${n} lượt`,
   hutDemNgan: (n: number) => (n > 0 ? `${n} lần hụt bộ đệm` : 'không lần hụt bộ đệm nào'),
   capNhatLuc: (t: string) => `cập nhật ${t}`,
@@ -37,6 +42,7 @@ export const CHU_VH = {
   /* nhóm AI */
   dangLam: 'Đang làm',
   chuaLam: 'Chưa làm việc',
+  daLam: 'Đã làm việc',
   chuongDaLam: 'chương đã làm',
   quyetDinh: 'quyết định',
   loi: 'lỗi',

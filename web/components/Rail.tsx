@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from 'react';
 
 import type { Khu } from '@/lib/khu';
 import type { Man } from '@/lib/man';
-import { CHU, GIAI_THICH, DH, TRANG_THAI_KET_NOI } from '@/lib/nhan';
+import { CHU, GIAI_THICH, DH, TRANG_THAI_KET_NOI, trangThaiDong } from '@/lib/nhan';
+import { mayDangChay } from '@/lib/song';
 import { DauHieu } from './DauHieu';
 
 import { BieuTuong } from './BieuTuong';
@@ -301,7 +302,15 @@ export function Rail({
                 onChonKhu={onChonKhu}
                 dem={banThao}
                 dauChot={dauChot}
-                chuGiai={dangSoan > 0 ? DH.dangDocChuong(banThao ?? 0, dangSoan) : DH.railDoc}
+                chuGiai={
+                  dangSoan > 0
+                    ? DH.dangDocChuong(
+                        banThao ?? 0,
+                        dangSoan,
+                        trangThaiDong({ stage: 'drafting' }, mayDangChay(snapshot)).nhan,
+                      )
+                    : DH.railDoc
+                }
               />
               <MucDi
                 nhan={DH.nhanXet}

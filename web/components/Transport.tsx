@@ -5,11 +5,11 @@ import { useEffect, useState } from 'react';
 import { layCauHinh } from '@/lib/api';
 import { LOI_LLM } from '@/lib/chu/tien-do';
 import { cachDay, daChay, donGia, nangSuat, phanTram, so, tongTien } from '@/lib/dinhdang';
-import { CHU, GIAI_THICH, TRANG_THAI_MAY_RUNTIME, giaiCongDoan, nhanVai, DH } from '@/lib/nhan';
+import { CHU, GIAI_THICH, TRANG_THAI_DUNG, TRANG_THAI_MAY_RUNTIME, giaiCongDoan, nhanVai, DH } from '@/lib/nhan';
 import { cauLoi, giaiDong, giaiLoi, phatHienKet } from '@/lib/loiLlm';
 import { nguCanhMoiNhat } from '@/lib/nguCanh';
-import { mayNaoDo } from '@/lib/song';
-import type { Activity, StreamEvent, Transport as TransportData } from '@/lib/types';
+import { buocHienTai, mayNaoDo, vaiHienTai } from '@/lib/song';
+import type { Activity, StreamEvent, Transport as TransportData, Vai } from '@/lib/types';
 import type { CongDoanSong } from '@/lib/useStudio';
 
 /**
@@ -33,8 +33,12 @@ export function Transport({
   trong,
   runtime,
   hoatDong,
+  dungVi,
+  agents,
   children,
 }: {
+  /** `Snapshot.agents` — cây vai engine tự khai, nguồn tươi nhất cho "ai đang làm". */
+  agents?: Vai[] | null;
   /**
    * Điều khiển dây chuyền, chèn từ ngoài.
    *
@@ -64,6 +68,11 @@ export function Transport({
    * Suy từ mốc checkpoint nên trễ ở cả hai chiều; đây là sự thật mạnh nhất còn lại khi không
    * có engine nào để hỏi. Việc chọn giữa hai nguồn nằm ở `mayNaoDo`, không ở đây.
    */
+  /**
+   * Engine đang dừng VÌ SAO, khi lý do ấy cần một tên riêng: đứng ở cửa duyệt, hay tự dừng vì
+   * lỗi. Trang tính bằng `trangThaiCua` / `lyDoTuDung` — cùng phép đo với thẻ "đang làm".
+   */
+  dungVi?: 'cho' | 'tuDung';
   hoatDong: Activity;
   /**
    * true khi xưởng đã đọc xong và KHÔNG có tác phẩm nào. Cần tách khỏi ca "chưa
@@ -94,24 +103,29 @@ export function Transport({
   // MỘT phép suy cho cả chữ, ký hiệu, nhịp đập và đầu đọc. Bốn kênh, một nguồn — xem lý do
   // đầy đủ (và cái giá đã trả) ở `mayNaoDo` trong lib/song.ts.
   const khoaMay = mayNaoDo(runtime, hoatDong);
-  const may = TRANG_THAI_MAY_RUNTIME[khoaMay];
+  const may = khoaMay !== 'running' && dungVi ? TRANG_THAI_DUNG[dungVi] : TRANG_THAI_MAY_RUNTIME[khoaMay];
   const mayChay = khoaMay === 'running';
   const ncc = transport.last_call?.provider;
   // Chạy mà chỉ toàn thử lại một lỗi thì với người dùng là KẸT — cùng phép đo với thẻ đang làm.
   const ket = mayChay ? phatHienKet(suKien, { ncc }) : undefined;
-  const buoc = song?.buoc ?? transport.last_step;
-  const dangChay = song?.dangChay ?? false;
+  // Cùng phép chọn với thẻ đang làm — xem `buocHienTai`. Máy không chạy thì không bước nào
+  // "đang làm", kể cả khi cây vai còn sót một vai chưa kịp về rảnh.
+  const hien = buocHienTai({ agents: agents ?? null, transport }, song);
+  const buoc = hien.buoc;
+  const dangChay = mayChay && hien.dangChay;
   const nhanBuoc = dangChay ? CHU.buocDangChayNgan : CHU.congDoanVuaXong;
   const chuGiaiBuoc = dangChay ? GIAI_THICH.buocDangChay : GIAI_THICH.buocVuaXong;
 
   // `last_call` (usage.json) là lượt gọi THẬT gần nhất, kèm tên nhà cung cấp; `transport.model`
   // chỉ là model mặc định lúc mở phiên. Có `last_call` thì tin nó.
   const lc = transport.last_call;
-  const loiBuoc = giaiLoi(buoc, { ncc, vai: song?.vai ?? transport.agent });
-  // `||` chứ không `??`: song.vai là chuỗi rỗng khi chưa có giao việc nào, và rỗng phải rơi tiếp.
-  const vai = song?.vai || lc?.agent || transport.agent;
+  const vai = vaiHienTai({ agents: agents ?? null, transport }, song?.vai);
+  const loiBuoc = giaiLoi(buoc, { ncc, vai });
   const modelLuot = lc ? `${lc.provider} · ${lc.model}` : transport.model;
   const khiNao = !mayChay ? cachDay(lc?.at) : undefined;
+  // Hai ô "lượt trước" và "lần tới" nói CÙNG một tên model ở ca thường, và cặp ô ấy (≈280px)
+  // là thứ đẩy "thời gian viết" ra khỏi mép cắt ở 1512px. Trùng thì gộp làm một.
+  const trungModel = !!seDung && seDung === modelLuot;
   /* Câu đầy đủ của ô `tổ` cho `title` — ô bị chặn bề rộng nên tên model dài sẽ
      bị cắt trên màn hình, và đây là chỗ tra lại được. */
   const toDayDu = [vai ? nhanVai(vai) : null, modelLuot, khiNao].filter(Boolean).join(' · ');
@@ -186,18 +200,23 @@ export function Transport({
           SẼ dùng ở lần mở phiên tới. Gộp chúng vào một ô "vai · model" là đúng chỗ người dùng
           thấy "cx/gpt-5.6-luna" ở đây trong khi cài đặt ghi "lingoreup · auto". Lúc đang chạy
           thì lượt gần nhất chính là lượt hiện tại, nên chỉ cần một ô. */}
-      <div className="cell to" title={toDayDu || undefined}>
-        <span className="lbl">{mayChay ? CHU.to : DH.luotTruoc}</span>
+      <div
+        className="cell to"
+        title={trungModel ? `${toDayDu} — ${DH.modelChungGiai}` : toDayDu || undefined}
+      >
+        <span className="lbl">{mayChay ? CHU.to : trungModel ? DH.modelChung : DH.luotTruoc}</span>
         {/* Lúc nghỉ, ô này chỉ trả lời "lượt trước chạy model nào" — tên vai nhường chỗ cho tên
             model (ô bị chặn bề rộng, giữ cả hai thì model bị cắt còn một ký tự) và nằm trong `title`. */}
         {vai && (mayChay || !modelLuot) ? <span>{nhanVai(vai)}</span> : null}
-        {vai && mayChay && modelLuot ? <span className="lbl">·</span> : null}
-        {modelLuot ? <span className="model">{modelLuot}</span> : null}
+        {/* Lúc chạy ô này trả lời "AI nào đang làm" — tên model nhường chỗ (nằm ở `title` và ở
+            cột Phiên này). Giữ cả hai thì ô ăn mất chỗ của "thời gian viết": đo được ở 1512px,
+            thanh cắt còn "t…" đúng lúc đang chạy. */}
+        {modelLuot && !(mayChay && vai) ? <span className="model">{modelLuot}</span> : null}
         {/* "1 phút trước" chỉ ở `title`: hiện nó cạnh tên model là ép tên model còn một ký tự
             ("lượt trước l. · 1 phút trước") — đo được ở 1512px khi cột phải mở. */}
         {!vai && !modelLuot ? <span className="trong">{CHU.khongCo}</span> : null}
       </div>
-      {!mayChay && seDung ? (
+      {!mayChay && seDung && !trungModel ? (
         <div className="cell to seDung" title={DH.lanToiGiai}>
           <span className="lbl">{DH.lanToi}</span>
           <span className="model">{seDung}</span>
@@ -260,7 +279,7 @@ export function Transport({
         <span className="m">{tong ?? CHU.khongCo}</span>
       </div>
 
-      <div className="cell">
+      <div className="cell" title={CHU.daChayGiai}>
         <span className="lbl">{CHU.daChay}</span>
         <span className="m">{chay ?? CHU.khongCo}</span>
       </div>

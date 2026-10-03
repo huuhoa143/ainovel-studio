@@ -133,3 +133,32 @@ func TestUsageRecord_GhiLuotGoiTheoTenCauHinh(t *testing.T) {
 		t.Errorf("last_call không sống qua usage.json: %+v", got)
 	}
 }
+
+// "Phiên có đang chạy thiết lập cũ không": khớp ngay sau khi mở, lệch khi tệp đổi, và khớp lại
+// sau khi áp dụng — để dải cảnh báo của studio tự biến mất đúng lúc, không cần bộ nhớ phía web.
+func TestModelConfigInSync_LechKhiTepDoiKhopSauKhiApDung(t *testing.T) {
+	nhaCauHinh(t)
+	cu := cfgMot("g", "k")
+	cu.Providers["g"] = bootstrap.ProviderConfig{Type: "openai", APIKey: "k", Models: []bootstrap.ModelConfig{{Name: "m"}, {Name: "m2"}}}
+	ghiCauHinhDuAn(t, cu)
+	h := hostNapLai(t, cu)
+
+	if khop, err := h.ModelConfigInSync(); err != nil || !khop {
+		t.Fatalf("vừa mở, tệp chưa đổi mà báo lệch (khop=%v, err=%v)", khop, err)
+	}
+
+	moi := cfgMot("g", "k")
+	moi.Providers["g"] = cu.Providers["g"]
+	moi.ModelName = "m2"
+	ghiCauHinhDuAn(t, moi)
+	if khop, _ := h.ModelConfigInSync(); khop {
+		t.Fatal("tệp đã đổi model mặc định mà vẫn báo khớp")
+	}
+
+	if err := h.ApplyConfigFromDisk(); err != nil {
+		t.Fatalf("áp dụng: %v", err)
+	}
+	if khop, _ := h.ModelConfigInSync(); !khop {
+		t.Error("áp dụng xong mà vẫn báo lệch — dải cảnh báo sẽ không bao giờ biến mất")
+	}
+}

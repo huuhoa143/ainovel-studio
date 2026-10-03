@@ -682,7 +682,7 @@ export function dungSach(book: string): Promise<{ aborted: boolean }> {
  * khi xong) vì server tự chọn theo trạng thái engine, đúng như TUI dùng một ô nhập cho cả
  * ba. `applied` cho biết việc nào đã xảy ra để giao diện nói đúng thay vì đoán.
  */
-export function canThiep(book: string, text: string): Promise<{ applied: 'steer' | 'continue' }> {
+export function canThiep(book: string, text: string): Promise<{ applied: 'steer' | 'continue' | 'reopen' }> {
   return ghi(`/api/books/${encodeURIComponent(book)}/steer`, 'POST', { text });
 }
 

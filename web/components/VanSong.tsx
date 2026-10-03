@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { giaiCongCu } from '@/lib/congCu';
 import { CHU, GIAI_THICH } from '@/lib/nhan';
 import { dangODay } from '@/lib/tuCuon';
-import type { BoDemVan } from '@/lib/vanSong';
+import { loaiLuot, tachCongCu, tachNghi, vanThuan, type BoDemVan, type LuotVan } from '@/lib/vanSong';
 
 /**
  * Khu VĂN SỐNG — chữ model đang sinh ra.
@@ -71,6 +72,12 @@ export function VanSong({ boDem, dangChay }: { boDem: BoDemVan; dangChay: boolea
     el.scrollTop = el.scrollHeight;
   }, [boDem]);
 
+  // Máy nghỉ thì khu này là "đoạn viết gần nhất" — tức VĂN. Còn lượt văn nào thì chỉ hiện văn;
+  // để tham số kế hoạch đứng dưới tiêu đề ấy là gọi tham số là đoạn viết. Không còn lượt văn
+  // nào thì hiện nguyên bộ đệm: các bước công cụ vẫn là dấu vết thật của lượt vừa rồi.
+  const coVan = boDem.luot.some((l) => loaiLuot(l.chu) === 'van' && vanThuan(l.chu).trim() !== '');
+  const hien = dangChay || !coVan ? boDem.luot : boDem.luot.filter((l) => loaiLuot(l.chu) === 'van');
+
   return (
     <section className="vansong" aria-label={CHU.vanSongVung}>
       {/* BA tiêu đề, không hai — và cái thứ ba là một lỗi mà bài kiểm cũ bắt được.
@@ -90,10 +97,10 @@ export function VanSong({ boDem, dangChay }: { boDem: BoDemVan; dangChay: boolea
         </h2>
       </div>
       <div className="vsthan" ref={thanRef} onScroll={theoCuon}>
-        {boDem.luot.length === 0 ? (
+        {hien.length === 0 ? (
           <p className="vstrong">{dangChay ? GIAI_THICH.vanSongTrong : GIAI_THICH.vanSongNghi}</p>
         ) : (
-          boDem.luot.map((l, i) => (
+          hien.map((l, i) => (
             <div className="luot" key={l.id}>
               {/* Lượt ĐẦU trong bộ đệm không có vạch kể cả khi nó mang nhãn: vạch là thứ
                   NGĂN GIỮA hai lượt. Vẽ một vạch trên cùng là khẳng định có một lượt phía
@@ -103,7 +110,7 @@ export function VanSong({ boDem, dangChay }: { boDem: BoDemVan; dangChay: boolea
                   <span>{l.nhan}</span>
                 </div>
               ) : null}
-              <pre className={`chu${laMa(l.chu) ? ' ma' : ''}`}>{l.chu}</pre>
+              <Luot l={l} dangSong={dangChay && i === hien.length - 1} />
             </div>
           ))
         )}
@@ -117,10 +124,69 @@ export function VanSong({ boDem, dangChay }: { boDem: BoDemVan; dangChay: boolea
   );
 }
 
+/** Số dòng tham số giữ dưới một bước công cụ — đủ để thấy nó đang ghi gì, không đủ để lấn văn. */
+const SO_DONG_THAM_SO = 6;
+
+/**
+ * Một lượt. Văn vẽ serif kèm con trỏ đang gõ; bước công cụ vẽ thành MỘT hàng việc — tên bước
+ * (engine đã dịch sẵn trong tiêu đề "✻ …") kèm vòng quay khi nó đang chạy, và tham số thu
+ * vào vài dòng mono mờ ở dưới. Tham số vẫn đọc được, chỉ không còn giả làm văn truyện.
+ */
+function Luot({ l, dangSong }: { l: LuotVan; dangSong: boolean }) {
+  if (loaiLuot(l.chu) === 'congCu' && l.chu.trimStart().startsWith('✻')) {
+    const { tieuDe, than } = tachCongCu(l.chu);
+    const dong = than.replace(/\s+$/, '').split('\n');
+    const cut = dong.length > SO_DONG_THAM_SO;
+    return (
+      <div className={`buocCc${dangSong ? ' dang' : ''}`}>
+        <p className="bccTen">
+          <span className="bccDau" aria-hidden="true" />
+          {/* Tiêu đề dự phòng của engine là TÊN HÀM trần ("✻ audit_foundation") cho công cụ
+              không có bộ trích; dịch qua cùng bảng với Diễn biến và thanh dưới. */}
+          {giaiCongCu(tieuDe) ?? tieuDe}
+        </p>
+        {than.trim() ? (
+          <pre className={`chu ma bccThan${cut ? ' cut' : ''}`}>
+            {cut ? dong.slice(-SO_DONG_THAM_SO).join('\n') : dong.join('\n')}
+          </pre>
+        ) : null}
+      </div>
+    );
+  }
+  // Suy nghĩ của model nằm CÙNG lượt với văn nó viết ra, ngăn bằng `DAU_NGHI`. Vẽ hai thứ đó
+  // cùng một kiểu chữ là nói dối: đoạn "Let me re-check the consistency…" không phải câu nào
+  // của truyện. Suy nghĩ xuống mono mờ nghiêng, thụt vào, có nhãn — đọc được, không giả làm văn.
+  const doan = tachNghi(l.chu);
+  const ma = laMa(l.chu);
+  return (
+    <>
+      {doan.map((d, i) =>
+        d.nghi ? (
+          <aside className="nghi" key={i} aria-label={CHU.modelTuNhu}>
+            <p className="nghiNhan">{CHU.modelTuNhu}</p>
+            <pre className="chu nghiChu">{d.chu.trim()}</pre>
+          </aside>
+        ) : (
+          <pre className={`chu${ma ? ' ma' : ''}`} key={i}>
+            {d.chu}
+            {dangSong && i === doan.length - 1 ? (
+              <span className="conTro" aria-hidden="true" />
+            ) : null}
+          </pre>
+        ),
+      )}
+      {doan.length === 0 && dangSong ? (
+        <pre className="chu">
+          <span className="conTro" aria-hidden="true" />
+        </pre>
+      ) : null}
+    </>
+  );
+}
+
 /** Lượt này là dữ liệu máy (JSON, đối số tool) chứ không phải văn? Xem chú thích đầu tệp. */
 export function laMa(chu: string): boolean {
-  const dau = chu.trimStart().slice(0, 1);
-  if (dau === '{' || dau === '[') return true;
-  const mau = chu.slice(0, 400);
+  if (loaiLuot(chu) === 'congCu') return true;
+  const mau = vanThuan(chu).slice(0, 400);
   return (mau.match(/"\s*:/g)?.length ?? 0) >= 3;
 }

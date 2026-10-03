@@ -91,10 +91,15 @@ test('chế độ tự chạy cũng suy từ snapshot — vế ngược', () => 
   expect(LAY_CAI_DAT).not.toHaveBeenCalled();
 });
 
-test('`Cho đi tiếp` chỉ có ở chế độ nghiệm thu', () => {
+test('`Cho đi tiếp` chỉ có khi engine đứng ở cửa nghiệm thu', () => {
   // Ở chế độ tự chạy engine không chờ giấy phép nào, nên một nút cấp phép ở đó không làm gì.
-  ve({ advance: { ...REVIEW } });
-  expect(screen.getByRole('button', { name: CHU.choDiTiep })).toBeDefined();
+  ve({ advance: { ...REVIEW, hold: true } });
+  expect(screen.getByRole('button', { name: /^Duyệt(, viết chương| dàn ý)/ })).toBeDefined();
+  cleanup();
+
+  // Chế độ duyệt nhưng engine còn đang viết (vd. đang dựng nền): chưa có gì để duyệt.
+  ve({ advance: { ...REVIEW }, runtime: 'running' }, true);
+  expect(screen.queryByRole('button', { name: /^Duyệt(, viết chương| dàn ý)/ })).toBeNull();
 
   // `cleanup()` giữa hai lượt vẽ: không có nó thì nút của lượt trước còn nằm trong
   // `document` và `queryByRole` thấy nó — bài kiểm khi đó đỏ (hoặc xanh) vì rác của chính
@@ -103,7 +108,7 @@ test('`Cho đi tiếp` chỉ có ở chế độ nghiệm thu', () => {
   cleanup();
 
   ve({ advance: { ...AUTO } });
-  expect(screen.queryByRole('button', { name: CHU.choDiTiep })).toBeNull();
+  expect(screen.queryByRole('button', { name: /^Duyệt(, viết chương| dàn ý)/ })).toBeNull();
 });
 
 /* ── ca engine đóng: KHÔNG đo được, và không được vẽ thành "tự chạy" ────── */
@@ -121,7 +126,7 @@ test('`advance === null` thì KHÔNG vẽ chế độ nào — "tự chạy" là
 
   expect(screen.queryByRole('button', { name: CHU.cheDoTuChay })).toBeNull();
   expect(screen.queryByRole('button', { name: CHU.cheDoNghiemThu })).toBeNull();
-  expect(screen.queryByRole('button', { name: CHU.choDiTiep })).toBeNull();
+  expect(screen.queryByRole('button', { name: /^Duyệt(, viết chương| dàn ý)/ })).toBeNull();
 });
 
 test('`advance === null` KHÔNG làm mất nút Chạy — bề mặt vẫn điều khiển được', () => {

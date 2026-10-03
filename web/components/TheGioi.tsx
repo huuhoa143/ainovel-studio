@@ -9,6 +9,7 @@ import {
   THU_TU_NHOM_LUAT,
   nhanNhomLuat,
   nhanPhucBut,
+  GIAI_THICH,
 } from '@/lib/nhan';
 import type { ForeshadowEntry, WorldRule } from '@/lib/types';
 import { useHoSo } from '@/lib/useHoSo';
@@ -243,7 +244,7 @@ export function PhucBut({ tacPham }: { tacPham: string | undefined }) {
             </>
           ) : (
             <section className="sect">
-              <MucRong mang={ds} muc="phục bút" />
+              <MucRong mang={ds} muc="phục bút" coKhi={GIAI_THICH.phucButCoKhi} />
             </section>
           )}
         </div>

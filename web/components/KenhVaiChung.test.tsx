@@ -200,10 +200,12 @@ test('vai trỏ vào model không còn trong danh sách thì nói ra ngay trên 
 });
 
 test('truyện đang mở phiên: nói rõ, và "Áp dụng ngay" nạp lại vào phiên đó', async () => {
-  DU = { ...GOC, engine_open: ['chay-thu'] };
+  DU = { ...GOC, engine_open: ['chay-thu'], engine_stale: ['chay-thu'] };
   render(<CauHinhXuong />);
   await waitFor(() => expect(screen.getByText(/chay-thu đang mở phiên/)).toBeDefined());
+  DU = { ...DU, engine_stale: [] };
   fireEvent.click(screen.getByRole('button', { name: 'Áp dụng ngay cho chay-thu' }));
   await waitFor(() => expect(AP_DUNG).toHaveBeenCalledWith('chay-thu'));
-  await waitFor(() => expect(screen.getByText(/Đã áp dụng cho chay-thu/)).toBeDefined());
+  await waitFor(() => expect(screen.getByText(/chay-thu đang dùng thiết lập mới từ/)).toBeDefined());
+  expect(screen.queryByText(/chay-thu đang mở phiên/)).toBeNull();
 });

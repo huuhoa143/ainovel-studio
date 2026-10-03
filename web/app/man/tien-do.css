@@ -96,21 +96,24 @@
 
 /* ══ cửa duyệt — dải violet, việc PHẢI làm ═══════════════════════════════ */
 :is(#dong-san-xuat, #kiem-dinh) .cuanghiemthu {
+  /* Thẻ nổi trên nền trang, nên sắc tím trộn vào `--panel`. Nhịp thở `thoCho` đọc
+     cùng biến này — khai nền bằng tay ở đây thì animation sẽ ghi đè mất. */
+  --cua-nen: var(--panel);
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 4px 20px;
   padding: 14px 18px 14px 20px;
-  background: color-mix(in oklab, var(--violet) 11%, var(--panel));
-  border: 1px solid color-mix(in oklab, var(--violet) 32%, transparent);
+  background: color-mix(in oklab, var(--cua-mau) 11%, var(--cua-nen));
+  border: 1px solid color-mix(in oklab, var(--cua-mau) 32%, transparent);
   border-radius: var(--r-lg);
   box-shadow: var(--shadow);
 }
 :is(#dong-san-xuat, #kiem-dinh) .cuanghiemthu .cnthead {
   font: 600 14px/1.4 var(--ui);
-  color: color-mix(in oklab, var(--violet) 72%, var(--ink));
+  color: color-mix(in oklab, var(--cua-mau) 72%, var(--ink));
   gap: 8px;
 }
 :is(#dong-san-xuat, #kiem-dinh) .cuanghiemthu .ky {
-  color: var(--violet);
+  color: var(--cua-mau);
   font: 400 11px/1.4 var(--ui);
 }
 :is(#dong-san-xuat, #kiem-dinh) .cuanghiemthu .cntlydo {
@@ -186,9 +189,16 @@
 }
 
 /* ══ hàng đầu: thẻ đang làm + phiên này ══════════════════════════════════ */
+/* Hai hàng thẻ dùng CHUNG một lưới cột. Bản trước hàng dưới chia `1.15fr | 1fr` còn hàng trên
+   `1fr | 232–288px`, nên mép phải của "Chương gần đây" và mép trái của "Diễn biến" lệch hẳn khỏi
+   hai cột ngay trên — mắt đọc ra là bố cục vỡ chứ không phải hai nhóm. Một biến cho cả hai thì
+   không lệch lại được. */
+#dong-san-xuat {
+  --td-cot: minmax(0, 1fr) minmax(232px, 288px);
+}
 #dong-san-xuat .tdHangDau {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(232px, 288px);
+  grid-template-columns: var(--td-cot);
   gap: 16px;
   align-items: stretch;
 }
@@ -279,7 +289,7 @@
   margin: 0 0 18px;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(var(--so-buoc, 5), minmax(0, 1fr));
   gap: 6px;
 }
 #dong-san-xuat .tdBuoc li {
@@ -463,6 +473,11 @@
 #dong-san-xuat .chlane i.running {
   background-color: var(--gold-fill);
 }
+/* Chương viết dở khi máy nghỉ: còn màu vàng (chưa xong) nhưng nhạt và không vạch trôi —
+   khác hẳn ô "đang viết" của một máy đang chạy. */
+#dong-san-xuat .chlane i.vietDo {
+  background-color: color-mix(in oklch, var(--gold) 34%, var(--panel));
+}
 #dong-san-xuat .chlane i.rewrite {
   background-color: color-mix(in oklch, var(--amber) 68%, var(--panel));
 }
@@ -604,7 +619,7 @@
   overflow: hidden;
 }
 #dong-san-xuat .tdVan .vshead {
-  padding: 13px 22px 0;
+  padding: 13px 22px 2px;
   border: 0;
   background: none;
 }
@@ -612,9 +627,16 @@
   font: 500 12.5px/1.4 var(--ui);
   color: var(--ink-3);
 }
+/* Mép trên MỜ DẦN thay vì cắt ngang. Khu này tự cuộn xuống đáy, nên dòng trên
+   cùng gần như luôn bị cắt giữa chữ; với serif 15px/1.8 nửa dòng bị cắt nằm sát
+   ngay dưới tiêu đề và đọc ra như hai dòng chữ chồng lên nhau (đo được trên
+   truyện thật). Dải mờ 14px nằm gọn trong đệm trên 16px, nên khi cuộn lên đầu
+   thì dòng đầu tiên không bị mờ chút nào. */
 #dong-san-xuat .tdVan .vsthan {
   max-height: 340px;
-  padding: 8px 22px 18px;
+  padding: 16px 22px 18px;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 14px);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 14px);
 }
 /* Văn truyện: serif, khổ đọc ~68ch. Lượt là dữ liệu máy thì mono nhỏ (xem `laMa`). */
 #dong-san-xuat .tdVan .vsthan .chu {
@@ -627,6 +649,17 @@
   max-width: none;
   font: 400 12px/1.7 var(--mono);
   color: var(--ink-2);
+}
+/* Hai lớp cùng cỡ với `.ma`: khối "AI tự nhủ" không phải văn truyện, nên nó
+   không được nhận khổ đọc serif 15px mà quy tắc trên vừa đặt cho `.chu`. */
+#dong-san-xuat .tdVan .vsthan .chu.nghiChu {
+  max-width: none;
+  font: 400 11.5px/1.65 var(--mono);
+  font-style: italic;
+  color: var(--ink-3);
+}
+#dong-san-xuat .tdVan .vsthan .nghi {
+  max-width: 68ch;
 }
 #dong-san-xuat .tdVan .vach {
   max-width: 68ch;
@@ -688,9 +721,10 @@
 /* ══ thẻ bằng chứng ══════════════════════════════════════════════════════ */
 #dong-san-xuat .tdLuoi {
   display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  grid-template-columns: var(--td-cot);
   gap: 16px;
-  align-items: start;
+  /* Cao bằng nhau: thẻ Diễn biến rỗng đứng cạnh bảng chương dài thì đáy hàng lởm chởm. */
+  align-items: stretch;
 }
 #dong-san-xuat .tdO {
   display: flex;
@@ -913,9 +947,14 @@
 #dong-san-xuat .log .entry .why {
   line-height: 1.55;
 }
+/* Sàn 24px là sàn WCAG 2.5.8 cho vùng bấm. Nút này đứng RIÊNG trong một ô của
+   lưới, không nằm trong câu, nên nó không được hưởng ngoại lệ "mục tiêu nội
+   dòng" — đo được 23px, thiếu đúng 1px. Nâng bằng sàn chứ không bằng đệm: đệm
+   dày hơn sẽ đẩy chữ lệch khỏi dòng nhật ký mà nó đang canh theo. */
 #dong-san-xuat .log .entry .replay {
   border-radius: 7px;
   padding: 3px 10px;
+  min-height: 24px;
   font-size: 12px;
 }
 #dong-san-xuat .log .entry .replay[hidden] {
@@ -1082,6 +1121,137 @@
   }
 }
 
+/* ══ chuyển động khi đang chạy ═══════════════════════════════════════════
+   Mỗi chuyển động trả lời MỘT câu, và chỉ chạy khi máy chạy THẬT (`data-tt="chay"` của thẻ —
+   cùng khóa `mayNaoDo` với thanh dưới), không theo `stage` đã ghi trên đĩa: chương chết dở
+   giữa lúc soạn giữ `stage: drafting` mãi mãi, và nó không được phép động mãi mãi.
+
+     · bước đang làm   — một dải sáng quét qua ô: "việc đang ở ĐÂY và đang tiến"
+     · bước vừa xong   — màu xanh lấp từ trái sang một lần: "xong rồi, sang bước kế"
+     · chương đang viết — vạch chéo trôi trên ô của nó ở trục chương: "chương NÀY"
+     · văn đang chảy   — con trỏ vàng nhấp nháy ở cuối chữ: "AI đang gõ tới đây"
+     · bước công cụ    — vòng quay nhỏ cạnh tên bước đang chạy
+   Tất cả là gradient/opacity/transform trên vùng nhỏ, không đụng bố cục. */
+#dong-san-xuat .tdDangLam[data-tt="chay"] .tdBuoc li.dang.dap {
+  background-image: linear-gradient(
+    100deg,
+    transparent 30%,
+    color-mix(in oklab, var(--gold) 30%, transparent) 50%,
+    transparent 70%
+  );
+  background-size: 260% 100%;
+  background-repeat: no-repeat;
+  animation: tdQuet 1.9s linear infinite;
+}
+@keyframes tdQuet {
+  from {
+    background-position: 130% 0;
+  }
+  to {
+    background-position: -130% 0;
+  }
+}
+#dong-san-xuat .tdBuoc li.xong {
+  background-image: linear-gradient(
+    color-mix(in oklab, var(--teal) 13%, var(--panel)),
+    color-mix(in oklab, var(--teal) 13%, var(--panel))
+  );
+  background-repeat: no-repeat;
+  background-color: var(--panel-2);
+  animation: tdLap 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes tdLap {
+  from {
+    background-size: 0% 100%;
+  }
+  to {
+    background-size: 100% 100%;
+  }
+}
+#dong-san-xuat .tdDem {
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+#dong-san-xuat .tdDangLam[data-tt="chay"] .chlane i.running {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    color-mix(in oklab, var(--tren-fill, #000) 16%, transparent) 0 5px,
+    transparent 5px 10px
+  );
+  background-size: 28px 28px;
+  animation: tdTroi 0.9s linear infinite;
+}
+@keyframes tdTroi {
+  to {
+    background-position: 28px 0;
+  }
+}
+
+/* văn đang chảy — con trỏ */
+#dong-san-xuat .tdVan .conTro {
+  display: inline-block;
+  width: 2px;
+  height: 1.05em;
+  margin-left: 2px;
+  vertical-align: -0.16em;
+  border-radius: 1px;
+  background: var(--gold);
+  animation: tdConTro 1.05s steps(1, end) infinite;
+}
+@keyframes tdConTro {
+  50% {
+    opacity: 0;
+  }
+}
+
+/* bước công cụ trong khu văn: một hàng việc, không giả làm văn truyện */
+#dong-san-xuat .tdVan .buocCc {
+  max-width: 68ch;
+}
+#dong-san-xuat .tdVan .bccTen {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 2px 0 4px;
+  font: 500 12.5px/1.4 var(--ui);
+  color: var(--ink-2);
+}
+#dong-san-xuat .tdVan .bccDau {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: color-mix(in oklab, var(--teal) 70%, var(--panel));
+}
+#dong-san-xuat .tdVan .buocCc.dang .bccTen {
+  color: color-mix(in oklab, var(--gold) 82%, var(--ink));
+}
+#dong-san-xuat .tdVan .buocCc.dang .bccDau {
+  width: 11px;
+  height: 11px;
+  background: none;
+  border: 1.5px solid color-mix(in oklab, var(--gold) 28%, transparent);
+  border-top-color: var(--gold);
+  animation: tdQuay 0.8s linear infinite;
+}
+@keyframes tdQuay {
+  to {
+    transform: rotate(1turn);
+  }
+}
+#dong-san-xuat .tdVan .vsthan .chu.bccThan {
+  max-height: 7.4em;
+  overflow: hidden;
+  padding-left: 17px;
+  font-size: 11.5px;
+  color: var(--ink-3);
+}
+/* Tham số dài chỉ giữ vài dòng CUỐI (chỗ đang chảy) — đầu mờ đi thay vì một cái cắt cứng. */
+#dong-san-xuat .tdVan .vsthan .chu.bccThan.cut {
+  -webkit-mask-image: linear-gradient(transparent, #000 2.4em);
+  mask-image: linear-gradient(transparent, #000 2.4em);
+}
+
 @media (prefers-reduced-motion: reduce) {
   #dong-san-xuat .tdDot.dap::after {
     animation: none;
@@ -1091,6 +1261,22 @@
   #dong-san-xuat .tdBuoc li,
   #dong-san-xuat .chlane i {
     transition: none;
+  }
+  /* Bớt chuyển động KHÔNG có nghĩa là mất tín hiệu: bước đang làm vẫn sáng màu vàng, chương
+     đang viết vẫn mang vạch chéo (đứng yên), con trỏ đứng yên, vòng quay thành chấm vàng. */
+  #dong-san-xuat .tdDangLam[data-tt="chay"] .tdBuoc li.dang.dap,
+  #dong-san-xuat .tdBuoc li.xong,
+  #dong-san-xuat .tdDangLam[data-tt="chay"] .chlane i.running,
+  #dong-san-xuat .tdVan .conTro {
+    animation: none;
+  }
+  #dong-san-xuat .tdDangLam[data-tt="chay"] .tdBuoc li.dang.dap {
+    background-image: none;
+  }
+  #dong-san-xuat .tdVan .buocCc.dang .bccDau {
+    animation: none;
+    border: 0;
+    background: var(--gold);
   }
 }
 
@@ -1110,6 +1296,8 @@
   font: 600 13.5px/1.4 var(--ui);
   color: var(--ink);
 }
+/* Cùng sàn 24px với `.replay`, cùng lý do: nút quay-về này là một dòng riêng ở
+   đầu panel, không phải một liên kết trong câu. Đo được 21px. */
 .insp .ihead .ilui {
   display: inline-flex;
   align-items: center;
@@ -1117,6 +1305,7 @@
   margin: 0 0 10px;
   padding: 3px 8px 3px 6px;
   border-radius: 7px;
+  min-height: 24px;
   font: 500 12px var(--ui);
   color: var(--ink-2);
 }
@@ -1251,11 +1440,17 @@
 .insp .dsvach .vach1 {
   border-radius: 6px;
 }
+/* Nút mở/thu một khối, đứng riêng một dòng dưới khối ấy — không phải liên kết
+   trong câu, nên nó phải đạt sàn 24px của WCAG 2.5.8. Đo được 15px.
+   Đệm ngang âm lề để vùng bấm rộng ra mà chữ vẫn thẳng cột với khối bên trên. */
 .insp .ihetca {
   margin-top: 8px;
-  padding: 0;
+  margin-left: -8px;
+  padding: 0 8px;
+  min-height: 24px;
   background: none;
   border: 0;
+  border-radius: 7px;
   font: 500 12px var(--ui);
   color: var(--ink-2);
   cursor: pointer;
@@ -1388,8 +1583,30 @@
   margin: 0;
   color: var(--ink);
 }
+/* Engine tự dừng: cùng khối với kẹt nhưng màu đỏ — máy đã đứng hẳn, không phải đang thử lại.
+   Dòng phụ (lời Điều phối) xuống hàng riêng dưới câu lỗi và nút. */
+#dong-san-xuat .tdDot.red {
+  background: var(--red);
+}
+#dong-san-xuat .tdDangLam[data-tt='tuDung'] .tdTtNhan {
+  color: var(--red);
+}
+#dong-san-xuat .tdDangLam[data-tt='tuDung'] .tdKet {
+  border-color: color-mix(in oklab, var(--red) 38%, var(--line));
+  background: color-mix(in oklab, var(--red) 6%, var(--panel));
+}
+#dong-san-xuat .tdKet .tdMoTaPhu {
+  flex: 1 0 100%;
+  order: 1;
+  margin: 0;
+}
+/* Dòng phụ đi liền dòng mô tả, và khoảng thở trước trục chuyển xuống dưới nó — để nguyên
+   14px dưới `.tdMoTa` thì dòng phụ dán sát trục "Chương" ngay bên dưới. */
+#dong-san-xuat .tdMoTa:has(+ .tdMoTaPhu) {
+  margin-bottom: 2px;
+}
 #dong-san-xuat .tdMoTaPhu {
-  margin: 2px 0 0;
+  margin: 0 0 14px;
   color: var(--ink-3);
   font-size: 12.5px;
 }

@@ -6,7 +6,14 @@
  */
 
 /** Năm bước của một chương, đúng thứ tự engine đi qua (xem `ownersFromSteps` phía server). */
-export const BUOC_CHUONG = ['Kế hoạch', 'Viết nháp', 'Soát nhất quán', 'Chốt', 'Biên tập'] as const;
+export const BUOC_CHUONG = ['Kế hoạch', 'Viết nháp', 'Rà soát', 'Chốt', 'Biên tập'] as const;
+
+/**
+ * Bốn chặng dựng nền — theo đúng thứ tự Kiến trúc sư lưu (`save_foundation[premise]` →
+ * `[characters]` → `[world_rules]` → `[outline]`). Trước đây chặng này là một-hai phút không
+ * có gì nhúc nhích trên thẻ ngoài một câu "đang dựng nền".
+ */
+export const BUOC_NEN = ['Tiền đề', 'Nhân vật', 'Thế giới', 'Dàn ý'] as const;
 
 /** Bước đang làm, nói bằng động từ để ghép vào câu "Người viết đang …". */
 const VIEC_BUOC = [
@@ -30,11 +37,13 @@ export const TD = {
   /** "đã chạy 12 phút" — đồng hồ của cả phiên, không phải của riêng chương. */
   daChay: (ms: number): string => {
     const phut = Math.floor(ms / 60000);
+    // "đã viết", không "đã chạy": cùng con số với "thời gian viết" ở thanh dưới (khoảng giữa
+    // các mốc lưu), nên cùng một chữ — hai chữ cho một số là hai số trong mắt người đọc.
     if (phut < 1) return 'vừa bắt đầu';
-    if (phut < 60) return `đã chạy ${phut} phút`;
+    if (phut < 60) return `đã viết ${phut} phút`;
     const gio = Math.floor(phut / 60);
     const du = phut % 60;
-    return du === 0 ? `đã chạy ${gio} giờ` : `đã chạy ${gio} giờ ${du} phút`;
+    return du === 0 ? `đã viết ${gio} giờ` : `đã viết ${gio} giờ ${du} phút`;
   },
 
   buocVung: 'Các bước của chương này',
@@ -89,6 +98,14 @@ export const LOI_LLM = {
   khongConModelGoiCongCu: (ncc: string) => `${ncc} không còn model nào gọi công cụ được`,
   khongConModel: (ncc: string) =>
     `${ncc} không còn model nào nhận yêu cầu (thiếu khóa hoặc model không gọi được công cụ)`,
+  /** Lỗi hết tuyến còn nguyên danh sách lý do — nói ra từng nhóm, không gộp thành "thiếu khóa". */
+  hetTuyenChiTiet: (ncc: string, ly: string[]) => `${ncc} không còn model nào dùng được cho bước này: ${ly.join(', ')}`,
+  tuyenQuaDai: (n: number) => `${n} model không chứa nổi độ dài yêu cầu`,
+  tuyenKhongCongCu: (n: number) => `${n} model không gọi được công cụ`,
+  tuyenKhongKhoa: (n: number) => `${n} model chưa có khóa`,
+  tuyenGioiHan: 'số còn lại đang bị giới hạn lượt (429)',
+  viecNguCanhLon: (vai?: string) =>
+    `Chọn riêng ${vai ? `cho ${vai} ` : ''}một model ngữ cảnh lớn, gọi được công cụ ở Model & khóa API — hoặc chờ vài phút cho hết giới hạn lượt.`,
   khongCoKhoa: (ncc: string) => `${ncc} chưa có khóa dùng được cho model này`,
   khoaBiTuChoi: (ncc: string) => `Khóa API của ${ncc} bị từ chối`,
   tuChoiTruyCap: (ncc: string) => `${ncc} từ chối truy cập`,
@@ -116,6 +133,10 @@ export const LOI_LLM = {
   thuLaiNLan: (n: number) => (n === 1 ? 'Thử lại 1 lần' : `Thử lại ${n} lần`),
 
   dangKet: 'Đang kẹt',
+  /** Engine tự dừng — xem `lyDoTuDung`. */
+  daTuDung: 'Đã tự dừng',
+  tuDungLyDo: (lyDo: string) => `Điều phối ghi: ${lyDo}`,
+  tuDungGoiY: 'Xử lý lý do ở trên rồi bấm Tiếp tục viết ở thanh dưới — bấm ngay thì nhiều khả năng lại dừng như cũ.',
   dangKetPhu: 'AI đang thử lại mãi một lỗi và chưa gọi được lượt nào',
   moCauHinh: 'Mở Model & khóa API',
 
@@ -178,7 +199,34 @@ export const CONG_CU = {
 export const DIEU_KHIEN = {
   vietThem: 'Viết thêm',
   vietThemGiai:
-    'Truyện đã đủ số chương dự kiến. Bấm nếu muốn AI viết tiếp quá dự kiến — vẫn tính phí như thường.',
+    'Kể AI muốn viết thêm gì ở ô góp ý bên dưới — truyện sẽ được mở lại và viết tiếp theo hướng đó, vẫn tính phí như thường.',
   lienTuc: 'Liên tục',
   tungChuong: 'Từng chương',
+  /** Nhãn của nút từ lúc bấm tới lúc engine THẬT SỰ đổi trạng thái — xem `DieuKhien.goi`. */
+  dangLam: {
+    mo: 'Đang mở phiên…',
+    chay: 'Đang bắt đầu…',
+    dung: 'Đang dừng…',
+    dong: 'Đang đóng phiên…',
+    tiep: 'Đang duyệt…',
+    chedo: 'Đang đổi…',
+  },
+  /** Nút Chạy trong lúc engine thu dọn sau lệnh Dừng. */
+  dangDungHan: 'Đang dừng…',
 } as const;
+
+/**
+ * Câu của WEB cho một sự kiện dừng, tra theo loại dừng engine gửi kèm (`Event.Kind` =
+ * "stop_" + loại, xem `KindDung` ở internal/host/lan_dung.go).
+ *
+ * Câu engine viết cho mọi mặt cùng lúc, và câu của cửa duyệt dạy cú pháp TUI: "dùng /next để
+ * sinh, hoặc nhập ý kiến sửa". Web không có lệnh nào như thế — nó có dải duyệt và nút bấm —
+ * nên đọc câu đó ở Diễn biến là đọc một chỉ dẫn không làm theo được. Tra theo DỮ LIỆU chứ
+ * không dò lại chữ đã dịch: dò chữ thì vỡ ngay khi ai đó sửa bản dịch.
+ *
+ * Chỉ loại nào câu engine không hợp với web mới có mặt ở đây; loại khác giữ câu của engine
+ * (vẫn nằm trong `title` của dòng).
+ */
+export const CAU_DUNG: Readonly<Record<string, string>> = {
+  stop_gate: 'Dừng lại chờ bạn duyệt — AI chưa viết chương kế cho tới khi bạn cho phép.',
+};

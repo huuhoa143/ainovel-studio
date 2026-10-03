@@ -4,7 +4,10 @@ import { beforeEach, expect, test, vi } from 'vitest';
 import { LoiApi } from '@/lib/api';
 import { CHU, GIAI_THICH } from '@/lib/nhan';
 
+import type { Capabilities, TienDo } from '@/lib/types';
+
 import { CuaNghiemThu } from './CuaNghiemThu';
+import { OCanThiep } from './OCanThiep';
 
 /**
  * Hai hành động của cửa nghiệm thu, tách khỏi bài kiểm hình ở `CuaNghiemThu.test.tsx`.
@@ -28,18 +31,43 @@ const LY_DO = 'nhịp tụt ở đoạn giữa; ba cảnh liên tiếp cùng m�
 function cho(p: Partial<Parameters<typeof CuaNghiemThu>[0]> = {}) {
   return render(
     <CuaNghiemThu
+      soChuongXong={7}
       advance={{ mode: 'review', hold: true, permit_chapter: 8, hold_reason: LY_DO }}
       runtime=""
       tacPham="tran-yeu-ky"
       choGhi
-      dangChay={false}
       onDoi={() => {}}
       {...p}
     />,
   );
 }
 
-const nutTiep = () => screen.getByRole('button', { name: CHU.choDiTiep });
+/**
+ * Cửa + ô góp ý chung, như buồng lái vẽ chúng. Nút "trả về" của cửa không còn ô nhập riêng: nó
+ * mở ô góp ý chung (xem `moGopY`), nên hành vi gửi được kiểm trên cả hai cùng lúc.
+ */
+function choVaGopY(p: { onDoi?: () => void; dangChay?: boolean; advance?: TienDo } = {}) {
+  return render(
+    <>
+      <CuaNghiemThu
+        soChuongXong={7}
+        advance={p.advance ?? { mode: 'review', hold: true, permit_chapter: 8, hold_reason: LY_DO }}
+        runtime=""
+        tacPham="tran-yeu-ky"
+        choGhi
+        onDoi={() => {}}
+      />
+      <OCanThiep
+        capabilities={{ steer: true } as Capabilities}
+        tacPham="tran-yeu-ky"
+        dangChay={p.dangChay ?? false}
+        onDoi={p.onDoi}
+      />
+    </>,
+  );
+}
+
+const nutTiep = () => screen.getByRole('button', { name: /^Duyệt(, viết chương| dàn ý)/ });
 const nutTra = () => screen.getByRole('button', { name: CHU.traChuongVeVietLai(8) });
 
 beforeEach(() => {
@@ -76,56 +104,55 @@ test('bấm Cho đi tiếp hai lần liên tiếp chỉ gọi API MỘT lần', 
   expect(CHO_DI_TIEP).toHaveBeenCalledTimes(1);
 });
 
-test('Trả chương về viết lại mở ô nhập, mang sẵn NGUYÊN VĂN kết luận Editor', () => {
-  // Gửi nguyên văn mô tả lỗi của Editor làm giá trị mặc định, để người vận hành SỬA chứ
-  // không phải gõ lại — và cũng để câu đi tới engine là câu Editor đã viết, không phải một
-  // bản tóm tắt của người đang vội.
-  cho();
-  expect(screen.queryByRole('textbox')).toBeNull();
+test('Trả chương về: KHÔNG mở ô thứ hai — đưa con trỏ vào ô góp ý chung, mang sẵn kết luận Editor', () => {
+  // Gửi nguyên văn mô tả lỗi của Editor làm giá trị mặc định, để người vận hành SỬA chứ không
+  // phải gõ lại. Và chỉ MỘT ô góp ý trên màn hình: bản trước mở thêm một ô trong dải tím, cùng
+  // nhãn nút với ô ở cuối trang, không nhận con trỏ, không có chữ gợi ý.
+  choVaGopY();
+  expect(screen.getAllByRole('textbox')).toHaveLength(1);
 
   fireEvent.click(nutTra());
 
-  expect((screen.getByRole('textbox') as HTMLInputElement).value).toBe(LY_DO);
+  const o = screen.getByRole('textbox') as HTMLInputElement;
+  expect(screen.getAllByRole('textbox')).toHaveLength(1);
+  expect(o.value).toBe(LY_DO);
+  expect(document.activeElement).toBe(o);
 });
 
 test('kết luận Editor vắng thì ô nhập RỖNG — không bịa một lý do', () => {
-  cho({ advance: { mode: 'review', hold: true, permit_chapter: 8 } });
+  choVaGopY({ advance: { mode: 'review', hold: true, permit_chapter: 8 } });
   fireEvent.click(screen.getByRole('button', { name: CHU.traChuongVeVietLai(8) }));
 
   expect((screen.getByRole('textbox') as HTMLInputElement).value).toBe('');
 });
 
 test('gửi ô nhập gọi POST /steer với chữ ĐÃ SỬA, rồi nạp lại snapshot', async () => {
-  // `onDoi()` chứ không tự đoán trạng thái mới: sau `/steer` engine đổi cả hàng chờ viết lại
-  // lẫn cửa, và giao diện không biết trước nó đổi thành gì.
   const doi = vi.fn();
-  cho({ onDoi: doi });
+  choVaGopY({ onDoi: doi });
 
   fireEvent.click(nutTra());
   fireEvent.change(screen.getByRole('textbox'), {
     target: { value: 'viết lại đoạn giữa, giữ nguyên cảnh mở' },
   });
-  fireEvent.click(screen.getByRole('button', { name: CHU.danhThucLuotMoi }));
+  fireEvent.click(screen.getByRole('button', { name: new RegExp(CHU.danhThucLuotMoi) }));
 
-  expect(CAN_THIEP).toHaveBeenCalledWith(
-    'tran-yeu-ky',
-    'viết lại đoạn giữa, giữ nguyên cảnh mở',
-  );
+  expect(CAN_THIEP).toHaveBeenCalledWith('tran-yeu-ky', 'viết lại đoạn giữa, giữ nguyên cảnh mở');
   await waitFor(() => expect(doi).toHaveBeenCalledTimes(1));
 });
 
 test('bấm gửi hai lần liên tiếp chỉ gọi /steer MỘT lần', () => {
   CAN_THIEP.mockReturnValue(new Promise(() => {}));
-  cho();
+  choVaGopY();
 
   fireEvent.click(nutTra());
-  const gui = screen.getByRole('button', { name: CHU.danhThucLuotMoi });
+  const gui = screen.getByRole('button', { name: new RegExp(CHU.danhThucLuotMoi) });
   fireEvent.click(gui);
   expect((gui as HTMLButtonElement).disabled).toBe(true);
   fireEvent.click(gui);
 
   expect(CAN_THIEP).toHaveBeenCalledTimes(1);
 });
+
 
 test('Cho đi tiếp cũng nạp lại snapshot sau khi xong', async () => {
   const doi = vi.fn();
@@ -153,53 +180,29 @@ test('lỗi từ server hiện NGUYÊN VĂN, không làm dịu', async () => {
 });
 
 test('lỗi của /steer cũng hiện nguyên văn, và ô nhập GIỮ chữ đã gõ', async () => {
-  // Nuốt lỗi ở đây đắt gấp đôi: người vận hành vừa không biết vì sao, vừa mất câu vừa gõ.
   CAN_THIEP.mockRejectedValue(new LoiApi('engine chưa mở cho tác phẩm này', 409));
-  const { container } = cho();
+  const { container } = choVaGopY();
 
   fireEvent.click(nutTra());
   fireEvent.change(screen.getByRole('textbox'), { target: { value: 'sửa đoạn giữa' } });
-  fireEvent.click(screen.getByRole('button', { name: CHU.danhThucLuotMoi }));
+  fireEvent.click(screen.getByRole('button', { name: new RegExp(CHU.danhThucLuotMoi) }));
 
   await waitFor(() =>
-    expect(container.querySelector('.loiDoc')!.textContent).toBe(
-      'engine chưa mở cho tác phẩm này',
-    ),
+    expect(container.querySelector('.loiDoc')!.textContent).toBe('engine chưa mở cho tác phẩm này'),
   );
   expect((screen.getByRole('textbox') as HTMLInputElement).value).toBe('sửa đoạn giữa');
 });
 
-test('nhãn nút gửi nói TRƯỚC câu này sẽ thành gì, theo engine đang chạy hay đứng', async () => {
-  // Cùng luật đã ghi trong `OCanThiep.tsx`, và cùng hai khóa nhãn: một câu tiêm vào lượt đang
-  // chạy có thể làm chương đang viết bị xếp lại vào hàng chờ, còn đánh thức là bắt đầu một
-  // lượt mới và TIÊU TIỀN.
-  //
-  // Kế hoạch (quyết định 7) nói ở cửa nghiệm thu engine "đang đứng" nên server luôn chọn
-  // `Continue`. Điều đó KHÔNG chắc: `AdvanceHold` là một ý định tạm dừng được đặt trước và
-  // chỉ được tiêu ở biên chương kế tiếp (`internal/host/imp/runner.go:729`), nên cửa có thể
-  // đang treo trong lúc engine vẫn viết dở. Nhãn vì vậy đi theo `dangChay` chứ không theo
-  // một giả định.
-  const { rerender } = cho({ dangChay: false });
+test('nhãn nút gửi nói TRƯỚC câu này sẽ thành gì, theo engine đang chạy hay đứng', () => {
+  // `AdvanceHold` có thể treo trong lúc engine vẫn viết dở, nên nhãn đi theo `dangChay` chứ
+  // không theo giả định "ở cửa thì engine đứng".
+  choVaGopY({ dangChay: true });
   fireEvent.click(nutTra());
-  expect(screen.getByRole('button', { name: CHU.danhThucLuotMoi })).toBeDefined();
-
-  rerender(
-    <CuaNghiemThu
-      advance={{ mode: 'review', hold: true, permit_chapter: 8, hold_reason: LY_DO }}
-      runtime=""
-      tacPham="tran-yeu-ky"
-      choGhi
-      dangChay
-      onDoi={() => {}}
-    />,
-  );
-  expect(screen.getByRole('button', { name: CHU.tiemVaoLuotDangChay })).toBeDefined();
+  expect(screen.getByRole('button', { name: new RegExp(CHU.tiemVaoLuotDangChay) })).toBeDefined();
 });
 
-test('ô nhập nói ra hệ quả: Arbiter phân loại rồi xếp chương vào hàng chờ viết lại', () => {
-  // "Trả chương về viết lại" không phải một lệnh xóa chương: nó là một chỉ thị can thiệp, và
-  // phạm vi ảnh hưởng do Arbiter quyết định — người bấm phải biết điều đó TRƯỚC khi gửi.
-  const { container } = cho();
+test('ô góp ý nói ra hệ quả: Điều phối phân loại rồi xếp chương vào hàng chờ viết lại', () => {
+  const { container } = choVaGopY();
   fireEvent.click(nutTra());
   expect(container.textContent).toContain(GIAI_THICH.traVeVietLaiQuaSteer);
 });

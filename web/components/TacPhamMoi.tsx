@@ -6,8 +6,10 @@ import { LoiApi, layCauHinh, taoSach } from '@/lib/api';
 import { TU_TRUYEN as T } from '@/lib/chu/tu-truyen';
 import { CHU, GIAI_THICH, nhanKenhVai, nhanVai } from '@/lib/nhan';
 import type { CauHinhDoc } from '@/lib/types';
+import { goiYTenThuMuc } from '@/lib/tenThuMuc';
 
 import { BieuTuong } from './BieuTuong';
+import { DemGiay } from './TheDangLam';
 
 /**
  * Tạo tác phẩm mới — một câu yêu cầu là đủ.
@@ -56,6 +58,8 @@ export function TacPhamMoi({
   const [tuDatTen, datTuDatTen] = useState(true);
   const [yeuCau, datYeuCau] = useState(nhapSan);
   const [dangGui, datDangGui] = useState(false);
+  // Mốc bắt đầu lượt chờ — đồng hồ nhích từng giây nói "vẫn đang làm" suốt 10–30 giây Điều phối đọc.
+  const [guiLuc, datGuiLuc] = useState<string | null>(null);
   const [loi, datLoi] = useState<string | null>(null);
 
   /**
@@ -83,21 +87,8 @@ export function TacPhamMoi({
     };
   }, []);
 
-  // Gợi tên thư mục từ câu yêu cầu để người dùng không phải tự nghĩ: bỏ dấu, hạ chữ, thay
-  // mọi thứ còn lại bằng gạch ngang. Chỉ GỢI Ý — họ sửa được, vì tên thư mục là thứ họ sẽ
-  // thấy trên đĩa lâu hơn cả câu yêu cầu này.
-  const slug = (v: string) =>
-    v
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/đ/gi, 'd')
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '')
-      .split('-')
-      .slice(0, 5)
-      .join('-')
-      .slice(0, 64);
+  // Chỉ GỢI Ý — họ sửa được, vì tên thư mục là thứ họ sẽ thấy trên đĩa lâu hơn cả câu này.
+  const slug = goiYTenThuMuc;
   const doiYeuCau = (v: string) => {
     datYeuCau(v);
     if (tuDatTen) datTen(slug(v));
@@ -109,6 +100,7 @@ export function TacPhamMoi({
   }, [nhapSan]);
   const gui = () => {
     datDangGui(true);
+    datGuiLuc(new Date().toISOString());
     datLoi(null);
     taoSach(ten.trim(), yeuCau.trim())
       .then((r) => onXong(r.book))
@@ -189,9 +181,11 @@ export function TacPhamMoi({
                     <>
                       {T.luuO} <code>{ten}</code>
                     </>
-                  ) : (
+                  ) : thieuTen ? (
+                    // Chỉ báo thiếu khi ĐÃ có ý tưởng: lúc ô ý tưởng còn trống, tên rỗng là
+                    // đúng — nó tự điền khi gõ — và một chữ cảnh báo ở đó là mắng oan.
                     <span className="thieu">{T.chuaCoTenThuMuc}</span>
-                  )}
+                  ) : null}
                 </span>
               </summary>
               <label className="oNhap">
@@ -243,7 +237,11 @@ export function TacPhamMoi({
               <p className="dangCho" role="status">
                 <span className="q" aria-hidden="true" />
                 <span>
-                  <b>{CHU.arbiterDangDoc}</b> {GIAI_THICH.arbiterDangDocLau}
+                  <b>
+                    {CHU.arbiterDangDoc}
+                    {guiLuc ? <DemGiay tu={guiLuc} /> : null}
+                  </b>{' '}
+                  {GIAI_THICH.arbiterDangDocLau}
                 </span>
               </p>
             ) : null}

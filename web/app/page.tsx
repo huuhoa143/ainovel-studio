@@ -32,6 +32,7 @@ import { useVuaChot } from '@/lib/chotChuong';
 import { dungInspector, laKhuMucMay, type Khu as KhuMa } from '@/lib/khu';
 import { manTheoTacPham } from '@/lib/man';
 import { coViecCanBan, useTongXuong, type TaiTongXuong } from '@/lib/tongXuong';
+import { viSaoDung } from '@/lib/loiLlm';
 import { trangThaiCua } from '@/lib/nghiemThu';
 import { mayDangChay } from '@/lib/song';
 import { useMay } from '@/lib/useMay';
@@ -178,7 +179,7 @@ export default function Trang() {
             tacPham={s.tacPham}
             ketNoi={s.ketNoi}
             choDuyet={
-              s.snapshot ? trangThaiCua(s.snapshot.advance, s.snapshot.runtime).dangCho : false
+              s.snapshot ? trangThaiCua(s.snapshot.advance, s.snapshot.runtime, s.snapshot.stop).dangCho : false
             }
             onMoTacPham={s.moTacPhamTai}
           />
@@ -267,6 +268,8 @@ export default function Trang() {
         // nên hai bề mặt không thể lệch nhau nữa.
         runtime={s.snapshot?.runtime}
         hoatDong={s.snapshot?.book.activity ?? 'idle'}
+        agents={s.snapshot?.agents}
+        dungVi={viSaoDung(s.snapshot)}
       >
         {/* Điều khiển sống TRONG transport: đó là chỗ trả lời "dây chuyền còn sống không",
             nên nút bấm phải ở cùng chỗ với câu trả lời. Đặt nó trong một bề mặt riêng sẽ
@@ -447,7 +450,7 @@ export function Khu({
         />
       );
     case 'to-san-xuat':
-      return <ToSanXuat snapshot={snapshot} />;
+      return <ToSanXuat snapshot={snapshot} tacPham={tacPham} />;
     case 'van-phong':
       return <VanPhong tacPham={tacPham} />;
     // Chi phí là bề mặt duy nhất trong ba bề mặt mới cần `snapshot`, và nó cần

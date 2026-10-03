@@ -9,6 +9,7 @@ import { CuaNghiemThu } from './CuaNghiemThu';
 function cho(p: Partial<Parameters<typeof CuaNghiemThu>[0]> = {}) {
   return render(
     <CuaNghiemThu
+      soChuongXong={7}
       advance={{
         mode: 'review',
         hold: true,
@@ -17,7 +18,6 @@ function cho(p: Partial<Parameters<typeof CuaNghiemThu>[0]> = {}) {
       }}
       runtime="" tacPham="b"
       choGhi
-      dangChay={false}
       onDoi={() => {}}
       {...p}
     />,
@@ -32,16 +32,16 @@ test('cửa KHÔNG chờ thì không vẽ gì — cả ba ca không-chờ', () =
   // thì mỗi bài chỉ canh được một phần ba của nó. Ca `null` đứng đầu: engine đóng thì mọi nút
   // ở đây chắc chắn trả 409.
   const { container, rerender } = render(
-    <CuaNghiemThu advance={null} runtime="" tacPham="b" choGhi dangChay={false} onDoi={() => {}} />,
+    <CuaNghiemThu soChuongXong={7} advance={null} runtime="" tacPham="b" choGhi onDoi={() => {}} />,
   );
   expect(container.querySelector('.cuanghiemthu')).toBeNull();
 
   rerender(
     <CuaNghiemThu
+      soChuongXong={7}
       advance={{ mode: 'auto', hold: true }}
       runtime="" tacPham="b"
       choGhi
-      dangChay={false}
       onDoi={() => {}}
     />,
   );
@@ -49,10 +49,10 @@ test('cửa KHÔNG chờ thì không vẽ gì — cả ba ca không-chờ', () =
 
   rerender(
     <CuaNghiemThu
+      soChuongXong={7}
       advance={{ mode: 'review', hold: false }}
       runtime="" tacPham="b"
       choGhi
-      dangChay={false}
       onDoi={() => {}}
     />,
   );
@@ -78,7 +78,7 @@ test('nhãn nút trả về mang ĐÚNG số chương, không phải một câu 
   // chương người dùng vừa đọc.
   cho();
   expect(screen.getByRole('button', { name: CHU.traChuongVeVietLai(8) })).toBeDefined();
-  expect(screen.getByRole('button', { name: CHU.choDiTiep })).toBeDefined();
+  expect(screen.getByRole('button', { name: /^Duyệt(, viết chương| dàn ý)/ })).toBeDefined();
 });
 
 test('không có kết luận Editor thì vẫn đủ hai nút, và nói rõ là CHƯA có — không bịa', () => {
@@ -104,9 +104,9 @@ test('chưa cấp phép chương nào thì nhãn nút vẫn đọc được, kh�
   expect(container.querySelector('.cuanghiemthu')).not.toBeNull();
   expect(container.textContent).not.toContain('undefined');
   expect(screen.getAllByRole('button')).toHaveLength(2);
-  expect(
-    screen.getByRole('button', { name: CHU.traChuongVeVietLai(undefined) }),
-  ).toBeDefined();
+  // Và không rơi về câu chung "chương này": vắng `permit_chapter` thì chương chờ duyệt là
+  // chương VỪA viết xong (fixture: 7 chương đã xong).
+  expect(screen.getByRole('button', { name: CHU.traChuongVeVietLai(7) })).toBeDefined();
 });
 
 test('choGhi === false: hai nút VÔ HIỆU, kèm câu giải thích vì sao', () => {
@@ -164,4 +164,20 @@ test('choGhi chưa biết (undefined) thì khóa nút, nhưng KHÔNG nói studio
     expect((n as HTMLButtonElement).disabled).toBe(true);
   }
   expect(container.textContent).not.toContain(GIAI_THICH.nghiemThuChoDay);
+});
+
+test('cửa sau bước dựng nền (chưa có chương nào) nói về DÀN Ý, không về "chương này"', () => {
+  // Đo được trên truyện thật: chế độ duyệt dừng ngay sau khi Kiến trúc sư dựng nền, và dải cũ
+  // ghi "Biên tập viên chưa chấm chương này" cùng nút "Yêu cầu viết lại chương này" — trong
+  // khi chưa có chương nào để chấm hay viết lại.
+  cho({
+    soChuongXong: 0,
+    advance: { mode: 'review', hold: false },
+    runtime: 'paused',
+  });
+  expect(screen.getByText(CHU.dangChoDuyetNen)).toBeDefined();
+  expect(screen.getByText(GIAI_THICH.nghiemThuNenTruyen)).toBeDefined();
+  expect(screen.getByRole('button', { name: CHU.choVietChuongDau })).toBeDefined();
+  expect(screen.getByRole('button', { name: CHU.gopYChoDanY })).toBeDefined();
+  expect(screen.queryByText(GIAI_THICH.nghiemThuChuaCoKetLuan)).toBeNull();
 });

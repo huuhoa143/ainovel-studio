@@ -101,7 +101,7 @@ test('dải ở Kiểm định nhận `tacPham`, nên hai nút BẤM ĐƯỢC', 
   for (const n of screen.getAllByRole('button', { name: /chương|Cho đi tiếp/ })) {
     expect((n as HTMLButtonElement).disabled).toBe(false);
   }
-  expect(screen.getByRole('button', { name: CHU.choDiTiep })).toBeDefined();
+  expect(screen.getByRole('button', { name: /^Duyệt(, viết chương| dàn ý)/ })).toBeDefined();
   expect(screen.getByRole('button', { name: CHU.traChuongVeVietLai(8) })).toBeDefined();
 });
 
@@ -117,14 +117,10 @@ test('dải ở Kiểm định nhận `choGhi`, nên chế độ chỉ đọc kh
   expect(container.textContent).toContain(GIAI_THICH.nghiemThuChoDay);
 });
 
-test('dải ở Kiểm định được cho biết máy đang chạy hay nghỉ', () => {
-  // `dangChay` quyết định NHÃN của nút gửi trong ô nhập, và hai nhãn đó là hai hệ quả khác
-  // nhau về tiền: tiêm vào lượt đang chạy, hay đánh thức một lượt MỚI. Nhật ký cụm trước ghi
-  // thẳng rằng người làm Task 5 phải truyền cờ này ở CẢ HAI bề mặt.
-  //
-  // Bài này phải MỞ ô nhập mới đo được, và đó là cả điểm của nó: chỉ truyền prop rồi hỏi hai
-  // cái nút ngoài thì nhét cứng `dangChay={false}` vẫn xanh — cùng lớp lỗ hổng mà bài "dải
-  // việc tiếp theo được cho biết máy đang NGHỈ" của cụm C đã phải bịt.
+test('dải ở Kiểm định: nút trả về mở ô góp ý ngay dưới dải, nhãn gửi theo máy chạy hay nghỉ', () => {
+  // `dangChay` quyết định NHÃN của nút gửi, và hai nhãn đó là hai hệ quả khác nhau về tiền:
+  // tiêm vào lượt đang chạy, hay đánh thức một lượt MỚI. Trang này không có ô góp ý ở đáy như
+  // Tiến độ, nên ô nằm ngay dưới dải — thiếu nó thì nút trả về là một nút chết.
   const veVoi = (b: boolean) =>
     render(
       <KiemDinh
@@ -140,6 +136,7 @@ test('dải ở Kiểm định được cho biết máy đang chạy hay nghỉ'
 
   veVoi(true);
   fireEvent.click(screen.getByRole('button', { name: CHU.traChuongVeVietLai(8) }));
+  expect((document.activeElement as HTMLElement).id, 'con trỏ phải vào ô góp ý').toBe('o-gop-y');
   expect(screen.getByRole('button', { name: CHU.tiemVaoLuotDangChay })).toBeDefined();
   expect(screen.queryByRole('button', { name: CHU.danhThucLuotMoi })).toBeNull();
 

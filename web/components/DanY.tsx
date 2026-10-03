@@ -45,6 +45,9 @@ export function DanY({
   const mucTienDe = bocPremise.khoi.filter((k) => k.than.length > 0);
 
   const volumes = tai.du?.volumes ?? null;
+  const phang0 = tai.du?.flat ?? [];
+  const phang = !(volumes && volumes.length > 0) && phang0.length > 0;
+  const ttChuong = ttChuongTu(snapshot);
   // Snapshot đổi ở mỗi sự kiện của dây chuyền, nhưng cây chỉ cần dựng lại khi trạng thái
   // CHƯƠNG đổi. Khoá theo chữ ký đó thì 739 dòng không bị dựng lại mỗi nhịp.
   const kyTrangThai = chuKyTrangThai(snapshot);
@@ -99,9 +102,7 @@ export function DanY({
 
           <section className="sect tgCay">
             <div className="tgCayDau">
-              <h2>
-                {CHU.tap} → {CHU.cung} → {CHU.chuong}
-              </h2>
+              <h2>{phang ? CHU.chuong : `${CHU.tap} → ${CHU.cung} → ${CHU.chuong}`}</h2>
               {tapCoCung.length > 1 ? (
                 <button
                   type="button"
@@ -115,21 +116,33 @@ export function DanY({
               ) : null}
             </div>
             {volumes && volumes.length > 0 ? (
-              <ol className="cayDanY">
-                {cay.map((t) => (
-                  <Tap key={t.v.index} t={t} mo={tapMo.has(t.v.index)} onDoi={doiTap} />
-                ))}
+              <>
+                <ol className="cayDanY">
+                  {cay.map((t) => (
+                    <Tap key={t.v.index} t={t} mo={tapMo.has(t.v.index)} onDoi={doiTap} />
+                  ))}
+                </ol>
+                {/* Dàn ý phẳng là CÙNG một sự thật xếp khác cách, nên nó không được trình
+                    bày như một nguồn thứ hai. Chỉ một dòng chú thích dưới cây. */}
+                {phang0.length > 0 ? (
+                  <p className="tgChuThich">
+                    {`${phang0.length} chương đã có dàn ý chi tiết. ${GIAI_THICH.danYPhangGiai}`}
+                  </p>
+                ) : null}
+              </>
+            ) : phang ? (
+              // Truyện ngắn không chia tập và hồi: dàn ý phẳng LÀ dàn ý. Bản trước chỉ vẽ cây
+              // phân tầng, nên ở cửa duyệt dàn ý — đúng lúc người dùng được mời "xem dàn ý rồi
+              // duyệt" — trang này nói "Chưa có dàn ý" trên một truyện đã có đủ 3 chương.
+              <ol className="cayChuong tgPhang">
+                {phang0.map((c) => {
+                  const so = c.chapter;
+                  return <ChuongDanY key={so} ch={{ c, so, tt: ttChuong(so) }} />;
+                })}
               </ol>
             ) : (
               <MucRong mang={volumes} muc="dàn ý" />
             )}
-            {/* Dàn ý phẳng là CÙNG một sự thật xếp khác cách, nên nó không được trình bày
-                như một nguồn thứ hai. Chỉ một dòng chú thích dưới cây. */}
-            <p className="tgChuThich">
-              {tai.du!.flat && tai.du!.flat.length > 0
-                ? `${tai.du!.flat.length} chương đã có dàn ý chi tiết. ${GIAI_THICH.danYPhangGiai}`
-                : GIAI_THICH.chuaCoDanY}
-            </p>
           </section>
         </div>
       )}
@@ -379,15 +392,20 @@ function chuKyTrangThai(snap: Snapshot): string {
   return `${snap.book.completed_chapters}|${snap.in_progress_chapter ?? ''}|${truc}|${chuong}`;
 }
 
-function danhSo(volumes: VolumeOutline[] | null, snap: Snapshot): TapSo[] {
-  if (!volumes) return [];
+/** Trạng thái một chương theo số — MỘT phép đo cho cây phân tầng và danh sách phẳng. */
+function ttChuongTu(snap: Snapshot): (so: number) => string {
   const dau = new Map<number, string>();
   for (const m of snap.timeline.chapters ?? []) dau.set(m.chapter, m.state);
   const dangViet = snap.in_progress_chapter;
-  const ttChuong = (so: number) => {
+  return (so: number) => {
     if (dangViet === so) return 'running';
     return dau.get(so) ?? (so <= snap.book.completed_chapters ? 'done' : 'pending');
   };
+}
+
+function danhSo(volumes: VolumeOutline[] | null, snap: Snapshot): TapSo[] {
+  if (!volumes) return [];
+  const ttChuong = ttChuongTu(snap);
   const khoiTruc = new Map((snap.timeline.volumes ?? []).map((b) => [b.index, b.state]));
 
   let dem = 0;

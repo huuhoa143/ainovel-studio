@@ -12,7 +12,9 @@
 import { CONG_CU, LOI_LLM } from '@/lib/chu/tien-do';
 import { giaiCongCu } from '@/lib/congCu';
 import { nhanVai } from '@/lib/nhan';
-import type { StreamEvent } from '@/lib/types';
+import { trangThaiCua } from '@/lib/nghiemThu';
+import { mayNaoDo } from '@/lib/song';
+import type { Snapshot, StreamEvent } from '@/lib/types';
 
 export interface LoiDaGiai {
   /** Mã loại lỗi — để so "cùng một lỗi" mà không phụ thuộc chữ. */
@@ -60,6 +62,25 @@ export function giaiLoi(
       ? LOI_LLM.khongConModelGoiCongCu(ncc)
       : LOI_LLM.khongConModel(ncc);
     viec = doiModel;
+    // Danh sách lý do còn NGUYÊN (có dấu đóng ngoặc) thì nói ra từng nhóm. Bị cắt giữa chừng
+    // ("229 no usable key c...") thì không — trích nửa con số là bịa.
+    const ds = /routes checked \(([^)]*)\)/.exec(s)?.[1];
+    if (ds) {
+      const dem = (re: RegExp) => Number(re.exec(ds)?.[1] ?? 0);
+      const quaDai = dem(/(\d+) prompt too large/);
+      const ly = [
+        quaDai ? LOI_LLM.tuyenQuaDai(quaDai) : '',
+        dem(/(\d+) model lacks tool/) ? LOI_LLM.tuyenKhongCongCu(dem(/(\d+) model lacks tool/)) : '',
+        dem(/(\d+) no usable key/) ? LOI_LLM.tuyenKhongKhoa(dem(/(\d+) no usable key/)) : '',
+        // Câu đuôi "wait for rate limits to reset" là văn mẫu, có ở MỌI lỗi hết tuyến — chỉ mã 429
+        // hoặc thẻ `[rate_limit` mới nói là đang bị giới hạn thật.
+        /\b429\b|\[rate_limit/.test(s) ? LOI_LLM.tuyenGioiHan : '',
+      ].filter(Boolean);
+      if (ly.length > 0) cau = LOI_LLM.hetTuyenChiTiet(ncc, ly);
+      // Có tuyến bị loại vì yêu cầu quá dài: đổi sang một model bất kỳ không cứu được — phải
+      // là model ngữ cảnh lớn. Đây đúng là ca chương 726 của một truyện 1,4 triệu chữ.
+      if (quaDai) viec = LOI_LLM.viecNguCanhLon(vai);
+    }
   } else if (/no candidate model|no usable (provider )?key/.test(s)) {
     ma = 'khong-khoa';
     cau = LOI_LLM.khongCoKhoa(ncc);
@@ -104,6 +125,37 @@ export function giaiLoi(
     return undefined;
   }
   return { ma, cau, viec, thuLai: tl ? { lan: tl.lan, tong: tl.tong } : undefined, tho };
+}
+
+/**
+ * Engine TỰ dừng (không phải bạn bấm, không phải cửa duyệt) — và vì sao. MỘT phép đo cho mọi
+ * bề mặt nói về lần dừng.
+ *
+ * Trên truyện thật: cổng model hết tuyến suốt ba lượt viết chương 726, Điều phối phán "bế tắc"
+ * và dừng, còn màn hình nói "Tạm dừng · Bấm Viết tiếp" — người dùng bấm, một lúc sau lại dừng,
+ * không có chữ nào nói tại sao. Lý do của Điều phối ("lặp lại 3 lần không tiến triển") không chỉ
+ * ra lỗi gốc; `last_error` mới là thứ sửa được, nên nó đứng trước.
+ */
+export function lyDoTuDung(
+  snap: Pick<Snapshot, 'stop' | 'runtime' | 'book'>,
+  ncc?: string,
+): { loi?: LoiDaGiai; lyDo: string; kind: string } | undefined {
+  const d = snap.stop;
+  if (!d || (d.kind !== 'stuck' && d.kind !== 'budget')) return undefined;
+  if (mayNaoDo(snap.runtime, snap.book.activity) === 'running') return undefined;
+  return { loi: giaiLoi(d.last_error, { ncc, vai: d.last_error_agent }), lyDo: d.reason, kind: d.kind };
+}
+
+/**
+ * Engine đang dừng VÌ SAO, khi lý do ấy cần một tên riêng ở thanh dưới: đứng ở cửa duyệt
+ * (`cho`), hay tự dừng vì lỗi (`tuDung`). MỘT hàm cho trang và cho bảng ma trận trạng thái.
+ */
+export function viSaoDung(
+  snap: Pick<Snapshot, 'advance' | 'runtime' | 'stop' | 'book'> | undefined,
+): 'cho' | 'tuDung' | undefined {
+  if (!snap) return undefined;
+  if (trangThaiCua(snap.advance, snap.runtime, snap.stop).dangCho) return 'cho';
+  return lyDoTuDung(snap) ? 'tuDung' : undefined;
 }
 
 /** "lingoreup không còn model nào gọi công cụ được (đang thử lại 4/7). Thử chọn model khác…" */

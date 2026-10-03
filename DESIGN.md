@@ -344,7 +344,19 @@ Bộ SVG vẽ tay trong `web/components/BieuTuong.tsx`: khung 24, nét `currentC
 Từ vựng và giọng ở `PRODUCT.md`; chuỗi ở `web/lib/nhan.ts` và `web/lib/chu/*.ts`. Về mặt trình bày: viết thường kiểu câu, không viết hoa để nhấn; số theo kiểu Việt (`1.421.310`, `7,5`, `$0,177`); thiếu số đo thì hiện "—", không hiện 0; con số tổng mang mẫu số của nó ("tính trên 1/3 truyện", tông amber); trạng thái rỗng, lỗi, đang tải đều có một câu nói rõ và việc nên làm tiếp.
 
 ### Motion
-Easing `cubic-bezier(0.16, 1, 0.3, 1)`, 140–160ms, chỉ trên nền, màu chữ, viền, bóng. Chuyển động mang thông tin duy nhất là nhịp đập 2.2s của trạng thái đang chạy. Có nhánh `prefers-reduced-motion`; nội dung không bị gate sau animation.
+Easing `cubic-bezier(0.16, 1, 0.3, 1)`, 140–160ms cho chuyển trạng thái thường, chỉ trên nền, màu chữ, viền, bóng. Nội dung không bị gate sau animation.
+
+Chuyển động LẶP chỉ có một nghĩa: máy đang chạy THẬT. Mọi vòng lặp gắn với `data-tt="chay"` (thẻ đang làm) hoặc `data-chay` (thanh dưới) — cùng khóa `mayNaoDo` — không bao giờ với `stage` đã ghi trên đĩa. Mỗi chuyển động trả lời một câu:
+
+- chấm đập 2.2s ở thẻ và ký hiệu ▶ ở thanh dưới — "còn sống";
+- đường vàng trôi dọc mép trên thanh dưới (2.4s) — tín hiệu còn sống thấy được từ mọi màn;
+- dải sáng quét qua bước đang làm của dải năm bước / bốn chặng dựng nền (1.9s) — "việc đang ở đây";
+- màu xanh lấp từ trái sang một lần khi một bước xong (450ms) — "xong, sang bước kế";
+- vạch chéo trôi trên ô chương đang viết ở trục chương — "chương này";
+- con trỏ vàng nhấp nháy cuối văn đang chảy, vòng quay nhỏ cạnh bước công cụ đang chạy;
+- đồng hồ "· 0:42" của bước đang chạy nhích từng giây — một lượt dài không stream không được đứng im.
+
+`prefers-reduced-motion`: bỏ chuyển động không gian và vòng lặp, GIỮ tín hiệu — bước đang làm vẫn sáng vàng, chương đang viết vẫn mang vạch chéo (đứng yên), con trỏ đứng yên, vòng quay thành chấm vàng, đường chạy thành vạch tĩnh. Bất biến chéo giữa các bề mặt được canh ở `web/app/trangthai.matran.test.tsx`.
 
 ## Do's and Don'ts
 

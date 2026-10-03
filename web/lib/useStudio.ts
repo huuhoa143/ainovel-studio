@@ -37,6 +37,8 @@ const GIU_SU_KIEN = 40;
  * sự kiện sẽ nghiền store khi engine đang phát liên tục. Gộp lại một nhịp.
  */
 const NHIP_LAM_MOI_MS = 1500;
+/** Nhịp hỏi lại khi engine đang ở trạng thái chuyển tiếp (`pausing`). */
+const NHIP_CHUYEN_TIEP_MS = 1000;
 
 /**
  * Nhịp làm mới NỀN — cho những gì dòng sự kiện không với tới.
@@ -583,6 +585,22 @@ export function useStudio(): Studio {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tacPham, lanTai, !!snapshot, napBaTo]);
+
+  /**
+   * Trạng thái CHUYỂN TIẾP tự hỏi lại, không chờ sự kiện.
+   *
+   * `pausing` là một khoảnh khắc chứ không phải chỗ dừng: engine đang thoát, lát nữa sẽ là
+   * `paused`. Nếu chỉ trông vào dòng sự kiện để nạp lại thì một sự kiện rơi (hay một lần nạp lại
+   * chạy sớm hơn lúc engine thoát hẳn) là thanh điều khiển kẹt "Đang dừng…" mãi — đo được trên
+   * truyện thật, kẹt hơn hai phút dù engine đã dừng từ giây đầu. Hỏi lại mỗi giây cho tới khi
+   * trạng thái rời `pausing`; snapshot đổi thì effect tự dọn.
+   */
+  const dangChuyen = snapshot?.runtime === 'pausing';
+  useEffect(() => {
+    if (!dangChuyen || !tacPham) return;
+    const t = setInterval(() => napBaTo(tacPham), NHIP_CHUYEN_TIEP_MS);
+    return () => clearInterval(t);
+  }, [dangChuyen, tacPham, napBaTo]);
 
   /* ── 4. làm mới nền ────────────────────────────────────────────────── */
 

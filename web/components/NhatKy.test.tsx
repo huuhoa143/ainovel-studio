@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { expect, test } from 'vitest';
 
+import { CAU_DUNG } from '@/lib/chu/tien-do';
 import { GIAI_THICH } from '@/lib/nhan';
 
 import type { StreamEvent } from '@/lib/types';
@@ -116,4 +117,38 @@ test('lỗi thoáng qua đã tự thử lại thành công thì không đỏ, kh
   expect(dong!.textContent).not.toContain('Thử chọn model khác');
   // Công cụ cũng đọc bằng tiếng Việt.
   expect(container.textContent).toContain('Viết nháp chương 3');
+});
+
+test('sự kiện dừng ở cửa duyệt nói câu của web, không dạy lệnh /next của TUI', () => {
+  // Câu của engine — đo được trên truyện thật co-tho-sua-dong-ho.
+  const goc =
+    'Đã hoàn tất tới chương 2, nghiệm thu từng chương đang chờ cho qua chương 3; dùng /next để sinh, hoặc nhập ý kiến sửa';
+  render(
+    <DongSuKien
+      suKien={[
+        {
+          seq: 1,
+          time: '2026-10-03T11:07:00Z',
+          kind: 'ui_event',
+          category: 'SYSTEM',
+          summary: goc,
+          payload: { Kind: 'stop_gate', Summary: goc },
+        },
+        // Loại dừng không có câu riêng thì giữ câu của engine.
+        {
+          seq: 2,
+          time: '2026-10-03T11:08:00Z',
+          kind: 'ui_event',
+          category: 'SYSTEM',
+          summary: 'Đã chạm trần ngân sách',
+          payload: { Kind: 'stop_budget' },
+        },
+      ]}
+    />,
+  );
+  expect(screen.getByText(CAU_DUNG.stop_gate!)).toBeDefined();
+  expect(screen.queryByText(/\/next/)).toBeNull();
+  // Câu gốc vẫn đọc được khi rê chuột — không vứt dữ liệu.
+  expect(document.querySelector(`[title="${goc}"]`)).not.toBeNull();
+  expect(screen.getByText('Đã chạm trần ngân sách')).toBeDefined();
 });

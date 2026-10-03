@@ -64,7 +64,7 @@ export const CH = {
 
   /* ── phiên đang mở ── */
   phienDangMo: (ten: string) =>
-    `Truyện ${ten} đang mở phiên và vẫn dùng thiết lập lúc mở. Thay đổi ở đây áp dụng từ lần mở phiên tới.`,
+    `Truyện ${ten} đang mở phiên và vẫn chạy model cũ — thiết lập ở đây đã đổi sau khi phiên mở. Bấm áp dụng để phiên dùng ngay, hoặc thiết lập mới sẽ ăn từ lần mở phiên tới.`,
   apDungNgay: (ten: string) => `Áp dụng ngay cho ${ten}`,
   dangApDung: 'Đang áp dụng…',
   daApDung: (ten: string, gio: string) => `Đã áp dụng cho ${ten} lúc ${gio}`,

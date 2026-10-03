@@ -2,8 +2,8 @@
 
 import { useState } from 'react';
 
-import { LOI_LLM, NHAT_KY_VAO } from '@/lib/chu/tien-do';
-import { gio, ngayGio, thoiLuong } from '@/lib/dinhdang';
+import { CAU_DUNG, LOI_LLM, NHAT_KY_VAO } from '@/lib/chu/tien-do';
+import { gio, ngayGio, ngayNgan, thoiLuong } from '@/lib/dinhdang';
 import { giaiCongCu } from '@/lib/congCu';
 import { cauLoi, giaiGiaoViec, gopSuKien } from '@/lib/loiLlm';
 import { GIAI_THICH, nhanPhanQuyet, nhanVai, DH } from '@/lib/nhan';
@@ -31,9 +31,15 @@ export function NhatKy({ decisions }: { decisions: Decision[] | undefined }) {
   );
 }
 
+/** Dòng ngày nhỏ dưới giờ — chỉ hiện khi mốc không thuộc hôm nay. Xem `ngayNgan`. */
+function MocNgay({ iso }: { iso: string | undefined }) {
+  const ngay = ngayNgan(iso);
+  return ngay ? <span className="mocNgay">{ngay}</span> : null;
+}
+
 function DongPhanQuyet({ d }: { d: Decision }) {
   const [mo, setMo] = useState(false);
-  const { giai, mau } = nhanPhanQuyet(d.kind);
+  const { giai, mau } = nhanPhanQuyet(d.kind, d.decision);
   const coTho = d.decision !== undefined && d.decision !== null;
   const tl = thoiLuong(d.duration_ms);
 
@@ -41,6 +47,7 @@ function DongPhanQuyet({ d }: { d: Decision }) {
     <div className="entry">
       <time dateTime={d.at} title={ngayGio(d.at)}>
         {gio(d.at) ?? '—'}
+        <MocNgay iso={d.at} />
       </time>
 
       <span className={`kind ${mau}`} title={d.kind}>
@@ -133,12 +140,19 @@ export function DongSuKien({
               ? `${LOI_LLM.thuLaiNLan(so)} — ${cauLoi({ ...loi, thuLai: undefined })}`
               : cauLoi(loi)
           : undefined;
-        const cau = cauLoiDong ?? giaiGiaoViec(ev.summary) ?? giaiCongCu(ev.summary) ?? ev.summary;
+        const kindDung = (ev.payload as { Kind?: string } | undefined)?.Kind;
+        const cau =
+          cauLoiDong ??
+          (kindDung ? CAU_DUNG[kindDung] : undefined) ??
+          giaiGiaoViec(ev.summary) ??
+          giaiCongCu(ev.summary) ??
+          ev.summary;
         const laLoi = (ev.category === 'ERROR' || !!loi) && !daQua;
         return (
           <div key={ev.seq} className={`sk${laLoi ? ' loi' : ''}${daQua ? ' daQua' : ''}`}>
             <time dateTime={ev.time} title={ngayGio(ev.time)}>
               {gio(ev.time) ?? '—'}
+              <MocNgay iso={ev.time} />
             </time>
             <span className="loai" title={ev.category ?? ev.kind}>
               {nhanLoaiSuKien(ev.category ?? ev.kind)}

@@ -83,6 +83,8 @@ export interface Book {
   cost_per_chapter: number;
   chapters_per_hour: number;
   engine_open: boolean;
+  /** Lần dừng gần nhất của phiên đang mở — cùng phép chiếu với `Snapshot.stop`. */
+  stop?: LanDung;
 }
 
 export interface Workshop {
@@ -123,6 +125,15 @@ export interface LaneBlock {
 }
 
 export type MarkState = 'done' | 'running' | 'rewrite' | 'gate' | 'pending';
+
+/**
+ * Trạng thái vạch như trên MÀN: thêm `vietDo` — `running` của store khi máy KHÔNG chạy (xem
+ * `VIET_DO` ở lib/nhan.ts). Chỉ web tạo ra nó; server không bao giờ gửi.
+ */
+export type VachHien = MarkState | 'vietDo';
+
+/** Vạch chương mang trạng thái MÀN — mọi hàm trục nhận được cả vạch thô lẫn vạch đã chuẩn hóa. */
+export type VachChuong = Omit<ChapterMark, 'state'> & { state: VachHien };
 
 export interface ChapterMark {
   chapter: number;
@@ -277,9 +288,21 @@ export interface Vai {
   role: string;
   state: string;
   tool?: string;
+  /** Chương mà lượt gọi công cụ đang chạy nói tới — `read_chapter(1)`, `edit_chapter(1)`… */
+  chapter?: number;
   turn?: number;
   task?: string;
   depth: number;
+}
+
+/** Lần dừng gần nhất — `kind`: user (bạn dừng) | gate (chờ duyệt) | budget | stuck (tự dừng). */
+export interface LanDung {
+  at: string;
+  kind: 'user' | 'gate' | 'budget' | 'stuck' | string;
+  reason: string;
+  last_error?: string;
+  /** Vai gặp lỗi ấy — `writer`, `architect_long`… */
+  last_error_agent?: string;
 }
 
 /** Chế độ đi tiếp và cửa nghiệm thu. */
@@ -330,6 +353,11 @@ export interface Snapshot {
    * chương sau", và cả màn Cửa nghiệm thu đứng trên phép phân biệt đó.
    */
   runtime: string;
+  /**
+   * Lần dừng gần nhất của phiên đang mở: ai dừng, vì sao, lỗi model cuối cùng trước lúc đó.
+   * Vắng khi engine đóng, đang chạy, hoặc chưa dừng lần nào. Xem `lyDoTuDung` (lib/loiLlm.ts).
+   */
+  stop?: LanDung;
   pending_steer?: string;
   rewrite_reason?: string;
   recovery?: string;
@@ -807,6 +835,11 @@ export interface CauHinhDoc {
   presets: MauNhaCungCap[];
   /** Cuốn đang mở engine — đổi cấu hình KHÔNG ăn vào chúng cho tới lần mở lại. */
   engine_open: string[];
+  /**
+   * Cuốn đang mở mà phần model của phiên LỆCH tệp — chỉ những cuốn này cần "áp dụng ngay".
+   * Vắng (engine cũ hơn web) thì coi mọi cuốn đang mở là có thể lệch, như trước.
+   */
+  engine_stale?: string[];
 }
 
 /** Một kênh model theo vai — GET /api/books/{b}/models. */

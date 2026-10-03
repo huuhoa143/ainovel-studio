@@ -341,7 +341,8 @@ function TrangThaiChuong({
   if (!row) return null;
   // Cùng một sự thật liveness với bảng chương và thanh transport — nếu ba chỗ
   // này suy khác nhau thì một màn hình lại nói ba điều, đúng lỗi đã sửa.
-  return <TrangThai tt={trangThaiDong(row)} dap={mayDangChay(snapshot)} />;
+  const chay = mayDangChay(snapshot);
+  return <TrangThai tt={trangThaiDong(row, chay)} dap={chay} />;
 }
 
 /* ── tab Khế ước ──────────────────────────────────────────────────────── */

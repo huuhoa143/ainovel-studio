@@ -80,7 +80,7 @@ test('chip thể loại điền một câu mẫu và tên thư mục; gõ ý ri�
   fireEvent.click(screen.getByRole('button', { name: 'Trinh thám' }));
   expect(o.value).toBe(mau.cau);
   // Tên thư mục tự sinh đi theo, nên nút chính bấm được ngay mà không phải mở Tùy chọn.
-  expect(document.querySelector('.tpmTuyChon code')?.textContent).toBe('truyen-trinh-tham-dieu-tra');
+  expect(document.querySelector('.tpmTuyChon code')?.textContent).toBe('trinh-tham-dieu-tra-nhip');
   expect((screen.getByRole('button', { name: /Bắt đầu viết/ }) as HTMLButtonElement).disabled).toBe(false);
 
   // Chữ của chính người dùng thì không chip nào được đè lên.

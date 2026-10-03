@@ -22,7 +22,10 @@ export function denLuotBienTap(snap: Snapshot): boolean {
   const xong = snap.book.completed_chapters;
   if (xong <= 0) return false;
   if (phanTang(snap)) return (snap.timeline.arcs ?? []).some((h) => h.to === xong);
-  return xong % CHU_KY_BIEN_TAP === 0;
+  // Hai vế như `domain.ShouldReview`: cứ 5 chương, VÀ một lần chấm cuối khi viết xong chương
+  // cuối của dàn ý — truyện ngắn dưới 5 chương vẫn có một lượt chấm, ngay trước khi kết.
+  const tong = snap.book.total_chapters;
+  return xong % CHU_KY_BIEN_TAP === 0 || (tong > 0 && xong >= tong);
 }
 
 /** Câu giải thích vì sao chưa có nhận xét — nói đúng nhịp chấm của truyện này. */
@@ -31,6 +34,11 @@ export function cauChuaCoNhanXet(snap: Snapshot): string {
   if (phanTang(snap)) return NHAN_XET_DINH_KY.cuoiHoi;
   if (b.phase === 'complete' && b.completed_chapters < CHU_KY_BIEN_TAP) {
     return NHAN_XET_DINH_KY.truyenNgan;
+  }
+  // Truyện ngắn hơn một chu kỳ: lượt chấm duy nhất là lượt cuối. Nói "cứ 5 chương" với một
+  // truyện 3 chương là hứa một lượt chấm không bao giờ tới.
+  if (b.total_chapters > 0 && b.total_chapters < CHU_KY_BIEN_TAP) {
+    return NHAN_XET_DINH_KY.chamCuoi(b.total_chapters);
   }
   return `${NHAN_XET_DINH_KY.chuKy(CHU_KY_BIEN_TAP)} ${NHAN_XET_DINH_KY.chuaToiLuot}`;
 }

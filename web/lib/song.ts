@@ -90,3 +90,75 @@ export function mayDangChay(snapshot: Snapshot | undefined): boolean {
   // của cùng một luật, và bản thứ hai chính là thứ để thanh transport trôi mất một nửa.
   return mayNaoDo(snapshot.runtime, snapshot.book.activity) === 'running';
 }
+
+/**
+ * Chương mà vai đang làm THẬT SỰ đụng tới — tham số `chapter` của lượt gọi công cụ đang chạy
+ * (`read_chapter(1)`, `edit_chapter(1)`…), do engine khai ở `agents[].chapter`.
+ *
+ * Khác "chương kế tiếp": khi bạn trả chương 1 về sửa, chương kế tiếp là 2 nhưng việc đang làm là
+ * chương 1. Đo được trên truyện thật — thẻ ghi "Chương 2 · Ba giây" kèm dải bước "Kế hoạch" suốt
+ * lượt Biên tập viên sửa chương 1. `undefined` khi không vai nào đang cầm một chương cụ thể.
+ */
+export function chuongDangLam(snap: Pick<Snapshot, 'agents'> | undefined): number | undefined {
+  const goc = snap?.agents?.find((a) => a.depth === 0 && a.state !== 'idle');
+  return goc?.chapter && goc.chapter > 0 ? goc.chapter : undefined;
+}
+
+/**
+ * Vai đang làm — MỘT phép chọn cho mọi bề mặt hỏi "ai đang làm".
+ *
+ * Bản trước mỗi bề mặt tự ghép `song.vai || last_call.agent`, và trên truyện thật hai chỗ nói
+ * hai điều cùng lúc: thẻ đang làm ghi "Kiến trúc sư" (đọc cây vai), thanh dưới ghi "Điều
+ * phối" (đọc lượt gọi xong gần nhất — Điều phối vừa giao việc). `last_call` là lượt ĐÃ XONG;
+ * nó chỉ trả lời "ai đang làm" khi không còn nguồn nào sống hơn.
+ *
+ * Thứ tự là độ tươi: vai gốc trong cây vai engine tự khai (cây chỉ chứa vai không rảnh) →
+ * dòng sự kiện → lượt gọi gần nhất → vai mặc định của phiên. `||` chứ không `??`: chuỗi rỗng
+ * phải rơi tiếp.
+ */
+export function vaiHienTai(
+  snap: Pick<Snapshot, 'agents' | 'transport'> | undefined,
+  vaiSong: string | undefined,
+): string | undefined {
+  const goc = snap?.agents?.find((a) => a.depth === 0 && a.state !== 'idle');
+  return (
+    goc?.role || vaiSong || snap?.transport.last_call?.agent || snap?.transport.agent || undefined
+  );
+}
+
+/** Bước đang chạy / vừa xong, ở dạng thô mà `giaiCongCu` và `chiSoBuoc` đọc được. */
+export interface BuocHienTai {
+  /** Tên bước thô: `novel_context(chương 2)`, `draft_chapter`, mã checkpoint `commit`… */
+  buoc?: string;
+  /** Bước ấy đang chạy thật (đúng lúc này), hay là bước VỪA xong. */
+  dangChay: boolean;
+  /** Mốc bắt đầu, nếu biết — chỉ dòng sự kiện biết; cây vai không mang giờ. */
+  luc?: string;
+}
+
+/**
+ * Bước nào đang chạy — MỘT phép chọn cho thẻ đang làm, dải năm bước và thanh dưới.
+ *
+ * Cùng bệnh với `vaiHienTai`: dòng sự kiện phần lớn chở bước ĐÃ XONG (observer không ghi sự
+ * kiện "bắt đầu"), nên ba bề mặt đọc nó ra ba thì khác nhau. Đo được trên truyện thật, cùng
+ * một khung hình lúc Người viết đang đọc tài liệu cho chương 2: thẻ ghi "vừa chốt chương",
+ * dải năm bước sáng "Kế hoạch" như bước KẾ TIẾP, thanh dưới ghi "Đọc tài liệu… vừa xong", còn
+ * khu văn sống quay vòng "Đọc tài liệu truyện" — chỉ cái cuối là đúng.
+ *
+ * Thứ tự là độ tươi: sự kiện đang chạy → công cụ mà cây vai engine tự khai cho vai gốc đang
+ * làm → bước vừa xong (sự kiện, rồi checkpoint).
+ */
+export function buocHienTai(
+  snap: Pick<Snapshot, 'agents' | 'transport'> | undefined,
+  song: { buoc?: string; dangChay: boolean; luc?: string } | undefined,
+): BuocHienTai {
+  if (song?.dangChay && song.buoc) return { buoc: song.buoc, dangChay: true, luc: song.luc };
+  const goc = snap?.agents?.find((a) => a.depth === 0 && a.state !== 'idle');
+  if (goc?.tool) {
+    // `task` mang cả tham số ("writer → novel_context(chương 2)"); `tool` chỉ có tên hàm.
+    const sauMuiTen = goc.task?.split('→')[1]?.trim();
+    const buoc = sauMuiTen && sauMuiTen.startsWith(goc.tool) ? sauMuiTen : goc.tool;
+    return { buoc, dangChay: true };
+  }
+  return { buoc: song?.buoc ?? snap?.transport.last_step, dangChay: false, luc: song?.luc };
+}

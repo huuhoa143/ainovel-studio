@@ -163,3 +163,14 @@ func docKhoa(duong string) (int, string) {
 	}
 	return pid, moc
 }
+
+// DangCoNguoiGiu cho biết có process CÒN SỐNG nào đang giữ khóa của thư mục này không.
+//
+// Chỉ đọc, không lấy khóa. Đây là câu trả lời mạnh nhất có được cho "cuốn này có đang được
+// viết không" từ bên ngoài engine: mọi đường chạy engine (TUI, headless, studio) đều đi qua
+// `host`, mà `host` lấy khóa này. Không ai giữ khóa thì không ai đang ghi — dù checkpoint cuối
+// mới cách vài phút. Khóa mồ côi (process đã chết) tính là không ai giữ, cùng luật với `layKhoa`.
+func DangCoNguoiGiu(dir string) bool {
+	pid, _ := docKhoa(TepKhoaCua(dir))
+	return pid > 0 && conSong(pid)
+}

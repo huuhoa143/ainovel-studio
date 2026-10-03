@@ -32,6 +32,7 @@ function ve(cap: [number, MarkState][], vuaChot: ReadonlySet<number>) {
       chuongChon={undefined}
       onChonChuong={() => {}}
       vuaChot={vuaChot}
+      dangChay
     />,
   );
 }

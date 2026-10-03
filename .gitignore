@@ -54,3 +54,11 @@ scripts/i18n/__pycache__/
 
 # Trạng thái công cụ oh-my-claudecode (ảnh chụp, log, state) — không thuộc sản phẩm.
 .omc/
+
+# Ảnh chụp và nhật ký phiên làm việc của skill thiết kế (impeccable).
+# `brief-v2.md` và `design.json` là bối cảnh thiết kế BỀN, có theo dõi; ba thư mục
+# dưới đây là vật phẩm của từng phiên — 25MB ảnh chụp màn hình và một tệp trạng
+# thái mang PID/cổng của máy đang chạy, không có nghĩa trên máy khác.
+.impeccable/review/
+.impeccable/questions/
+.impeccable/mocks/

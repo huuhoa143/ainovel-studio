@@ -4,6 +4,7 @@ import { DOC_DUYET } from '@/lib/chu/doc-duyet';
 import { soTu } from '@/lib/dinhdang';
 import type { Khu } from '@/lib/khu';
 import { CHU, GIAI_THICH, kyTheoTone, nhanKetLuan, trangThaiDong } from '@/lib/nhan';
+import { mayDangChay } from '@/lib/song';
 import type { ChapterRow, Review, Snapshot } from '@/lib/types';
 
 import { BanDuyet } from './BanDuyet';
@@ -99,6 +100,7 @@ export function HangChoVietLai({
                   dangVe={r.chapter === chuongChon && dangVe}
                   onChon={() => onChonChuong(r.chapter)}
                   onChonKhu={onChonKhu}
+                  dangChay={mayDangChay(snapshot)}
                 />
               ))}
             </ul>
@@ -124,7 +126,9 @@ function MotChuong({
   dangVe,
   onChon,
   onChonKhu,
+  dangChay,
 }: {
+  dangChay: boolean;
   r: ChapterRow;
   moRa: boolean;
   duyet: Review | undefined;
@@ -132,7 +136,7 @@ function MotChuong({
   onChon: () => void;
   onChonKhu?: (k: Khu) => void;
 }) {
-  const tt = trangThaiDong(r);
+  const tt = trangThaiDong(r, dangChay);
   const tu = soTu(r.words);
   const kl = nhanKetLuan(duyet?.verdict);
   const soVanDe = duyet?.issues?.length ?? 0;

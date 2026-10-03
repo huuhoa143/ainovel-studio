@@ -115,3 +115,23 @@ test('bảng token nằm trong "Xem chi tiết" và đóng sẵn', async () => {
   expect(chiTiet.querySelector('table.bangcp')).not.toBeNull();
   expect(chiTiet.textContent).toContain(CHU.tongChung);
 });
+
+test('model dùng token mà giá 0 → "Chưa biết giá", không in "$0,00" và không nói "đủ"', async () => {
+  // Đo được trên kiraai · kira-mini-1.0: 523k token, cost_usd 0, mà màn in "$0,00" kèm "Số liệu
+  // đầy đủ". Không biết giá khác hẳn miễn phí.
+  const { container } = ve(
+    doc({
+      overall: { ...t(0), input: 523868, output: 62928 },
+      per_agent: { architect: t(0) },
+      per_model: { 'openai/kira-mini-1.0': t(0) },
+      missing_assistant_usage: 0,
+    }),
+  );
+  await waitFor(() => expect(container.querySelector('.vhSo')).not.toBeNull());
+  const o0 = container.querySelectorAll('.vhO')[0]!.textContent ?? '';
+  expect(o0).toContain(CHU_VH.chuaBietGia);
+  expect(o0).not.toContain('$0,00');
+  const tin = container.querySelector('.vhTin')!.textContent ?? '';
+  expect(tin).toContain('kira-mini-1.0');
+  expect(tin).not.toContain(CHU_VH.soLieuDayDu);
+});

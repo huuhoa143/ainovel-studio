@@ -891,20 +891,30 @@ button {
    Bố cục: lưới hai cột `1fr auto` — chữ bên trái, hai nút căn phải. Lưới chứ không phải
    flex vì bốn khối phụ (`.cntO`, `.loiDoc`, câu chỉ-đọc) phải trải HẾT bề rộng dưới cả
    hai cột; với flex chúng sẽ chen vào cùng một hàng với hai cái nút. */
+/* Màu của cửa duyệt: VIOLET, theo DESIGN.md ("Tím chờ duyệt", ◆). Đặt thành biến ở
+   đây vì CÓ HAI nơi tô màu cho dải — luật tĩnh dưới đây và nhịp thở `thoCho` — và
+   animation thắng mọi khai báo thường trong thác CSS. Bản trước chép tay `--amber`
+   vào cả hai: bề mặt Tiến độ đặt nền violet nhưng nhịp thở ghi đè thành amber, nên
+   một trạng thái CHỜ hiện ra như một thẻ đỏ hồng — đúng màu của lỗi — trong khi
+   thanh dưới và nhãn bên trái cùng lúc nói "◆ chờ duyệt" màu tím.
+   `--cua-nen` là mặt mà sắc tím trộn vào: `--bg` cho dải sát mép, `--panel` cho
+   thẻ nổi (bề mặt nào vẽ dải thành thẻ thì đổi biến này, không viết lại màu). */
 .cuanghiemthu {
+  --cua-mau: var(--violet);
+  --cua-nen: var(--bg);
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: start;
   gap: 3px 18px;
   margin: 0;
   padding: 10px 18px 11px;
-  background: color-mix(in oklch, var(--amber) 9%, var(--bg));
-  border-bottom: 1px solid color-mix(in oklch, var(--amber) 26%, var(--line-2));
+  background: color-mix(in oklch, var(--cua-mau) 9%, var(--cua-nen));
+  border-bottom: 1px solid color-mix(in oklch, var(--cua-mau) 26%, var(--line-2));
   min-width: 0;
 }
 
 /* Dòng đầu: ký hiệu + "Đang chờ bạn nghiệm thu chương N". Cùng khuôn `.canhbao h2` —
-   cùng cỡ, cùng màu amber, ký hiệu đứng trước chữ. */
+   cùng cỡ, ký hiệu đứng trước chữ; màu là màu của cửa. */
 .cuanghiemthu .cnthead {
   grid-column: 1;
   display: flex;
@@ -912,7 +922,7 @@ button {
   gap: 7px;
   margin: 0;
   font: 500 12.5px/1.4 var(--ui);
-  color: var(--amber);
+  color: var(--cua-mau);
   min-width: 0;
 }
 
@@ -921,7 +931,7 @@ button {
    `xuong-1440-truoc-css.png`. Cùng cỡ/cùng font mono như `.nutMoi .ky`. */
 .cuanghiemthu .ky {
   flex: none;
-  color: var(--amber);
+  color: var(--cua-mau);
   font: 400 12px/1.4 var(--mono);
 }
 
@@ -1100,6 +1110,9 @@ button {
 }
 .chlane i.done {
   background: color-mix(in oklch, var(--teal) 62%, var(--panel));
+}
+.chlane i.vietDo {
+  background-color: color-mix(in oklch, var(--gold) 34%, var(--panel));
 }
 .chlane i.running {
   background: var(--gold);
@@ -1351,6 +1364,13 @@ td.who {
   color: var(--ink-3);
   white-space: nowrap;
 }
+.entry time .mocNgay,
+time .mocNgay {
+  display: block;
+  font-size: 10.5px;
+  line-height: 1.3;
+  color: var(--ink-3);
+}
 .entry .kind {
   min-width: 0;
 }
@@ -1525,6 +1545,13 @@ td.who {
 .steerbox button:hover:not(:disabled) {
   filter: brightness(1.07);
 }
+/* Nút phụ trong ô (Hủy) giữ dáng phụ: `.steerbox button` tô vàng MỌI nút, nên Hủy đứng cạnh
+   nút gửi trông như hai nút chính — bấm nhầm cái nào cũng thấy hợp lý. */
+.steerbox button.nutPhu {
+  background: var(--raised);
+  color: var(--ink);
+  border: 1px solid var(--line);
+}
 .steerbox button:disabled {
   background: var(--panel-2);
   color: var(--ink-3);
@@ -1685,6 +1712,33 @@ td.who {
 
 .vsthan .luot + .luot {
   margin-top: 4px;
+}
+
+/* Model TỰ NHỦ — ghi chú quy trình model nói ra ngoài tham số công cụ.
+   Engine ngăn nó khỏi văn bằng `\x02` (`internal/utils.ThinkingSep`) và TUI đã
+   vẽ mờ nghiêng từ đầu; khối này là vế web của cùng một luật. ĐO ĐƯỢC trên
+   truyện thật: thiếu nó, "Let me re-check the consistency, then commit" nối
+   thẳng vào cuối chương bằng chính kiểu chữ serif khổ đọc của văn truyện.
+
+   Vạch dọc + thụt vào + mono nhỏ: ba dấu hiệu cùng nói MỘT điều — đoạn này
+   không thuộc truyện. Không thu gọn được: nó ngắn, và một nút bấm nữa trong
+   khu đang chảy chữ là một thứ nhấp nháy để bấm hụt. */
+.vsthan .nghi {
+  margin: 10px 0;
+  padding: 2px 0 2px 11px;
+  border-left: 2px solid var(--line);
+}
+.vsthan .nghiNhan {
+  margin: 0 0 3px;
+  font: 500 10.5px/1.4 var(--ui);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.vsthan .nghiChu {
+  font: 400 11.5px/1.65 var(--mono);
+  font-style: italic;
+  color: var(--ink-3);
 }
 
 /* Chữ máy phát: mono, KHÔNG serif.
@@ -2531,44 +2585,51 @@ td.who {
    từ dòng sự kiện ("soát nhất quán: không thấy xung đột"). ĐO ĐƯỢC ở 1240px:
    ô này chiếm 324px và đẩy transport tràn 94px, cắt mất "đã chạy" — tức là một
    câu mô tả dài làm mất con số vận hành. Chặn nó lại, câu đầy đủ vào chú giải. */
-.trans .cell.buoc {
-  /* ĐO ĐƯỢC ở 1240px: nội dung ô này muốn 324px và làm transport tràn 94px, cắt
-     mất "đã chạy" — tức một câu mô tả dài làm mất con số vận hành. Ngân sách an
-     toàn ở 1240px là 324 − 94 = 230px, nên mức chặn hẹp chỉ áp dưới điểm ngắt.
-     Ở màn hình rộng thì có chỗ, và chặn 216px ở đó lại cắt cả tên bước ngắn
-     ("commit_ch…", "soát nhất…") — mất đúng phần mang tin mà không cần thiết. */
-  max-width: 300px;
-  min-width: 0;
-}
-.trans .cell.buoc .m {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  min-width: 0;
-}
+/* HAI ô chữ tự do — `công đoạn` và `model` — là hai ô DUY NHẤT được co.
+   Chúng chở câu mô tả tự do ("soát nhất quán: không thấy xung đột") và tên model
+   của nhà cung cấp, tức hai thứ dài bao nhiêu cũng được; mọi ô còn lại chở một
+   con số vận hành và không bao giờ được cắt.
 
-/* Ô `tổ` chặn theo ĐÚNG luật của `.cell.buoc` ở trên — 300px / 216px dưới 1240px.
-   Trước đây nó là ô duy nhất còn `max-width: none` trong khi `.cell.buoc` đã bị
-   chặn vì cùng một lý do, tức hai ô cùng thanh chạy hai luật khác nhau.
-   ĐO ĐƯỢC: `tổ gemini-2.5-pro` 122px · `tổ Writer · gemini-2.5-pro` 172px ·
-   `tổ Writer · gemini-2.5-flash-thinking` 229px. Nên 216px cho ca thường đi qua
-   nguyên vẹn và chỉ cắt tên model dài; 300px ở màn hình rộng vì ở đó có chỗ và
-   chặn 216px sẽ cắt cả những tên vừa đủ dài mà không cần thiết — cùng lập luận
-   đã viết cho `.cell.buoc`.
-   Giờ transport xuống dòng nên tên model dài không còn cắt mất con số nào; nó chỉ
-   đẩy thêm một hàng vì một lý do thuần trang trí, và `title` giữ lại câu đầy đủ. */
+   `flex-shrink: 1` chứ KHÔNG phải một thang `max-width` theo bề rộng dải. Thang
+   cũ chặn theo container nên nó cắt cả khi thanh CÒN CHỖ: đo được trên truyện
+   thật ở 1440px — dải rộng 936px, các ô cộng lại chỉ 688px, vậy mà `model` vẫn bị
+   kẹp 160px và in ra "kiraai · kira-mi…" trong khi 248px bên phải bỏ trống. Để
+   flexbox quyết định thì phép co xảy ra ĐÚNG LÚC hàng hết chỗ, không sớm hơn.
+
+   Sàn 112px để ô không co tới mức chỉ còn dấu ba chấm; dưới sàn đó thì mép mờ và
+   phép cuộn ngang của `.dai` tiếp quản, như chú thích của nó đã mô tả. */
+.trans .cell.buoc,
 .trans .cell.to {
-  max-width: 300px;
-  min-width: 0;
+  flex: 0 1 auto;
+  min-width: 112px;
 }
-.trans .cell.to .model {
+/* GIÁ TRỊ của hai ô co được bị kẹp ba chấm — mọi con của ô TRỪ nhãn.
+   Một luật cho cả hai ô, chọn theo VAI của phần tử chứ không theo tên lớp: ô `tổ`
+   vẽ model bằng `<span class="model">` nhưng vẽ vai bằng một `<span>` trần, và
+   luật cũ chỉ gọi tên `.model`. Hệ quả đo được trên truyện thật: ô co lại còn
+   84px, "Kiến trúc sư" tràn ra ngoài không cắt và dính vào ô kế — đọc thành
+   "Kiến trúc sưốc độ". Nhãn (`.lbl`) KHÔNG kẹp: nó ngắn, và cắt nhãn thì mất
+   luôn thứ cho biết con số bên cạnh là con số gì. */
+.trans .cell.buoc > :not(.lbl),
+.trans .cell.to > :not(.lbl) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
 }
+.trans .cell.buoc > .lbl,
+.trans .cell.to > .lbl {
+  flex: none;
+}
 
-/* Bậc 2 của thang thu gọn — thắt đệm ô và chặn hai ô chữ tự do.
+/* Ô `tổ` co theo đúng luật chung của hai ô chữ ở trên. Câu đầy đủ luôn nằm trong
+   `title`, nên lúc thật sự phải cắt thì không mất dữ liệu — chỉ mất bề rộng.
+   ĐO ĐƯỢC các ca thật: `tổ gemini-2.5-pro` 122px · `tổ Writer · gemini-2.5-pro`
+   172px · `tổ Writer · gemini-2.5-flash-thinking` 229px — cả ba đi qua nguyên vẹn
+   khi thanh còn chỗ, và chỉ ca thứ ba bị kẹp khi thanh chật. */
+
+
+/* Bậc 2 của thang thu gọn — thắt đệm ô.
    Ngưỡng 1.320px, đo SAU bậc 1: bỏ cặp token rồi thì nội dung rộng nhất còn
    1.319px, nên bất kỳ dải nào hẹp hơn thế đều đang cắt một con số. Bậc này thu
    thêm 116px (đệm 8 ô × 4px, cộng ô công đoạn và ô tổ 300 → 216), tức dải từ
@@ -2591,17 +2652,9 @@ td.who {
   .trans .cell {
     padding: 0 9px;
   }
-  /* Ngân sách an toàn đo ở 1240px là 230px cho ô công đoạn; 216px là mức chặn
-     đủ cho ca thường đi qua nguyên vẹn. Ở dải rộng thì có chỗ, và chặn 216px ở
-     đó lại cắt cả tên bước ngắn ("commit_ch…", "soát nhất…") — mất đúng phần
-     mang tin mà không cần thiết. */
-  .trans .cell.buoc,
-  .trans .cell.to {
-    max-width: 216px;
-  }
 }
 
-/* Bậc 3 của chính dải số — thắt tiếp đệm và hai ô chữ tự do.
+/* Bậc 3 của chính dải số — thắt tiếp đệm và hạ sàn hai ô chữ tự do.
    Đi CÙNG bậc 3 của cụm nút ở cuối tệp; một mình bên nào cũng không đóng nổi
    198px, và đó là lý do chúng là một cặp chứ không phải hai phép rời.
    Cộng lại: cụm nút nhả 135px (nhãn nhóm 72 + khe 6, nhãn nút 161 → 104), dải
@@ -2613,9 +2666,18 @@ td.who {
   .trans .cell {
     padding: 0 7px;
   }
+  /* Dải hẹp: hạ sàn để hai ô chữ nhường chỗ cho các con số trước khi phải cuộn. */
   .trans .cell.buoc,
   .trans .cell.to {
-    max-width: 160px;
+    min-width: 84px;
+  }
+  /* Và BỎ nhãn đuôi của ô bước ("đang làm" / "vừa xong") trước khi cắt giá trị.
+     Nhãn ấy 52px, còn giá trị là tên công đoạn — thứ ô này tồn tại để nói. Giữ
+     nhãn mà cắt giá trị thành "s…" là cắt đúng phần mang tin: đo được trên
+     truyện thật, ô hiện "bước s… đang làm" cho "sửa dàn ý".
+     Mất nó không mất tin: ô trạng thái ghim ở mép trái đã nói "▶ đang chạy". */
+  .trans .cell.buoc > .lbl:not(:first-child) {
+    display: none;
   }
 }
 /* `margin-left: auto` gom nhóm số liệu về mép phải — nhưng nó CHỈ an toàn khi thanh
@@ -2654,11 +2716,56 @@ td.who {
 .trans .ky.teal {
   color: var(--teal);
 }
+.trans .ky.amber {
+  color: var(--amber);
+}
+.trans .ky.violet {
+  color: var(--violet);
+}
+.trans .ky.red {
+  color: var(--red);
+}
 .trans .ky.muted {
   color: var(--ink-3);
 }
 .trans .ky.dap {
   animation: dapnhip 2.2s var(--ease) infinite;
+}
+/* Đường chạy trên mép thanh khi máy chạy thật: một đoạn vàng trôi dọc mép trên. Nó là tín
+   hiệu "còn sống" duy nhất nhìn thấy được từ MỌI màn — thanh dưới có mặt ở mọi khu, còn thẻ
+   đang làm chỉ ở màn Tiến độ. Chỉ gắn với `data-chay` (cùng khóa `mayNaoDo`), không với stage. */
+.trans[data-chay] {
+  position: relative;
+}
+.trans[data-chay]::before {
+  content: "";
+  position: absolute;
+  inset: -1px 0 auto 0;
+  height: 2px;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in oklab, var(--gold) 85%, transparent) 50%,
+    transparent 100%
+  );
+  background-size: 34% 100%;
+  background-repeat: no-repeat;
+  animation: transChay 2.4s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+@keyframes transChay {
+  from {
+    background-position: -50% 0;
+  }
+  to {
+    background-position: 150% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .trans[data-chay]::before {
+    animation: none;
+    background: color-mix(in oklab, var(--gold) 55%, transparent);
+  }
 }
 .trans .warn {
   color: var(--amber);
@@ -4902,11 +5009,14 @@ td.who {
   --a-cao-chot: 1.3; /* vạch chương cao thêm bao nhiêu khi chốt */
 }
 
-/* TRẦN CỦA NỀN AMBER — `--a-tho-nen-hi` KHÔNG được vượt 13%.
-   Đo trên chính token của dự án: `--ink-3` trên `color-mix(amber X%, bg)` cho
-     9% → 4,96 · 12% → 4,75 · 13% → 4,65 · 14% → 4,58 · 15% → 4,48 · 19% → 4,17
-   Sàn AA là 4,5, và `--ink-3` là SÀN CỨNG không hạ (xem mục Color). Bản đầu của
-   mức "Rất rõ" đặt 19% và ĐÃ PHÁ sàn — đo được 4,17. Mức Rõ chốt 12% (dư 0,25).
+/* TRẦN CỦA NỀN CỬA DUYỆT — `--a-tho-nen-hi` KHÔNG được vượt 12%.
+   Cửa duyệt giờ là VIOLET (`--cua-mau`), và trần đo lại trên violet, không phải
+   amber cũ. `--ink-3` trên `color-mix(violet X%, panel)`:
+     sáng: 9% → 5,27 · 11% → 5,14 · 12% → 5,05
+     tối:  9% → 4,71 · 11% → 4,57 · 12% → 4,51
+   Sàn AA là 4,5, và `--ink-3` là SÀN CỨNG không hạ (xem mục Color). Giao diện
+   TỐI là mặt chật: 12% chỉ dư 0,01. Bản amber trước đây từng đặt 19% và ĐÃ PHÁ
+   sàn — đo được 4,17; đổi màu cửa mà không đo lại là lặp đúng lỗi đó.
    Muốn dải nghiệm thu "to" hơn thì tăng `--a-tho-day` hoặc `--a-tho-hi`: viền
    không chở chữ nào nên nó to bao nhiêu cũng không đổi tương phản của một chữ. */
 
@@ -5012,25 +5122,25 @@ td.who {
   100% {
     border-color: color-mix(
       in oklch,
-      var(--amber) var(--a-tho-lo),
+      var(--cua-mau) var(--a-tho-lo),
       var(--line-2)
     );
     background-color: color-mix(
       in oklch,
-      var(--amber) var(--a-tho-nen-lo),
-      var(--bg)
+      var(--cua-mau) var(--a-tho-nen-lo),
+      var(--cua-nen)
     );
   }
   50% {
     border-color: color-mix(
       in oklch,
-      var(--amber) var(--a-tho-hi),
+      var(--cua-mau) var(--a-tho-hi),
       var(--line-2)
     );
     background-color: color-mix(
       in oklch,
-      var(--amber) var(--a-tho-nen-hi),
-      var(--bg)
+      var(--cua-mau) var(--a-tho-nen-hi),
+      var(--cua-nen)
     );
   }
 }
@@ -6086,4 +6196,9 @@ button[aria-busy="true"]::after {
   .trans .cell.buoc {
     max-width: 290px;
   }
+}
+
+/* Ô góp ý dưới dải duyệt ở trang Nhận xét biên tập — cùng `.steerbox` với Tiến độ. */
+.khukiem .kdGopY {
+  margin: -6px 0 18px;
 }

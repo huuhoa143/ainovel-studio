@@ -23,9 +23,9 @@ import type { TinhTrangKetNoi } from './useStudio';
 import type {
   Activity,
   BlockState,
-  MarkState,
   Runtime,
   Stage,
+  VachHien,
 } from './types';
 
 /** Tông màu ngữ nghĩa, khớp token trong DESIGN.md. */
@@ -78,7 +78,20 @@ export const TRANG_THAI_CHUONG: Record<Stage, NhanTrangThai> = {
 export const DA_DUYET: NhanTrangThai = { nhan: 'đã duyệt', ky: '●', mau: 'teal' };
 
 /** Trạng thái hiển thị của một dòng chương — "đã duyệt" chỉ khi có nhận xét thật. */
-export function trangThaiDong(r: { stage: Stage; reviewed?: boolean }): NhanTrangThai {
+/**
+ * Chương mang `stage: drafting` mà máy KHÔNG chạy — bản nháp viết dở, không ai đang viết.
+ *
+ * "đang viết" là một khẳng định về MÁY, mà `stage` là thứ đã ghi trên đĩa: chương chết dở giữa
+ * lúc soạn giữ `drafting` mãi mãi. Đo được: cuốn nghỉ hai tháng, thẻ ghi "Đang nghỉ" còn bảng
+ * chương ngay dưới ghi "▸ đang viết" cho chương 726. Cùng luật với `mayNaoDo`.
+ */
+export const VIET_DO: NhanTrangThai = { nhan: 'viết dở', ky: '◐', mau: 'muted' };
+
+export function trangThaiDong(
+  r: { stage: Stage; reviewed?: boolean },
+  dangChay: boolean,
+): NhanTrangThai {
+  if (r.stage === 'drafting' && !dangChay) return VIET_DO;
   return r.stage === 'done' && r.reviewed ? DA_DUYET : TRANG_THAI_CHUONG[r.stage];
 }
 
@@ -104,9 +117,10 @@ export const TRANG_THAI_KHOI: Record<BlockState, NhanTrangThai> = {
 
 /* ── vạch trên lane chương (1 vạch = 1 chương) ────────────────────────── */
 
-export const TRANG_THAI_VACH: Record<MarkState, NhanTrangThai> = {
+export const TRANG_THAI_VACH: Record<VachHien, NhanTrangThai> = {
   done: { nhan: 'đã xong', ky: '●', mau: 'teal' },
   running: { nhan: 'đang viết', ky: '▶', mau: 'gold' },
+  vietDo: VIET_DO,
   rewrite: { nhan: 'cần viết lại', ky: '■', mau: 'amber' },
   gate: { nhan: 'chờ duyệt', ky: '◆', mau: 'violet' },
   pending: { nhan: 'chưa viết', ky: '○', mau: 'muted' },
@@ -209,6 +223,16 @@ export const TRANG_THAI_MAY_RUNTIME: Record<Runtime, NhanTrangThai> = {
   completed: { nhan: 'đã xong', ky: '●', mau: 'teal' },
 };
 
+/**
+ * Hai trạng thái dừng mà engine không tự gọi tên nhưng người dùng cần phân biệt — cùng phép đo
+ * với thẻ "đang làm" (`trangThaiCua`, `lyDoTuDung`), để thanh dưới không nói "tạm dừng" trong lúc
+ * cả màn hình nói "Chờ bạn duyệt" hay "Đã tự dừng".
+ */
+export const TRANG_THAI_DUNG = {
+  cho: { nhan: 'chờ duyệt', ky: '◆', mau: 'violet' },
+  tuDung: { nhan: 'đã tự dừng', ky: '■', mau: 'red' },
+} as const satisfies Record<string, NhanTrangThai>;
+
 /* ── vai trong tổ sản xuất ────────────────────────────────────────────── */
 
 /**
@@ -230,11 +254,17 @@ const VAI: Record<string, string> = {
  * tên đầy đủ không có trong bảng. `coordinator` là tên cũ của Điều phối.
  */
 export function nhanVai(ma: string): string {
-  const k = (ma ?? '').trim().toLowerCase();
-  if (VAI[k]) return VAI[k];
-  if (k === 'coordinator') return VAI.arbiter ?? ma;
-  const goc = k.split('_')[0] ?? '';
+  const goc = maVaiGoc(ma);
   return VAI[goc] ?? ma;
+}
+
+/** Mã vai gốc của một biến thể: `architect_short` → `architect`, `coordinator` → `arbiter`. */
+export function maVaiGoc(ma: string): string {
+  const k = (ma ?? '').trim().toLowerCase();
+  if (VAI[k]) return k;
+  if (k === 'coordinator') return 'arbiter';
+  const goc = k.split('_')[0] ?? '';
+  return VAI[goc] ? goc : k;
 }
 
 export function nhanToVai(owners: string[] | undefined): string {
@@ -260,8 +290,28 @@ const LOAI_PHAN_QUYET: Record<string, { giai: string; mau: Tone }> = {
   decision_stale: { giai: 'quyết định đã cũ', mau: 'amber' },
 };
 
-export function nhanPhanQuyet(kind: string): { giai: string; mau: Tone } {
-  return LOAI_PHAN_QUYET[kind] ?? { giai: '', mau: 'muted' };
+/**
+ * `volume_end` là MỘT loại cho BA quyết định khác nhau — Kiến trúc sư đứng ở cuối tập và
+ * chọn mở tập mới, đánh dấu tập cuối, hay kết cả truyện (`recordVolumeEndDecision`,
+ * internal/tools/save_foundation.go). Hành động thật nằm trong `decision.action`.
+ *
+ * Một nhãn "chốt cuối tập" cho cả ba sai ở hai ca. ĐO ĐƯỢC trên mọi truyện trong `output/`:
+ * 5 lần `complete_book` — có cả truyện ngắn 3 chương không chia tập nào, nơi "cuối tập" là
+ * nói về một thứ không tồn tại — và 9 lần `append_volume`, tức là MỞ tập chứ không chốt.
+ */
+const HANH_DONG_CUOI_TAP: Record<string, string> = {
+  complete_book: 'kết truyện',
+  append_volume: 'mở tập mới',
+};
+
+export function nhanPhanQuyet(kind: string, decision?: unknown): { giai: string; mau: Tone } {
+  const goc = LOAI_PHAN_QUYET[kind] ?? { giai: '', mau: 'muted' };
+  if (kind === 'volume_end' && decision && typeof decision === 'object') {
+    const hd = (decision as { action?: unknown }).action;
+    const giai = typeof hd === 'string' ? HANH_DONG_CUOI_TAP[hd] : undefined;
+    if (giai) return { ...goc, giai };
+  }
+  return goc;
 }
 
 /* ── công đoạn (mã step của checkpoint) ───────────────────────────────── */
@@ -281,6 +331,20 @@ const CONG_DOAN: Record<string, string> = {
   review: 'duyệt chương',
   arc_summary: 'tóm tắt hồi',
   volume_summary: 'tóm tắt tập',
+  // Bước của Kiến trúc sư (dựng nền, mở rộng dàn ý). Thiếu chúng thì thanh dưới in mã thô
+  // ("bước characters") suốt lúc dựng nền — đo được trên truyện mới tạo.
+  premise: 'lưu tiền đề',
+  characters: 'lưu nhân vật',
+  world_rules: 'lưu luật thế giới',
+  outline: 'lưu dàn ý',
+  layered_outline: 'lưu dàn ý phân tầng',
+  foundation: 'dựng nền truyện',
+  foundation_audit: 'soát nền truyện',
+  expand_arc: 'mở rộng hồi',
+  append_volume: 'thêm tập',
+  revise_outline: 'sửa dàn ý',
+  update_compass: 'cập nhật định hướng',
+  complete_book: 'kết truyện',
 };
 
 export function giaiCongDoan(step: string | undefined): string | undefined {
@@ -843,7 +907,14 @@ export const CHU = {
      model, không tiêu tiền — là điều người dùng phải biết TRƯỚC khi bấm. Một chú giải chỉ
      hiện khi trỏ chuột thì trên cảm ứng nó không tồn tại. */
   moMay: 'Mở sẵn, chưa viết',
-  viDuCanThiep: 'Ví dụ: Lâm Thanh nên do dự lâu hơn trước khi rút kiếm',
+  // Không mang tên nhân vật: ô này đứng trên MỌI truyện, và tên của truyện mẫu ("Lâm Thanh")
+  // hiện trên một truyện về Sài Gòn đọc như AI nhầm truyện.
+  /* Truyện đã xong: ô góp ý thành ô "viết thêm gì". Viết thêm KHÔNG hướng thì Kiến trúc sư
+     thấy dàn ý đã đủ và kết truyện lại ngay — đo được: bấm Viết thêm, mười giây sau truyện lại
+     "Đã xong". Nên hướng là thứ phải hỏi, không phải thứ tùy chọn. */
+  viDuVietThem: 'Muốn viết thêm gì? Ví dụ: thêm một chương kể chuyện mười năm sau',
+  vietThemTheoHuong: 'Viết thêm theo hướng này',
+  viDuCanThiep: 'Ví dụ: cho nhân vật chính do dự lâu hơn trước khi quyết định',
   dangGui: 'Đang gửi…',
   tiemVaoLuotDangChay: 'Gửi góp ý ngay',
   danhThucLuotMoi: 'Gửi góp ý và viết tiếp',
@@ -858,6 +929,14 @@ export const CHU = {
   chayTiep: 'Tiếp tục viết',
   dung: 'Tạm dừng',
   choDiTiep: 'Duyệt, viết chương tiếp',
+  /* Cửa ĐẦU TIÊN của chế độ duyệt đứng sau bước dựng nền, trước chương 1: thứ đang chờ duyệt là
+     dàn ý, không phải một chương. Nói "viết chương tiếp" ở đó là nói về một chương chưa có. */
+  choVietChuongDau: 'Duyệt dàn ý, viết chương 1',
+  /** Nút duyệt nói chương nào sẽ được viết — "chương tiếp" bắt người dùng tự đếm. */
+  nhanChoDiTiep: (soXong: number): string =>
+    soXong === 0 ? 'Duyệt dàn ý, viết chương 1' : `Duyệt, viết chương ${soXong + 1}`,
+  gopYChoDanY: 'Góp ý cho dàn ý',
+  dangChoDuyetNen: 'Nền truyện đã xong, chờ bạn duyệt',
   cheDoNghiemThu: 'Duyệt từng chương',
   cheDoDiTiep: 'Cách viết',
   cheDoTuChay: 'Tự viết liên tục',
@@ -921,7 +1000,7 @@ export const CHU = {
    * đứng lại ở một biểu mẫu, nên nó phải nói bằng chữ.
    */
   sauKhiBamGi: 'Sau khi bấm, mọi thứ diễn ra thế này',
-  buocArbiter: ' đọc ý tưởng của bạn, chọn độ dài và số chương — khoảng 10–20 giây.',
+  buocArbiter: ' đọc ý tưởng của bạn, chọn độ dài và số chương — khoảng 10–30 giây.',
   buocArchitect: ' dựng nền truyện: nhân vật, thế giới, dàn ý — thường một hai phút.',
   buocWriter: ' viết chương 1 rồi viết tiếp từng chương, tới khi xong hoặc bạn tạm dừng.',
   arbiterDangDoc: 'Điều phối đang đọc ý tưởng của bạn…',
@@ -1030,6 +1109,15 @@ export const CHU = {
    * lấy một câu sai khác.
    */
   vanLuotGanNhat: 'Đoạn viết gần nhất',
+  /**
+   * Nhãn của đoạn model TỰ NHỦ — không phải chữ của truyện.
+   *
+   * "Model tự nhủ", không "suy nghĩ": đây là thứ model nói ra ngoài tham số công cụ trong lúc
+   * làm việc ("Let me re-check the consistency, then commit"), thường bằng tiếng Anh và
+   * thường là ghi chú quy trình. Gọi nó là "suy nghĩ" thì nghe như nội tâm nhân vật — đúng
+   * thứ nó không phải, trên đúng bề mặt mà nội tâm nhân vật cũng có mặt.
+   */
+  modelTuNhu: 'AI tự nhủ',
   /* Chữ thường: đây là nút hành động nhỏ nổi trong khu chữ, không phải nhãn của một vùng. */
   veCuoi: 'xuống cuối',
 
@@ -1104,7 +1192,7 @@ export const CHU = {
   // "n chương ngoài tập 3" — phép lọc phải nói ra mình đã ẩn bao nhiêu.
   ngoaiPhamVi: (n: number, phamVi: string) => `${n} chương ngoài ${phamVi}`,
   conTonNgoaiPhamVi: (n: number) =>
-    `${n} trong số đó còn việc dở (cần viết lại hoặc đang viết)`,
+    `${n} trong số đó còn việc dở (cần viết lại hoặc viết dở)`,
   hienTatCa: 'Hiện tất cả',
   colChuong: 'Ch.',
   colTieuDe: 'Tiêu đề',
@@ -1371,7 +1459,11 @@ export const CHU = {
   nangSuat: 'tốc độ',
   giaThanh: 'giá',
   tong: 'đã tiêu',
-  daChay: 'đã chạy',
+  /* Không phải "đã chạy": số này là khoảng từ mốc lưu đầu tới mốc lưu gần nhất, nên nó chỉ
+     nhích khi một bước xong. Gọi nó "đã chạy" thì đứng im vài phút giữa hai bước đọc ra là
+     đồng hồ treo. */
+  daChay: 'thời gian viết',
+  daChayGiai: 'Thời gian AI đã làm, tính tới bước vừa lưu. Số này nhích lên mỗi khi xong một bước, không chạy theo giây.',
   chuongMoiGio: 'chương/giờ',
   moiChuong: '/ chương',
 
@@ -1693,6 +1785,7 @@ export const GIAI_THICH = {
   canThiepArbiterXuLy: 'Điều phối sẽ xem góp ý ảnh hưởng tới đâu, rồi đưa các chương liên quan vào danh sách cần viết lại.',
   daTiemVaoLuot: 'Đã gửi góp ý. Điều phối đang xem xét, chương liên quan có thể được viết lại.',
   daDanhThuc: 'Đã gửi góp ý và bắt đầu viết tiếp.',
+  daMoLaiVietThem: 'Đã mở lại truyện. AI đang viết thêm theo hướng bạn gửi.',
   engineDangChanCho: 'Việc viết đang tạm dừng để chờ bạn trả lời, vì câu hỏi này ảnh hưởng tới hướng đi của truyện.',
   muonThoatThiDung: 'Chưa muốn trả lời? Bạn có thể tạm dừng ở thanh dưới.',
   cungDungGiaiThich: 'Trò chuyện vài lượt với AI để làm rõ ý tưởng trước khi viết. Tốn một chút chi phí, nhưng đỡ phải viết lại khi đi sai hướng.',
@@ -1767,7 +1860,7 @@ export const GIAI_THICH = {
   soLuotVaiLaGi: 'Số lượt của vai trong vòng hiện tại — giúp phân biệt đang làm lâu với bị kẹt.',
   /* ── luồng tạo tác phẩm ──────────────────────────────────────────────── */
   batDauRoiKhongPhaiLamGi: 'Sau khi bấm, bạn không cần làm gì thêm: AI tự viết tiếp từng chương. Muốn đổi hướng, chỉ cần gửi góp ý.',
-  arbiterDangDocLau: 'Thường mất 10–20 giây. Xong là tự chuyển sang trang Tiến độ để bạn theo dõi.',
+  arbiterDangDocLau: 'Thường mất 10–30 giây. Xong là tự chuyển sang trang Tiến độ để bạn theo dõi.',
   xongCoTheXuat: 'Truyện đã viết đủ số chương dự kiến. Bạn có thể đọc lại hoặc xuất thành tệp.',
   cungDungGiaiDoanTamDung: 'Mở bàn ý tưởng sẽ tạm dừng việc viết, để AI không viết tiếp trong lúc hai bên đang bàn.',
   /* vòng đời sáng tác */
@@ -1790,6 +1883,10 @@ export const GIAI_THICH = {
    */
   nghiemThuChuaCoKetLuan: 'Biên tập viên chưa chấm chương này — họ chấm định kỳ, không chấm từng chương. Bạn vẫn đọc được chương trước khi quyết định.',
   nghiemThuChoDay: 'Đang ở chế độ chỉ xem nên không duyệt được',
+  nghiemThuNenTruyen: 'Kiến trúc sư đã dựng nhân vật, thế giới và dàn ý. Xem qua ở Tổng quan truyện bên phải hoặc mục Thế giới truyện; muốn đổi gì thì góp ý trước khi chương 1 được viết.',
+  gopYChoDanYGiai: 'Góp ý được gửi tới Điều phối: họ xem cần sửa nhân vật hay dàn ý chỗ nào, rồi mới cho viết chương 1.',
+  choDuyetNenGoiY: 'Đọc qua nhân vật và dàn ý, rồi duyệt ở dải phía trên để AI viết chương 1.',
+  choDuyetChuongGoiY: 'Đọc chương vừa viết, rồi duyệt ở dải phía trên để AI viết chương tiếp.',
   nghiemThuHuyHieuDanToi: 'AI đang chờ bạn duyệt chương. Bấm để xem nhận xét và quyết định.',
   /**
    * Vì sao "trả về viết lại" đi qua `/steer` — quyết định 7 của kế hoạch 4/4.
@@ -1909,6 +2006,8 @@ export const GIAI_THICH = {
    */
   chuaDungNen: (muc: string) => `Chưa có ${muc}. Mục này được tạo khi dựng nền truyện.`,
   dungNenMaRong: (muc: string) => `Đã dựng nền nhưng chưa có ${muc} nào.`,
+  phucButCoKhi:
+    'Chưa có phục bút nào. Phục bút được gieo khi Người viết chốt từng chương, và được thu dần ở các chương sau.',
 
   chuaCoTienDe: 'Chưa có ý tưởng gốc.',
   chuaCoDanY: 'Chưa có dàn ý.',
@@ -2264,8 +2363,9 @@ export const DH = {
   railXuatBan: 'Gộp các chương thành một tệp để đọc hoặc chia sẻ, hoặc nhập truyện có sẵn.',
   railModel: 'Chọn nhà cung cấp, khóa API và model cho từng vai.',
   railChiPhiTong: 'Tổng tiền đã tiêu trên mọi truyện, chia theo vai và theo model.',
-  dangDocChuong: (xong: number, soan: number) =>
-    `${xong} chương đã xong · ${soan} chương đang viết`,
+  /** `nhanSoan` lấy từ `trangThaiDong` — "đang viết" khi máy chạy, "viết dở" khi không. */
+  dangDocChuong: (xong: number, soan: number, nhanSoan: string) =>
+    `${xong} chương đã xong · ${soan} chương ${nhanSoan}`,
   chuaCo: 'chưa có',
   chuaCoSoLieu: 'chưa có số liệu',
   chuaHoTro: 'Phiên bản hệ thống đang chạy chưa hỗ trợ mục này.',
@@ -2295,6 +2395,9 @@ export const DH = {
   choDuyet: 'Đang chờ bạn duyệt chương',
   dangViet: 'Đang viết',
   luotTruoc: 'lượt trước',
+  /** Lượt trước và lần tới cùng một model: một ô, không phải hai ô nhắc lại nhau. */
+  modelChung: 'model',
+  modelChungGiai: 'Lượt trước đã chạy model này, và lần mở phiên tới vẫn dùng nó.',
   lanToi: 'lần tới',
   lanToiGiai: 'Model người viết sẽ dùng ở lần mở phiên tới, theo Model & khóa API.',
   trangThaiViet: 'Trạng thái viết',

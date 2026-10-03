@@ -1,17 +1,17 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
 
-import { BUOC_CHUONG, LOI_LLM, TD } from '@/lib/chu/tien-do';
+import { BUOC_CHUONG, BUOC_NEN, LOI_LLM, TD } from '@/lib/chu/tien-do';
 import { daChay, donGia, nangSuat, so, tongTien } from '@/lib/dinhdang';
 import type { Khu } from '@/lib/khu';
 import { giaiCongCu } from '@/lib/congCu';
-import { type TinhTrangKet, cauLoi, giaiGiaoViec, giaiLoi } from '@/lib/loiLlm';
-import { trangThaiCua } from '@/lib/nghiemThu';
+import { type TinhTrangKet, cauLoi, giaiGiaoViec, giaiLoi, lyDoTuDung } from '@/lib/loiLlm';
+import { chuongChoDuyet, trangThaiCua } from '@/lib/nghiemThu';
 import { denLuotBienTap } from '@/lib/nhanXetDinhKy';
 import { CHU, DH, TRANG_THAI_MAY_RUNTIME, nhanVai } from '@/lib/nhan';
-import { mayNaoDo } from '@/lib/song';
-import type { Snapshot } from '@/lib/types';
+import { type BuocHienTai, buocHienTai, chuongDangLam, mayNaoDo, vaiHienTai } from '@/lib/song';
+import type { Snapshot, StreamEvent } from '@/lib/types';
 import type { CongDoanSong } from '@/lib/useStudio';
 
 /**
@@ -34,8 +34,11 @@ export function TheDangLam({
   chiTiet,
   ket,
   onChonKhu,
+  suKien = [],
 }: {
   snapshot: Snapshot;
+  /** Dòng sự kiện — đọc các lần `save_foundation[…]` để dựng dải bốn chặng dựng nền. */
+  suKien?: StreamEvent[];
   song: CongDoanSong | undefined;
   dangChay: boolean;
   /**
@@ -52,23 +55,47 @@ export function TheDangLam({
   /** Khe cuối thẻ — vai, việc tồn, ngữ cảnh, lúc máy chạy. */
   chiTiet?: ReactNode;
 }) {
-  const cua = trangThaiCua(snapshot.advance, snapshot.runtime);
-  const vai = song?.vai || snapshot.transport.last_call?.agent || snapshot.transport.agent;
+  const cua = trangThaiCua(snapshot.advance, snapshot.runtime, snapshot.stop);
+  const vai = vaiHienTai(snapshot, song?.vai);
   const ncc = snapshot.transport.last_call?.provider;
+  // Engine tự dừng (bế tắc, hết ngân sách): thẻ nói "Đã tự dừng" và vì sao, thay cho một chữ
+  // "Tạm dừng" trơn — chữ ấy đọc ra là "bạn dừng nó, bấm chạy là xong".
+  const tuDung = !dangChay && !ket && !cua.dangCho ? lyDoTuDung(snapshot, ncc) : undefined;
   const tt = ket
     ? { ma: 'ket', nhan: LOI_LLM.dangKet, mau: 'amber', phu: undefined }
-    : trangThaiThe(snapshot, cua.dangCho, dangChay);
+    : tuDung
+      ? { ma: 'tuDung', nhan: LOI_LLM.daTuDung, mau: 'red', phu: undefined }
+      : trangThaiThe(snapshot, cua.dangCho, dangChay);
   // Chưa có chương nào và Kiến trúc sư đang làm (hoặc truyện còn ở chặng dựng nền): việc
   // đang diễn ra là DỰNG NỀN, không phải "Chương 1". Nêu số chương ở đây là hứa một chương
   // chưa tồn tại — và trên truyện thật, chương ấy chưa có cả dàn ý.
   const dungNen = laDungNen(snapshot, vai);
+  const dangLamSo = dangChay ? chuongDangLam(snapshot) : undefined;
+  // Đang sửa lại một chương ĐÃ XONG (trả về viết lại, góp ý hồi tố): dải năm bước là của luồng
+  // viết chương mới, vẽ nó ở đây là nói "đang lên kế hoạch chương 2" trong lúc đang sửa chương 1.
+  const suaLai = dangLamSo !== undefined && dangLamSo <= snapshot.book.completed_chapters;
   const chuong = dungNen
     ? undefined
-    : chuongCuaThe(snapshot, cua.dangCho ? cua.chuong : undefined, dangChay);
+    : chuongCuaThe(
+        snapshot,
+        cua.dangCho ? chuongChoDuyet(cua, snapshot.book.completed_chapters) : dangLamSo,
+        dangChay,
+      );
+  const hien = buocHienTai(snapshot, song);
   const buoc =
-    dangChay && !dungNen
-      ? buocCuaChuong(song, snapshot.transport.last_step, denLuotBienTap(snapshot))
+    dangChay && !dungNen && !suaLai
+      ? buocCuaChuong(hien, snapshot.transport.last_step, denLuotBienTap(snapshot))
       : undefined;
+  const buocNen = dangChay && dungNen && !ket ? buocDungNen(suKien) : undefined;
+  // Đồng hồ của BƯỚC đang chạy, không phải của phiên: một bước viết nháp đứng im hai phút trên
+  // màn hình đọc ra là treo; một con số nhích từng giây nói nó vẫn đang làm.
+  // Không biết bước (model đang nghĩ một lượt dài, chưa gọi công cụ nào) thì đếm thời gian của
+  // VAI: một lượt không stream của Kiến trúc sư đứng im cả phút là lúc người dùng cần thấy số
+  // nhích nhất.
+  const batDauBuoc = useMocBatDau(
+    dangChay && !ket ? `${vai}|${hien.dangChay ? hien.buoc : ''}` : undefined,
+    hien.dangChay ? hien.luc : undefined,
+  );
   return (
     <section className="the tdDangLam" data-tt={tt.ma} aria-label={TD.theDangLam}>
       <p className="tdTt">
@@ -97,13 +124,29 @@ export function TheDangLam({
             </button>
           ) : null}
         </div>
+      ) : tuDung ? (
+        <div className="tdKet" role="status">
+          <p className="tdMoTa" title={tuDung.loi?.tho}>
+            {tuDung.loi ? cauLoi(tuDung.loi) : tuDung.lyDo}
+          </p>
+          {tuDung.loi && tuDung.lyDo ? (
+            <p className="tdMoTaPhu">{LOI_LLM.tuDungLyDo(tuDung.lyDo)}</p>
+          ) : null}
+          {onChonKhu && tuDung.kind === 'stuck' ? (
+            <button type="button" className="nutPhu" onClick={() => onChonKhu('cau-hinh')}>
+              {LOI_LLM.moCauHinh}
+            </button>
+          ) : null}
+        </div>
       ) : dangChay ? (
         <p className="tdMoTa" title={song?.buoc}>
-          {moTa(song, vai, buoc, ncc)}
+          {moTa(song, hien, vai, buoc, ncc)}
+          {batDauBuoc ? <DemGiay tu={batDauBuoc} /> : null}
         </p>
       ) : null}
       {dungNen && dangChay && !ket ? <p className="tdMoTaPhu">{LOI_LLM.dungNenPhu}</p> : null}
-      {buoc ? <DaiBuoc b={buoc} /> : null}
+      {buoc ? <DaiBuoc ten={BUOC_CHUONG} b={buoc} /> : null}
+      {buocNen ? <DaiBuoc ten={BUOC_NEN} b={buocNen} /> : null}
 
       {viec}
 
@@ -208,45 +251,55 @@ export interface BuocChuong {
  * là chương kế.
  */
 export function buocCuaChuong(
-  song: CongDoanSong | undefined,
+  song: { buoc?: string; dangChay: boolean } | undefined,
   lastStep: string | undefined,
   bienTap = false,
 ): BuocChuong | undefined {
   const tuSong = chiSoBuoc(song?.buoc);
   if (tuSong !== undefined && song?.dangChay) return { hienTai: tuSong, dangLam: true };
-  const xong = tuSong ?? chiSoBuoc(lastStep);
-  if (xong === undefined) return undefined;
+  // Đang chạy một công cụ PHỤ (đọc tài liệu, đọc lại chương): nó phục vụ bước KẾ, nên bước kế
+  // sáng như đang làm — không phải như "bước kế tiếp" đứng chờ.
+  const phu = !!song?.dangChay && tuSong === undefined;
+  const xong = (phu ? undefined : tuSong) ?? chiSoBuoc(lastStep);
+  if (xong === undefined) return phu ? { hienTai: 0, dangLam: true } : undefined;
   // Chốt xong KHÔNG phải lúc nào cũng tới biên tập: Biên tập viên chấm định kỳ (mỗi
   // `CHU_KY_BIEN_TAP` chương (lib/nhanXetDinhKy.ts), hoặc cuối hồi ở truyện phân tầng). Ngoài lượt đó, sau Chốt là
   // Kế hoạch của chương kế — đúng việc engine làm. Bản trước luôn sáng "Biên tập" và nói
   // "kế tiếp là biên tập" trong lúc engine đã lên kế hoạch chương sau.
   const ke = xong === 3 && !bienTap ? 0 : (xong + 1) % BUOC_CHUONG.length;
-  return { hienTai: ke, dangLam: false, vuaXong: xong };
+  return { hienTai: ke, dangLam: phu, vuaXong: xong };
 }
 
 
 function moTa(
   song: CongDoanSong | undefined,
+  hien: BuocHienTai,
   vai: string | undefined,
   b: BuocChuong | undefined,
   ncc?: string,
 ): string {
   const ai = vai ? nhanVai(vai) : 'AI';
-  if (b?.dangLam) return TD.moTaDangLam(ai, b.hienTai);
-  if (b?.vuaXong === 3 && b.hienTai === 0) return TD.moTaXongChuong(ai);
-  if (b?.vuaXong !== undefined) return TD.moTaVuaXong(ai, b.vuaXong, b.hienTai);
-  if (song?.buoc) {
+  // Bước đang chạy là một công cụ PHỤ hoặc một lần giao việc: câu cụ thể ("đang đọc tài liệu
+  // cho chương 3") nói nhiều hơn câu chung của bước ("đang lập kế hoạch") — dải năm bước bên
+  // dưới đã nói bước nào rồi.
+  const phu = hien.dangChay && !!hien.buoc && chiSoBuoc(hien.buoc) === undefined;
+  if (b?.dangLam && !phu) return TD.moTaDangLam(ai, b.hienTai);
+  if (!phu && b?.vuaXong === 3 && b.hienTai === 0) return TD.moTaXongChuong(ai);
+  if (!phu && b?.vuaXong !== undefined) return TD.moTaVuaXong(ai, b.vuaXong, b.hienTai);
+  const buoc = phu ? hien.buoc : song?.buoc;
+  if (buoc) {
     // Lỗi LLM, giao việc và công cụ đi qua cùng một chỗ dịch với thanh dưới và Diễn biến;
     // nguyên văn nằm ở `title` của dòng.
-    const loi = giaiLoi(song.buoc, { ncc, vai });
+    const loi = giaiLoi(buoc, { ncc, vai });
     if (loi) return cauLoi(loi);
-    if (song.loai?.toUpperCase() === 'DISPATCH') {
-      const viec = /\(([\s\S]*)\)\s*$/.exec(song.buoc)?.[1]?.trim();
+    if (buoc === song?.buoc && song.loai?.toUpperCase() === 'DISPATCH') {
+      const viec = /\(([\s\S]*)\)\s*$/.exec(buoc)?.[1]?.trim();
       return TD.moTaGiaoViec(ai, viec);
     }
-    const congCu = giaiCongCu(song.buoc);
-    if (congCu) return song.dangChay ? TD.moTaDangCongCu(ai, congCu) : TD.moTaVuaCongCu(ai, congCu);
-    return TD.moTaTho(ai, giaiGiaoViec(song.buoc) ?? song.buoc);
+    const dang = phu || !!song?.dangChay;
+    const congCu = giaiCongCu(buoc);
+    if (congCu) return dang ? TD.moTaDangCongCu(ai, congCu) : TD.moTaVuaCongCu(ai, congCu);
+    return TD.moTaTho(ai, giaiGiaoViec(buoc) ?? buoc);
   }
   return TD.moTaChoLuot;
 }
@@ -264,10 +317,14 @@ export function laDungNen(snap: Snapshot, vai: string | undefined): boolean {
  * Dải năm bước. Mỗi ô mang CẢ chữ trạng thái cho trình đọc màn hình — màu không bao giờ là
  * kênh duy nhất (PRODUCT.md, luật 5); mắt thì phân biệt bằng nền, viền và độ đậm.
  */
-function DaiBuoc({ b }: { b: BuocChuong }) {
+function DaiBuoc({ ten: dsTen, b }: { ten: readonly string[]; b: BuocChuong }) {
   return (
-    <ol className="tdBuoc" aria-label={TD.buocVung}>
-      {BUOC_CHUONG.map((ten, i) => {
+    <ol
+      className="tdBuoc"
+      aria-label={TD.buocVung}
+      style={{ '--so-buoc': dsTen.length } as React.CSSProperties}
+    >
+      {dsTen.map((ten, i) => {
         const loai = i < b.hienTai ? 'xong' : i === b.hienTai ? 'dang' : 'chua';
         const nhan =
           loai === 'xong'
@@ -289,6 +346,67 @@ function DaiBuoc({ b }: { b: BuocChuong }) {
         );
       })}
     </ol>
+  );
+}
+
+/**
+ * Chặng dựng nền đang ở đâu, đọc từ các lần `save_foundation[phần]` trong dòng sự kiện.
+ *
+ * Chỉ tin cái ĐÃ THẤY: chặng nào chưa có sự kiện lưu thì là "chưa", kể cả khi trang được mở
+ * giữa chừng và các lần lưu trước đó nằm ngoài dòng sự kiện của lần xem này. Đoán "chắc đã
+ * xong" từ thứ tự là vẽ một dấu xong không ai đo.
+ */
+export function buocDungNen(suKien: readonly StreamEvent[]): BuocChuong {
+  const CHANG: Record<string, number> = {
+    premise: 0,
+    characters: 1,
+    relationships: 1,
+    world_rules: 2,
+    timeline: 2,
+    foreshadow: 2,
+    style: 2,
+    outline: 3,
+    layered_outline: 3,
+  };
+  let xong = -1;
+  for (const e of suKien) {
+    const m = /^\s*save_foundation\s*\[([^\]]+)\]/.exec(e.summary ?? '');
+    const c = m ? CHANG[m[1]!.trim()] : undefined;
+    if (c !== undefined && c > xong) xong = c;
+  }
+  const hienTai = Math.min(xong + 1, BUOC_NEN.length - 1);
+  return { hienTai, dangLam: true, vuaXong: xong >= 0 ? xong : undefined };
+}
+
+/**
+ * Mốc bắt đầu của bước đang chạy. Dòng sự kiện biết giờ bắt đầu thì dùng nó; cây vai không
+ * mang giờ, nên khi chỉ biết qua cây vai thì đếm từ lúc trang THẤY bước ấy — ghi chú để ai
+ * đọc con số biết nó là "đã thấy chạy bao lâu", không phải "đã chạy bao lâu" tuyệt đối.
+ */
+function useMocBatDau(khoa: string | undefined, luc: string | undefined): string | undefined {
+  const [moc, datMoc] = useState<{ khoa: string; luc: string } | undefined>();
+  useEffect(() => {
+    if (!khoa) return datMoc(undefined);
+    datMoc((cu) => (cu?.khoa === khoa ? cu : { khoa, luc: luc ?? new Date().toISOString() }));
+  }, [khoa, luc]);
+  return khoa && moc?.khoa === khoa ? (luc ?? moc.luc) : undefined;
+}
+
+/** "· 0:42" nhích từng giây kể từ `tu`. Tự dừng khi gỡ khỏi cây. */
+export function DemGiay({ tu }: { tu: string }) {
+  const [bay, datBay] = useState(() => Date.now());
+  useEffect(() => {
+    const id = window.setInterval(() => datBay(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, []);
+  const giay = Math.max(0, Math.floor((bay - Date.parse(tu)) / 1000));
+  if (!Number.isFinite(giay)) return null;
+  const phut = Math.floor(giay / 60);
+  return (
+    <span className="tdDem" aria-hidden="true">
+      {' · '}
+      {phut}:{String(giay % 60).padStart(2, '0')}
+    </span>
   );
 }
 

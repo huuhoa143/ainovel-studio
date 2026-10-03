@@ -118,29 +118,26 @@ test('dải ở buồng lái nhận `choGhi`, nên chế độ chỉ đọc khó
   expect(dai.textContent).toContain(GIAI_THICH.nghiemThuChoDay);
 });
 
-test('dải ở buồng lái được cho biết máy đang chạy hay nghỉ', () => {
-  // Nhãn nút gửi của ô nhập là hai HỆ QUẢ khác nhau về tiền. Phải mở ô nhập mới đo được: chỉ
-  // hỏi hai cái nút ngoài thì nhét cứng `dangChay={false}` cho riêng dải này vẫn xanh.
-  //
-  // Tra trong `.cuanghiemthu` chứ không tra cả bề mặt: ô can thiệp ở hàng 4 dùng ĐÚNG hai nhãn
-  // đó, nên một phép tra toàn cục sẽ thấy nút của nó và xanh mà không cần dải nói gì.
-  // Cả HAI chiều: nhét cứng `true` cũng là một đột biến, và nó chỉ lộ ra ở ca máy nghỉ — đúng
-  // ca thường gặp nhất của cửa nghiệm thu.
+test('dải ở buồng lái: nút trả về đưa con trỏ vào ô góp ý, nhãn gửi theo máy đang chạy hay nghỉ', () => {
+  // Nhãn nút gửi là hai HỆ QUẢ khác nhau về tiền (tiêm vào lượt đang chạy / đánh thức lượt mới).
+  // Dải không còn ô nhập riêng: nút trả về mở ô góp ý chung, nên đo trên ô ấy — và đo cả HAI
+  // chiều, vì nhét cứng một nhãn chỉ lộ ra ở chiều kia.
   const nhanNutGui = (dangChay: boolean) => {
     const { container } = ve(dangChay, { advance: { ...CHO } });
     const dai = container.querySelector('.cuanghiemthu')!;
     fireEvent.click(
-      [...dai.querySelectorAll('button')].find(
-        (n) => n.textContent === CHU.traChuongVeVietLai(8),
-      )!,
+      [...dai.querySelectorAll('button')].find((n) => n.textContent === CHU.traChuongVeVietLai(8))!,
     );
-    return [...dai.querySelectorAll('button')].map((n) => n.textContent);
+    const o = document.activeElement as HTMLInputElement;
+    expect(o.id, 'con trỏ phải vào ô góp ý').toBe('o-gop-y');
+    return o.closest('.steerbox')!.querySelector('button')!.textContent ?? '';
   };
 
   expect(nhanNutGui(true)).toContain(CHU.tiemVaoLuotDangChay);
   cleanup();
   expect(nhanNutGui(false)).toContain(CHU.danhThucLuotMoi);
 });
+
 
 /* ── bố cục: đầu trang · trang cuộn · góp ý ghim đáy ─────────────────── */
 
