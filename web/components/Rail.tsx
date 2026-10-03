@@ -1,8 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 
-import type { Khu } from '@/lib/khu';
+import { TEN_KHU, type Khu } from '@/lib/khu';
 import type { Man } from '@/lib/man';
 import { CHU, GIAI_THICH, DH, TRANG_THAI_KET_NOI, trangThaiDong } from '@/lib/nhan';
 import { mayDangChay } from '@/lib/song';
@@ -83,7 +83,6 @@ export function Rail({
   /** Màn đang mở. Suy từ `khu` ở `useStudio`, truyền xuống để không suy lại ở đây. */
   man: Man;
   onChonKhu: (k: Khu) => void;
-  onChonMan: (m: Man) => void;
   /**
    * Có việc tồn ở màn Quản lý — bật dấu amber trên hàng màn đó.
    *
@@ -126,6 +125,55 @@ export function Rail({
   const { toi, dao } = useGiaoDien();
   const oRail = useRef<HTMLElement>(null);
 
+  /**
+   * NGĂN KÉO — hình dạng của rail ở màn hình hẹp.
+   *
+   * Dưới 860px rail từng là một DẢI NGANG chứa đủ mọi mục. Nó không mất đường đi, nhưng
+   * ĐO ĐƯỢC ở 390px: dải rộng 3.904px trong một khung 389px — gấp mười lần. Muốn tới
+   * "Văn phong" phải vuốt qua khoảng 1.600px, và không có cách nào thấy trước còn những
+   * gì ở phía sau. Một đường đi phải vuốt mười màn hình mới tới là một đường đi trên
+   * giấy tờ.
+   *
+   * Ngăn kéo giữ NGUYÊN cây điều hướng — cùng mục, cùng nhóm, cùng thứ tự như ở cột
+   * rộng — và chỉ đổi vật chứa. Không dựng một bộ điều hướng thứ hai cho màn hình hẹp:
+   * hai cây là hai thứ phải giữ cho khớp nhau, và chúng sẽ lệch.
+   *
+   * Giá phải trả là một lần chạm nữa cho mỗi lần đổi bề mặt. Đổi lại: mọi đích đến thấy
+   * được cùng lúc, không vuốt, và nhãn nhóm ("Thế giới truyện", "Vận hành") quay lại —
+   * ở dải ngang chúng buộc phải ẩn vì không còn đứng trên nhóm nào.
+   */
+  const [moNgan, datMoNgan] = useState(false);
+  const nutNgan = useRef<HTMLButtonElement>(null);
+  const idNgan = useId();
+
+  /**
+   * Đóng ngăn sau khi đi tới một đích.
+   *
+   * Bọc ở ĐÂY chứ không ở từng mục: rail có hơn hai mươi nút điều hướng, và một nút quên
+   * đóng ngăn là một nút để lại tấm che phủ lên bề mặt vừa mở. Ba đường ra của rail —
+   * đổi khu, đổi màn, mở tác phẩm khác — đều đi qua ba hàm này.
+   */
+  const diKhu = useCallback(
+    (k: Khu) => {
+      datMoNgan(false);
+      onChonKhu(k);
+    },
+    [onChonKhu],
+  );
+  const diTacPham = useCallback(
+    (id: string, k: Khu, chuong?: number) => {
+      datMoNgan(false);
+      diTacPham(id, k, chuong);
+    },
+    [onMoTacPham],
+  );
+
+  /** Đóng bằng BÀN PHÍM thì trả tiêu điểm về nút mở — cùng luật với `ChonModel`. */
+  const dongNganBangPhim = useCallback(() => {
+    datMoNgan(false);
+    nutNgan.current?.focus();
+  }, []);
+
   /* Dấu chỉ khu đang mở TRƯỢT theo trục DỌC. Nâng cấp tiệm tiến: nền của `[aria-current]` vẫn
      là thứ nói đúng cho tới khi hook đo được — xem lib/truot.ts. */
   const hopTruot = useTruot<HTMLElement>('.mucdi[aria-current="page"]', 'doc', khu);
@@ -162,6 +210,32 @@ export function Rail({
    * `daMo` là ca khu đích ĐANG mở: `khu` không đổi nên effect không chạy lần nào, và một
    * cú bấm vào mục neo sẽ không làm gì cả. Lúc đó cuộn thẳng, vì DOM đã có sẵn.
    */
+  /**
+   * Ngăn đang mở: nghe Esc, và đưa tiêu điểm vào trong.
+   *
+   * KHÔNG khoá cuộn nền ở đây. `body` của studio đã là `overflow: hidden` (globals.css:133
+   * — "khung ứng dụng cố định, không phải trang cuộn"), nên một lần đặt-rồi-trả
+   * `body.style.overflow` là mã không làm gì mà trông như đang gánh việc. Phần thật sự
+   * cần — chặn cuộn LAN từ trong ngăn ra nền khi vuốt quá đáy — là
+   * `overscroll-behavior: contain` trên chính ngăn, ở he.css.
+   */
+  useEffect(() => {
+    if (!moNgan) return;
+    const nghe = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      datMoNgan(false);
+      nutNgan.current?.focus();
+    };
+    document.addEventListener('keydown', nghe);
+    // Tiêu điểm vào mục đang mở nếu có, không thì vào chính ngăn — người dùng bàn phím
+    // mở ngăn ra phải đứng ngay trong nó, không phải Tab qua cả trang để tới.
+    const vao =
+      oRail.current?.querySelector<HTMLElement>('[aria-current="page"]') ?? oRail.current;
+    vao?.focus?.();
+    return () => document.removeEventListener('keydown', nghe);
+  }, [moNgan]);
+
   const datNeo = useCallback((neo: string, daMo: boolean) => {
     if (daMo) {
       document.getElementById(neo)?.scrollIntoView({ block: 'start' });
@@ -215,9 +289,43 @@ export function Rail({
   const trungTen = (b: Book) => (demTen.get(b.name || b.id) ?? 0) > 1;
 
   return (
+    <>
+      {/* THANH GỌN — chỉ hiện dưới 860px (CSS), là vật thay cho dải ngang cũ.
+          Nó nói ba điều mà dải ngang nói được nhờ luôn hiện: đang ở bề mặt nào, truyện nào
+          đang mở, và có việc nào đang chờ. Thiếu điều thứ ba thì ngăn kéo giấu mất một
+          trạng thái mà trước đây thấy ngay. */}
+      <div className="railThanh">
+        <button
+          ref={nutNgan}
+          type="button"
+          className="railThanhNut"
+          aria-expanded={moNgan}
+          aria-controls={idNgan}
+          aria-label={DH.dieuHuong}
+          onClick={() => datMoNgan((x) => !x)}
+        >
+          <span className="railThanhVach" aria-hidden="true" />
+          <span className="railThanhChu">
+            <span className="railThanhKhu">{TEN_KHU[khu]}</span>
+            {tenSach ? <span className="railThanhSach">{tenSach}</span> : null}
+          </span>
+          {canBan || choDuyet ? (
+            <span className="dauton" aria-label={DH.coViecChoBan} />
+          ) : null}
+        </button>
+      </div>
+
+      {/* Tấm che: bấm ra ngoài để đóng, và làm rõ rằng bề mặt phía sau đang tạm nghỉ.
+          `aria-hidden` vì nó không mang nội dung nào — đường đóng cho bàn phím là Esc. */}
+      {moNgan ? (
+        <div className="railMan" aria-hidden="true" onClick={() => datMoNgan(false)} />
+      ) : null}
+
     <nav
-      className="rail"
+      id={idNgan}
+      className={`rail${moNgan ? ' railMo' : ''}`}
       aria-label={DH.dieuHuong}
+      tabIndex={-1}
       ref={(el) => {
         oRail.current = el;
         hopTruot.current = el;
@@ -249,7 +357,7 @@ export function Rail({
             ky="tu"
             di="xuong"
             khu={khu}
-            onChonKhu={onChonKhu}
+            onChonKhu={diKhu}
             chuGiai={canBan ? DH.coViecChoBan : DH.railTuTruyen}
             dauViec={canBan && man !== 'quan-ly'}
           />
@@ -258,7 +366,7 @@ export function Rail({
             ky="cong"
             di="tac-pham-moi"
             khu={khu}
-            onChonKhu={onChonKhu}
+            onChonKhu={diKhu}
             chuGiai={DH.railVietMoi}
           />
           <MucDi
@@ -266,7 +374,7 @@ export function Rail({
             ky="yTuong"
             di="cung-dung"
             khu={khu}
-            onChonKhu={onChonKhu}
+            onChonKhu={diKhu}
             chuGiai={DH.railYTuong}
           />
         </div>
@@ -281,7 +389,7 @@ export function Rail({
             className="railSachDau"
             title={tenSach}
             aria-current={man === 'xuong-san-xuat' && khu === 'dong-san-xuat' ? 'page' : undefined}
-            onClick={() => onChonKhu('dong-san-xuat')}
+            onClick={() => diKhu('dong-san-xuat')}
           >
             <span className="biaNho" style={{ background: tacPham ? nenBiaNho(tacPham) : undefined }} />
             <span className="railSachTen">{tenSach ?? DH.truyenDangMo}</span>
@@ -294,7 +402,7 @@ export function Rail({
               className="railChoDuyet"
               aria-label={CHU.nghiemThuChoBan}
               title={GIAI_THICH.nghiemThuHuyHieuDanToi}
-              onClick={() => onChonKhu('kiem-dinh')}
+              onClick={() => diKhu('kiem-dinh')}
             >
               <span className="dauton" aria-hidden="true" />
               {CHU.nghiemThuChoBan}
@@ -307,7 +415,7 @@ export function Rail({
                 ky="tienDo"
                 di="dong-san-xuat"
                 khu={khu}
-                onChonKhu={onChonKhu}
+                onChonKhu={diKhu}
                 chuGiai={DH.railTienDo}
               />
               {/* Đọc truyện là mục DUY NHẤT nhận `dauChot`: nó đếm chương đã xong, tức đúng
@@ -317,7 +425,7 @@ export function Rail({
                 ky="doc"
                 di="ban-thao"
                 khu={khu}
-                onChonKhu={onChonKhu}
+                onChonKhu={diKhu}
                 dem={banThao}
                 dauChot={dauChot}
                 chuGiai={
@@ -335,7 +443,7 @@ export function Rail({
                 ky="nhanXet"
                 di="kiem-dinh"
                 khu={khu}
-                onChonKhu={onChonKhu}
+                onChonKhu={diKhu}
                 dem={kiemDinh}
                 chuGiai={DH.railNhanXet}
               />
@@ -344,7 +452,7 @@ export function Rail({
                 ky="vietLai"
                 di="hang-cho-viet-lai"
                 khu={khu}
-                onChonKhu={onChonKhu}
+                onChonKhu={diKhu}
                 dem={vietLai}
                 canhBao={vietLai > 0}
                 chuGiai={DH.railVietLai}
@@ -354,7 +462,7 @@ export function Rail({
                 ky="xuatBan"
                 di="nhap-xuat"
                 khu={khu}
-                onChonKhu={onChonKhu}
+                onChonKhu={diKhu}
                 chuGiai={DH.railXuatBan}
               />
             </div>
@@ -371,7 +479,7 @@ export function Rail({
               ky="danY"
               di="dan-y"
               khu={khu}
-              onChonKhu={onChonKhu}
+              onChonKhu={diKhu}
               dem={soKhoiDanY(snapshot)}
             />
             <MucDi
@@ -379,7 +487,7 @@ export function Rail({
               ky="nhanVat"
               di="nhan-vat"
               khu={khu}
-              onChonKhu={onChonKhu}
+              onChonKhu={diKhu}
               dem={hoSo?.characters ?? undefined}
             />
             <MucDi
@@ -387,7 +495,7 @@ export function Rail({
               ky="luat"
               di="luat-the-gioi"
               khu={khu}
-              onChonKhu={onChonKhu}
+              onChonKhu={diKhu}
               dem={hoSo?.rules ?? undefined}
             />
             <MucDi
@@ -395,7 +503,7 @@ export function Rail({
               ky="phucBut"
               di="phuc-but"
               khu={khu}
-              onChonKhu={onChonKhu}
+              onChonKhu={diKhu}
               dem={hoSo?.foreshadow ?? undefined}
               canhBao={(hoSo?.foreshadow ?? 0) > 0}
             />
@@ -404,7 +512,7 @@ export function Rail({
               ky="vanPhong"
               di="van-phong"
               khu={khu}
-              onChonKhu={onChonKhu}
+              onChonKhu={diKhu}
               nguon={hoSo?.vanPhong}
               chuGiai={GIAI_THICH.railVanPhong}
               viSaoThieu={GIAI_THICH.thieuEndpointVanPhong}
@@ -417,7 +525,7 @@ export function Rail({
               ky="nhatKy"
               di="dong-san-xuat"
               khu={khu}
-              onChonKhu={onChonKhu}
+              onChonKhu={diKhu}
               dem={phanQuyet}
               chuGiai={GIAI_THICH.namTrongDongSanXuat}
               neo="nhat-ky-phan-quyet"
@@ -429,7 +537,7 @@ export function Rail({
               ky="chiPhi"
               di="chi-phi"
               khu={khu}
-              onChonKhu={onChonKhu}
+              onChonKhu={diKhu}
               nguon={hoSo?.chiPhi}
               chuGiai={GIAI_THICH.railChiPhi}
               viSaoThieu={GIAI_THICH.thieuEndpointChiPhi}
@@ -439,14 +547,14 @@ export function Rail({
               ky="nhomAi"
               di="to-san-xuat"
               khu={khu}
-              onChonKhu={onChonKhu}
+              onChonKhu={diKhu}
             />
             <MucNguon
               nhan={DH.thongSoPhien}
               ky="phien"
               di="phien-chay"
               khu={khu}
-              onChonKhu={onChonKhu}
+              onChonKhu={diKhu}
               nguon={hoSo?.caiDat}
               chuGiai={GIAI_THICH.railPhienChay}
               viSaoThieu={GIAI_THICH.thieuEndpointPhienChay}
@@ -463,7 +571,7 @@ export function Rail({
               type="button"
               className="mucdi mucSach"
               title={`${b.name || b.id} · ${b.id}`}
-              onClick={() => onMoTacPham?.(b.id, 'dong-san-xuat')}
+              onClick={() => diTacPham(b.id, 'dong-san-xuat')}
             >
               <span className="biaNho" style={{ background: nenBiaNho(b.id) }} />
               <span className="nhan">
@@ -484,7 +592,7 @@ export function Rail({
             ky="khoa"
             di="cau-hinh"
             khu={khu}
-            onChonKhu={onChonKhu}
+            onChonKhu={diKhu}
             chuGiai={DH.railModel}
           />
           <MucDi
@@ -492,7 +600,7 @@ export function Rail({
             ky="bieuDo"
             di="chi-phi-xuong"
             khu={khu}
-            onChonKhu={onChonKhu}
+            onChonKhu={diKhu}
             chuGiai={DH.railChiPhiTong}
           />
         </div>
@@ -509,6 +617,7 @@ export function Rail({
         ) : null}
       </div>
     </nav>
+    </>
   );
 }
 

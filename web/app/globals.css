@@ -209,7 +209,9 @@ button {
     /* Hàng transport là `minmax(30px, auto)` chứ không `30px`, cùng lý do như ở
        khối 900px trên: dưới đây transport đã xuống dòng, và một hàng cố định
        30px sẽ cắt mất các hàng sau. Khối này đứng SAU khối 900px nên nó ghi đè,
-       vì thế giá trị phải được lặp lại ở đây. */
+       vì thế giá trị phải được lặp lại ở đây.
+       Hàng `rail` giờ chứa THANH GỌN, không chứa rail: rail đã thành ngăn kéo
+       `position: fixed` nên nó không còn chiếm ô nào của lưới. */
     grid-template-rows: 44px auto 1fr minmax(30px, auto);
     grid-template-columns: 1fr;
     grid-template-areas: "bar" "rail" "canvas" "trans";
@@ -3599,85 +3601,10 @@ time .mocNgay {
   margin-bottom: 0;
 }
 
-/* ══ @media (max-width: 860px) — rail dạng dải ngang ══════════════════ */
-
-/* Khối này PHẢI nằm sau `.rail .mucdi { width: 100% }` ở mục rail phía trên.
-   Cùng độ đặc hiệu (0,2,0) thì thứ tự trong tệp quyết định, và khi khối này còn
-   đứng cạnh các điểm ngắt ở đầu tệp thì `width: 100%` bên dưới ghi đè lại: mỗi
-   mục rộng đúng 860px và dải ngang hiện được một mục duy nhất.
-   ĐO ĐƯỢC ở 860px: chỉ thấy "Bản thảo", mười hai mục còn lại nằm ngoài mép phải
-   mà không có dấu hiệu nào — ở màn hình hẹp cả năm bề mặt kia thành thứ không
-   tìm thấy được, đúng cái mà dải ngang ra đời để tránh.
-   Đây là lần thứ hai tệp này gặp cùng cái bẫy; lần đầu là `.slate` ở thanh trên.
-
-   Vì sao rail thôi làm cột chứ không biến mất: DESIGN.md viết "860px bỏ rail", và
-   điều đó đúng khi rail chỉ là danh sách trang trí của một bề mặt duy nhất. Giờ
-   rail là đường điều hướng DUY NHẤT giữa sáu khu, nên bỏ nó là khóa người dùng
-   trong khu đang mở. Tinh thần của điều khoản là "rail không ăn bề rộng của
-   canvas ở màn hình hẹp"; một dải cao 38px giữ đúng tinh thần đó. */
-@media (max-width: 860px) {
-  .rail {
-    display: flex;
-    align-items: stretch;
-    gap: 2px;
-    padding: 4px 8px;
-    border-right: 0;
-    border-bottom: 1px solid var(--line);
-    overflow-x: auto;
-    overflow-y: hidden;
-    /* Thấy được là còn mục bên phải, nếu không người dùng tưởng rail chỉ có mấy
-       mục đầu — cùng lý do transport hiện thanh cuộn dưới điểm ngắt. */
-    scrollbar-width: thin;
-    scrollbar-color: var(--line) transparent;
-  }
-  .rail::-webkit-scrollbar {
-    height: 4px;
-  }
-  .rail::-webkit-scrollbar-thumb {
-    background: var(--line);
-    border-radius: 2px;
-  }
-  /* Nhãn nhóm ("Truyện của bạn", "Thế giới truyện") mất nghĩa khi các mục xếp ngang: nó
-     không còn đứng TRÊN nhóm nào nữa. */
-  .rail .grp {
-    display: none;
-  }
-  /* Không còn nhóm thì không còn thu nhóm.
-     Đây là hệ quả bắt buộc của dòng trên, không phải một lựa chọn về hình: nhãn nhóm ẩn
-     đi tức là cái nút mở nhóm cũng ẩn, nên một nhóm đang đóng ở đây sẽ ẩn các mục của nó
-     mà KHÔNG còn cách nào mở lại — mười một khu thành không tới được, đúng cái mà dải
-     ngang ra đời để tránh. `display: contents` để các mục thành con trực tiếp của dải
-     flex; giữ `.mucnhom` là một hộp sẽ làm cả nhóm thành MỘT ô trong dải. */
-  .rail .nhomrail,
-  .rail .nhomrail[data-mo="0"] .mucnhom,
-  .rail .mucnhom {
-    display: contents;
-  }
-  .rail .mucdi,
-  .rail .muc {
-    width: auto;
-    flex: none;
-    white-space: nowrap;
-  }
-  .rail .nhan {
-    overflow: visible;
-  }
-  /* Ô số thôi bị đẩy về mép phải: trong một mục rộng vừa đủ nội dung, `auto` chỉ
-     tạo khoảng trống giữa tên khu và số của nó. */
-  .rail .n {
-    margin-left: 0;
-  }
-  /* Mục chưa dựng về một hàng. Xếp hai dòng ở đây làm cả dải cao gấp đôi để chứa
-     một chú thích, mà ở dải ngang không còn cột nào để cắt nhãn nên xếp một hàng
-     không gây lại lỗi cắt chữ. */
-  .rail .chuadung {
-    display: flex;
-    align-items: center;
-  }
-  .rail .chuadung .tag {
-    margin-left: 3px;
-  }
-}
+/* Điều hướng ở màn hình hẹp (thanh gọn + ngăn kéo) nằm ở `app/he.css`.
+   Tệp đó là hệ bố cục ĐANG chi phối — nó nạp sau tệp này và tự khai lại lưới
+   `.khung` cùng mọi điểm ngắt của rail. Đặt luật rail ở đây là viết vào một tệp
+   bị ghi đè, và đó đúng là lỗi mà bản đầu của ngăn kéo đã mắc. */
 
 /* ══ bề mặt Kiểm định ═════════════════════════════════════════════════ */
 
@@ -6014,20 +5941,12 @@ button[aria-busy="true"]::after {
 .rail .railDay .grp {
   padding-top: 4px;
 }
-@media (max-width: 860px) {
-  .rail {
-    flex-direction: row;
-    align-items: center;
-    padding: 4px 8px;
-  }
-  .rail .railSach,
-  .rail .railDay {
-    display: contents;
-  }
-  .rail .railSachDau {
-    display: none;
-  }
-}
+/* Khối "rail thành dải ngang dưới 860px" ĐÃ BỎ: rail giờ là một NGĂN KÉO ở khổ
+   này, tức vẫn là cột. Luật của ngăn nằm ở `app/he.css` — tệp bố cục nạp sau tệp
+   này. Giữ lại `flex-direction: row` ở đây sẽ xếp cả cây điều hướng thành một
+   hàng NẰM NGANG bên trong ngăn dọc, và `display: contents` còn kéo các mục của
+   "truyện đang mở" ra làm con trực tiếp của hàng ấy. Đo được: ngăn mở ra thấy
+   logo, ba mục chung và tên truyện nằm cạnh nhau trên một dòng. */
 
 /* ══ tủ truyện · bản 2 ════════════════════════════════════════════════════ */
 .head.headTu {

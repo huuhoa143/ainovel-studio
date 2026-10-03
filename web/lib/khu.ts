@@ -55,6 +55,39 @@ export type Khu =
   | 'cung-dung'
   | 'nhap-xuat';
 
+/**
+ * Tên NGƯỜI ĐỌC của từng khu — một bảng, dùng cho mọi chỗ cần gọi tên bề mặt đang mở.
+ *
+ * `Record<Khu, string>` chứ không phải một object thường: thêm một khu mà quên đặt tên thì
+ * TypeScript đỏ ngay ở đây, thay vì để một bề mặt mang tên rỗng lọt ra giao diện. Đó cũng
+ * là lý do bảng này đứng CẠNH `Khu` chứ không nằm trong `nhan.ts` — hợp đồng và tên của nó
+ * phải đi liền nhau.
+ *
+ * Chuỗi trùng với nhãn trên rail (`DH`), và trùng là CỐ Ý: cùng một bề mặt thì nút dẫn tới
+ * nó và tên của nó khi đang mở phải đọc ra một câu.
+ */
+export const TEN_KHU: Record<Khu, string> = {
+  xuong: 'Tủ truyện',
+  'dong-san-xuat': 'Tiến độ',
+  'ban-thao': 'Đọc truyện',
+  'kiem-dinh': 'Nhận xét biên tập',
+  'hang-cho-viet-lai': 'Cần viết lại',
+  'dan-y': 'Dàn ý',
+  'nhan-vat': 'Nhân vật',
+  'luat-the-gioi': 'Luật thế giới',
+  'phuc-but': 'Phục bút',
+  'van-phong': 'Văn phong',
+  'to-san-xuat': 'Nhóm AI',
+  'chi-phi': 'Chi phí',
+  'phien-chay': 'Thông số phiên',
+  'cau-hinh': 'Model & khóa API',
+  'kenh-vai-chung': 'Model theo vai',
+  'chi-phi-xuong': 'Chi phí tổng',
+  'tac-pham-moi': 'Viết truyện mới',
+  'cung-dung': 'Bàn ý tưởng',
+  'nhap-xuat': 'Xuất bản & nhập',
+};
+
 export const KHU: readonly Khu[] = [
   'xuong',
   'dong-san-xuat',

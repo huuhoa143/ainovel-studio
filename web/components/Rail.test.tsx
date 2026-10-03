@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { expect, test, vi } from 'vitest';
 
 import type { Khu } from '@/lib/khu';
+import { TEN_KHU } from '@/lib/khu';
 import { manCuaKhu } from '@/lib/man';
 import { CHU, DH } from '@/lib/nhan';
 
@@ -37,7 +38,6 @@ function ve(khu: Khu = 'dong-san-xuat', dauChot = 0) {
       khu={khu}
       man={manCuaKhu(khu)}
       onChonKhu={chon}
-      onChonMan={doiMan}
       canBan={false}
       tenCuonNgan="Trấn Yêu Ký"
       dauChot={dauChot}
@@ -155,7 +155,6 @@ test('số ở "Nhận xét biên tập" là số chương CÓ nhận xét, khô
       khu="dong-san-xuat"
       man={manCuaKhu('dong-san-xuat')}
       onChonKhu={() => {}}
-      onChonMan={() => {}}
       canBan={false}
       tenCuonNgan="Trấn Yêu Ký"
       dauChot={0}
@@ -187,7 +186,6 @@ test('mục neo cuộn tới đúng id SAU khi khu đích render, không ở nh�
       khu="ban-thao"
       man={manCuaKhu('ban-thao')}
       onChonKhu={vi.fn()}
-      onChonMan={vi.fn()}
       canBan={false}
       tenCuonNgan="Trấn Yêu Ký"
       dauChot={0}
@@ -212,11 +210,61 @@ test('mục neo cuộn tới đúng id SAU khi khu đích render, không ở nh�
       khu="dong-san-xuat"
       man={manCuaKhu('dong-san-xuat')}
       onChonKhu={vi.fn()}
-      onChonMan={vi.fn()}
       canBan={false}
       tenCuonNgan="Trấn Yêu Ký"
       dauChot={0}
     />,
   );
   expect(goi).toContain('nhat-ky-phan-quyet');
+});
+
+/* ── ngăn kéo ở màn hình hẹp ─────────────────────────────────────────────
+ *
+ * Luật của ngăn nằm trong một `@media (max-width: 860px)` nên jsdom không bố cục được nó.
+ * Bài kiểm vì thế canh HÀNH VI, không canh hình: trạng thái mở/đóng, ba đường ra, và việc
+ * tiêu điểm quay về nút. Đó cũng đúng là phần mà CSS không giữ hộ được.
+ */
+
+test('thanh gọn gọi tên bề mặt đang mở và mở được ngăn', () => {
+  const { container } = ve('phuc-but');
+  const nut = container.querySelector<HTMLButtonElement>('.railThanhNut')!;
+
+  expect(nut.textContent).toContain(TEN_KHU['phuc-but']);
+  expect(nut.getAttribute('aria-expanded')).toBe('false');
+  expect(container.querySelector('.railMan')).toBeNull();
+
+  fireEvent.click(nut);
+  expect(nut.getAttribute('aria-expanded')).toBe('true');
+  expect(container.querySelector('.railMan')).not.toBeNull();
+  // Nút trỏ đúng vào ngăn, nếu không thì trình đọc màn hình không biết nó mở ra cái gì.
+  expect(nut.getAttribute('aria-controls')).toBe(
+    container.querySelector('nav.rail')!.getAttribute('id'),
+  );
+});
+
+test('đi tới một đích thì ngăn tự đóng — mọi nút điều hướng, không chỉ vài nút', () => {
+  // Rail có hơn hai mươi nút điều hướng. Một nút quên đóng ngăn là một nút để lại tấm che
+  // phủ lên chính bề mặt nó vừa mở, nên phép bọc phải nằm ở MỘT chỗ.
+  const { container, chon } = ve();
+  const nut = container.querySelector<HTMLButtonElement>('.railThanhNut')!;
+  fireEvent.click(nut);
+
+  fireEvent.click(screen.getByRole('button', { name: new RegExp(`^${DH.phucBut}`) }));
+  expect(chon).toHaveBeenCalledWith('phuc-but');
+  expect(nut.getAttribute('aria-expanded')).toBe('false');
+  expect(container.querySelector('.railMan')).toBeNull();
+});
+
+test('Esc đóng ngăn VÀ trả tiêu điểm về nút mở; bấm tấm che cũng đóng', () => {
+  const { container } = ve();
+  const nut = container.querySelector<HTMLButtonElement>('.railThanhNut')!;
+
+  fireEvent.click(nut);
+  fireEvent.keyDown(document, { key: 'Escape' });
+  expect(nut.getAttribute('aria-expanded')).toBe('false');
+  expect(document.activeElement).toBe(nut);
+
+  fireEvent.click(nut);
+  fireEvent.click(container.querySelector('.railMan')!);
+  expect(nut.getAttribute('aria-expanded')).toBe('false');
 });

@@ -120,8 +120,15 @@ export function CungDung({
                 <h2>{T.cdChaoDe}</h2>
                 <p>{T.cdChaoThan}</p>
                 <p className="cdChaoPhu">{GIAI_THICH.cungDungGiaiThich}</p>
+                {/* ĐỦ sáu thể loại, không cắt bốn.
+                    `slice(0, 4)` cũ không có lý do nào ghi lại, và nó làm hai bề mặt gần như
+                    cùng một việc mời khác nhau: "Viết truyện mới" bày đủ sáu, bàn ý tưởng chỉ
+                    bốn — "Kinh dị" và "Lịch sử" biến mất mà không ai nói vì sao. Tệ hơn, cái
+                    cắt ấy theo THỨ TỰ MẢNG, nên thêm một thể loại vào đầu `Y_TUONG_MAU` sẽ
+                    lặng lẽ đẩy một thể loại khác ra khỏi bàn ý tưởng.
+                    Sáu chip xuống dòng được (xem `.cdChaoChip`), nên chỗ hẹp không phải lý do. */}
                 <div className="cdChaoChip" role="group" aria-label={T.thuMotY}>
-                  {T.yTuongMau.slice(0, 4).map((m) => (
+                  {T.yTuongMau.map((m) => (
                     <button key={m.the} type="button" className="chip" onClick={() => dienY(m.cau)}>
                       {m.the}
                     </button>

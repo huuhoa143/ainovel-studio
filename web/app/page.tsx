@@ -171,7 +171,6 @@ export default function Trang() {
             khu={s.khu}
             man={s.man}
             onChonKhu={s.chonKhu}
-            onChonMan={s.chonMan}
             canBan={canBan}
             tenCuonNgan={sachDangXem?.name || sachDangXem?.id}
             dauChot={dauDongThanh}
