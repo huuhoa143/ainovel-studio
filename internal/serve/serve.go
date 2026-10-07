@@ -56,18 +56,25 @@
 package serve
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
+	"io"
+	"log/slog"
+	"net"
 	"net/http"
 	"os"
+	"os/signal"
 	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
+	"github.com/huuhoa143/ainovel-studio/internal/bootstrap"
 	"github.com/huuhoa143/ainovel-studio/internal/domain"
 	"github.com/huuhoa143/ainovel-studio/internal/store"
 )
@@ -87,18 +94,68 @@ func (r rawJSON) MarshalJSON() ([]byte, error) {
 // Command là điểm vào của lệnh con `ainovel-cli serve`.
 func Command(argv []string) int {
 	fs := flag.NewFlagSet("serve", flag.ContinueOnError)
-	addr := fs.String("addr", "127.0.0.1:8420", "địa chỉ lắng nghe")
-	root := fs.String("root", filepath.Join("output"), "thư mục gốc chứa các tác phẩm")
-	book := fs.String("book", "", "chỉ phục vụ một tác phẩm (tên thư mục con trong root)")
-	webDir := fs.String("web", "", "thư mục web tĩnh đã build (rỗng = chỉ chạy API)")
+	var tc tuyChon
+	fs.StringVar(&tc.addr, "addr", "127.0.0.1:8420", "địa chỉ lắng nghe (cổng 0 = để hệ điều hành chọn cổng trống)")
+	fs.StringVar(&tc.root, "root", filepath.Join("output"), "thư mục gốc chứa các tác phẩm")
+	fs.StringVar(&tc.book, "book", "", "chỉ phục vụ một tác phẩm (tên thư mục con trong root)")
+	fs.StringVar(&tc.webDir, "web", "", "thư mục web tĩnh đã build (rỗng = chỉ chạy API)")
+	thoatKhiDongStdin := fs.Bool("exit-on-stdin-close", false,
+		"tắt êm khi stdin đóng — dành cho process cha (app desktop) giữ ống stdin làm dây sống")
 	if err := fs.Parse(argv); err != nil {
 		return 2
 	}
 
-	// Mặc định chỉ lắng nghe localhost: store chứa toàn văn tác phẩm chưa phát
-	// hành và khóa cấu hình, mở ra mọi giao diện mạng là rò rỉ mặc định.
-	if err := warnIfPublic(*addr); err != nil {
+	ctx, huy := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer huy()
+	var stdin io.Reader
+	if *thoatKhiDongStdin {
+		stdin = os.Stdin
+	}
+	if err := chay(ctx, tc, stdin, os.Stdout, os.Stderr); err != nil {
 		fmt.Fprintf(os.Stderr, "serve: %v\n", err)
+		return 1
+	}
+	return 0
+}
+
+// tuyChon là các cờ của `serve`, gom lại để `chay` nhận được mà không đi qua flag toàn cục.
+type tuyChon struct {
+	addr   string
+	root   string
+	book   string
+	webDir string
+
+	// napConfg thay bootstrap.LoadConfig cho bộ máy. Chỉ test đặt; nil = đọc cấu hình thật.
+	napConfg func() (bootstrap.Config, error)
+}
+
+// dongSanSang là tiền tố của dòng báo đã lắng nghe. Đây là HỢP ĐỒNG với app desktop
+// (docs/superpowers/specs/2026-10-08-desktop-app-design.md, "Hợp đồng sidecar"): process
+// cha đọc stdout tìm đúng dòng này để biết cổng thật. Đổi chữ ở đây là làm gãy app.
+const dongSanSang = "AINOVEL_READY"
+
+// thoiHanTatEm là thời gian chờ các yêu cầu đang dở trả lời xong trước khi cắt hẳn.
+const thoiHanTatEm = 5 * time.Second
+
+// chay lắng nghe, phục vụ, và trả về khi ctx bị hủy hoặc stdin đóng (stdin nil = không theo
+// dõi). Trả nil khi tắt êm; lỗi khởi động trả lỗi và KHÔNG in dòng AINOVEL_READY.
+//
+// Listen tách khỏi Serve vì hai lẽ: `--addr 127.0.0.1:0` chỉ biết cổng thật sau Listen, và
+// lỗi cổng bận phải lộ ra TRƯỚC khi báo sẵn sàng — báo rồi mới chết thì process cha đã tin
+// một địa chỉ không ai nghe.
+func chay(ctx context.Context, tc tuyChon, stdin io.Reader, stdout, stderr io.Writer) error {
+	ln, err := net.Listen("tcp", tc.addr)
+	if err != nil {
+		return err
+	}
+	// Địa chỉ THẬT, không phải chuỗi người dùng gõ: cổng 0 thành cổng đã cấp, và `:0` lộ ra
+	// đúng là đang nghe mọi giao diện.
+	diaChi := ln.Addr().String()
+
+	// Mặc định chỉ lắng nghe localhost: store chứa toàn văn tác phẩm chưa phát hành và
+	// khóa cấu hình, mở ra mọi giao diện mạng là rò rỉ mặc định.
+	if err := warnIfPublic(diaChi); err != nil {
+		fmt.Fprintf(stderr, "serve: %v\n", err)
 	}
 
 	// Đường GHI chỉ bật trên loopback, và đây là TỪ CHỐI chứ không phải cảnh báo.
@@ -107,40 +164,77 @@ func Command(argv []string) int {
 	// khởi động được engine (đốt tiền API thật) và đặt được khóa API. Người dùng đã chọn
 	// không có mật khẩu, nên hàng rào địa chỉ chính là thứ thay cho việc xác thực —
 	// không thể để nó là một dòng cảnh báo rồi vẫn chạy.
-	choGhi := laDiaChiCucBo(*addr)
+	choGhi := laDiaChiCucBo(diaChi)
 
-	srv := &server{root: *root, onlyBook: *book, webDir: *webDir, choGhi: choGhi}
+	srv := &server{root: tc.root, onlyBook: tc.book, webDir: tc.webDir, choGhi: choGhi}
 	if choGhi {
-		srv.may = newBoMay(*root)
+		srv.may = newBoMay(tc.root)
+		if tc.napConfg != nil {
+			srv.may.napConfg = tc.napConfg
+		}
+		// Chạy SAU Shutdown (defer chạy ngược thứ tự): không còn yêu cầu nào mở engine mới
+		// chen vào giữa lúc đang trả khóa.
 		defer srv.may.dongTatCa()
 	}
-	mux := srv.routes()
 
-	fmt.Fprintf(os.Stdout, "ainovel studio đang chạy tại http://%s\n", *addr)
-	fmt.Fprintf(os.Stdout, "  thư mục gốc: %s\n", *root)
+	fmt.Fprintf(stdout, "%s http://%s\n", dongSanSang, diaChi)
+	fmt.Fprintf(stdout, "ainovel studio đang chạy tại http://%s\n", diaChi)
+	fmt.Fprintf(stdout, "  thư mục gốc: %s\n", tc.root)
 	if choGhi {
-		fmt.Fprintln(os.Stdout, "  chế độ: đầy đủ — tạo, chạy, can thiệp được từ giao diện")
+		fmt.Fprintln(stdout, "  chế độ: đầy đủ — tạo, chạy, can thiệp được từ giao diện")
 	} else {
-		fmt.Fprintf(os.Stderr,
+		fmt.Fprintf(stderr,
 			"  chế độ: CHỈ ĐỌC — %s không phải loopback nên đường ghi bị tắt.\n"+
-				"          Muốn dùng đầy đủ thì chạy với --addr 127.0.0.1:8420.\n", *addr)
+				"          Muốn dùng đầy đủ thì chạy với --addr 127.0.0.1:8420.\n", diaChi)
 	}
-	if *webDir == "" {
-		fmt.Fprintln(os.Stdout, "  chế độ: chỉ API (dùng --web để phục vụ giao diện đã build)")
+	if tc.webDir == "" {
+		fmt.Fprintln(stdout, "  chế độ: chỉ API (dùng --web để phục vụ giao diện đã build)")
 	}
 
+	// ctxYeuCau là gốc của mọi r.Context(). Shutdown KHÔNG tự hủy context của yêu cầu, nên
+	// không có nó thì một kết nối SSE đang mở giữ Shutdown tới hết thời hạn mới bị cắt.
+	ctxYeuCau, huyYeuCau := context.WithCancel(context.Background())
+	defer huyYeuCau()
 	httpSrv := &http.Server{
-		Addr:              *addr,
-		Handler:           mux,
+		Handler:           srv.routes(),
 		ReadHeaderTimeout: 10 * time.Second,
 		// Không đặt WriteTimeout: SSE là kết nối dài, WriteTimeout sẽ cắt stream
 		// giữa phiên theo đồng hồ chứ không theo lỗi thật.
+		BaseContext: func(net.Listener) context.Context { return ctxYeuCau },
 	}
-	if err := httpSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		fmt.Fprintf(os.Stderr, "serve: %v\n", err)
-		return 1
+	httpSrv.RegisterOnShutdown(huyYeuCau)
+
+	ctx, huy := context.WithCancel(ctx)
+	defer huy()
+	if stdin != nil {
+		// Đọc tới EOF hoặc lỗi — cả hai đều nghĩa là process cha đã đi, kể cả khi nó chết
+		// bất ngờ mà không kịp gửi tín hiệu nào.
+		go func() {
+			_, _ = io.Copy(io.Discard, stdin)
+			huy()
+		}()
 	}
-	return 0
+
+	loiPhucVu := make(chan error, 1)
+	go func() { loiPhucVu <- httpSrv.Serve(ln) }()
+
+	select {
+	case err := <-loiPhucVu:
+		return err
+	case <-ctx.Done():
+	}
+	ctxTat, huyTat := context.WithTimeout(context.Background(), thoiHanTatEm)
+	defer huyTat()
+	if err := httpSrv.Shutdown(ctxTat); err != nil {
+		// Quá hạn: cắt hẳn những kết nối còn lại. Vẫn là tắt êm từ phía người gọi — khóa
+		// truyện vẫn được trả ở defer phía trên.
+		slog.Warn("tắt êm quá hạn, cắt kết nối còn lại", "module", "serve", "err", err)
+		_ = httpSrv.Close()
+	}
+	if err := <-loiPhucVu; err != nil && !errors.Is(err, http.ErrServerClosed) {
+		return err
+	}
+	return nil
 }
 
 // warnIfPublic cảnh báo khi lắng nghe ra ngoài loopback.
