@@ -107,9 +107,20 @@ func Command(argv []string) int {
 
 	ctx, huy := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer huy()
+	// Tín hiệu ĐẦU TIÊN mở màn tắt êm; trả tín hiệu về mặc định ngay sau đó để Ctrl-C lần hai
+	// giết process tức thì. Không có dòng này thì người dùng CLI bấm lại Ctrl-C trong lúc chờ
+	// tắt êm cũng không ăn — tín hiệu bị NotifyContext nuốt mất.
+	go func() {
+		<-ctx.Done()
+		huy()
+	}()
 	var stdin io.Reader
 	if *thoatKhiDongStdin {
 		stdin = os.Stdin
+		// Process cha chết bất ngờ thì ống stdout/stderr gãy cùng lúc với stdin. Lượt ghi log
+		// kế tiếp vào ống gãy sẽ nhận SIGPIPE, và mặc định của Go với fd 1/2 là CHẾT ngay — tức
+		// chết trước dongTatCa, để lại khóa truyện mồ côi. Bỏ qua nó thì lượt ghi chỉ trả EPIPE.
+		signal.Ignore(syscall.SIGPIPE)
 	}
 	if err := chay(ctx, tc, stdin, os.Stdout, os.Stderr); err != nil {
 		fmt.Fprintf(os.Stderr, "serve: %v\n", err)
@@ -127,6 +138,9 @@ type tuyChon struct {
 
 	// napConfg thay bootstrap.LoadConfig cho bộ máy. Chỉ test đặt; nil = đọc cấu hình thật.
 	napConfg func() (bootstrap.Config, error)
+	// themRoute mắc thêm route vào mux trước khi phục vụ. Chỉ test đặt — để dựng một yêu cầu
+	// chậm mà đo được nhịp tắt êm qua `chay` thật.
+	themRoute func(*http.ServeMux)
 }
 
 // dongSanSang là tiền tố của dòng báo đã lắng nghe. Đây là HỢP ĐỒNG với app desktop
@@ -134,8 +148,19 @@ type tuyChon struct {
 // cha đọc stdout tìm đúng dòng này để biết cổng thật. Đổi chữ ở đây là làm gãy app.
 const dongSanSang = "AINOVEL_READY"
 
-// thoiHanTatEm là thời gian chờ các yêu cầu đang dở trả lời xong trước khi cắt hẳn.
-const thoiHanTatEm = 5 * time.Second
+// thoiHanTatEm là thời gian chờ các yêu cầu đang dở (trừ SSE) trả lời xong trước khi cắt hẳn.
+//
+// Đây là một phần của NGÂN SÁCH TẮT, không phải con số đứng riêng. App desktop đóng stdin rồi
+// chờ tối đa 15 giây trước khi kill() (`stopTimeoutMs` trong desktop/src/main/sidecar.ts; hợp
+// đồng ở docs/superpowers/specs/2026-10-08-desktop-app-design.md, "Hợp đồng sidecar"). Trong 15
+// giây đó Go phải làm XONG cả ba việc: xả HTTP (tối đa con số này), dongTatCa (hủy engine, chờ
+// nó dừng, lưu sổ chi phí) và nhả khóa truyện. Bị kill giữa chừng là khóa mồ côi — đúng cái cả
+// quy trình tắt êm tồn tại để tránh.
+//
+// Nên giữ nó NHỎ: 2 giây đủ cho một lượt nhập / xuất / cùng dựng đang dở trả lời, và để lại
+// phần lớn ngân sách cho dongTatCa — chỗ duy nhất có thể chậm vì phải chờ engine dừng thật.
+// Tăng số này thì phải tăng `stopTimeoutMs` theo, không thì desktop kill trước khi trả khóa.
+const thoiHanTatEm = 2 * time.Second
 
 // chay lắng nghe, phục vụ, và trả về khi ctx bị hủy hoặc stdin đóng (stdin nil = không theo
 // dõi). Trả nil khi tắt êm; lỗi khởi động trả lỗi và KHÔNG in dòng AINOVEL_READY.
@@ -166,7 +191,9 @@ func chay(ctx context.Context, tc tuyChon, stdin io.Reader, stdout, stderr io.Wr
 	// không thể để nó là một dòng cảnh báo rồi vẫn chạy.
 	choGhi := laDiaChiCucBo(diaChi)
 
-	srv := &server{root: tc.root, onlyBook: tc.book, webDir: tc.webDir, choGhi: choGhi}
+	// dungSSE đóng ngay khi bắt đầu tắt — xem chú thích ở httpSrv bên dưới.
+	dungSSE := make(chan struct{})
+	srv := &server{root: tc.root, onlyBook: tc.book, webDir: tc.webDir, choGhi: choGhi, dungSSE: dungSSE}
 	if choGhi {
 		srv.may = newBoMay(tc.root)
 		if tc.napConfg != nil {
@@ -191,18 +218,29 @@ func chay(ctx context.Context, tc tuyChon, stdin io.Reader, stdout, stderr io.Wr
 		fmt.Fprintln(stdout, "  chế độ: chỉ API (dùng --web để phục vụ giao diện đã build)")
 	}
 
-	// ctxYeuCau là gốc của mọi r.Context(). Shutdown KHÔNG tự hủy context của yêu cầu, nên
-	// không có nó thì một kết nối SSE đang mở giữ Shutdown tới hết thời hạn mới bị cắt.
+	// Hai nhịp dừng cho hai loại yêu cầu, vì Shutdown KHÔNG tự hủy context của yêu cầu nào:
+	//
+	//   - SSE (dungSSE) dừng NGAY lúc bắt đầu tắt. Nó không bao giờ tự xong, nên để nó chờ thì
+	//     một tab đang mở giữ Shutdown tới hết thời hạn mới bị cắt.
+	//   - Mọi yêu cầu khác (nhập, mô phỏng, cùng dựng, xuất bản...) được trọn thời hạn tắt êm
+	//     để trả lời xong. Chỉ khi quá hạn ctxYeuCau mới bị hủy, để chúng bỏ dở mà về.
+	//
+	// Bản trước hủy ctxYeuCau ở RegisterOnShutdown — tức hủy TẤT CẢ ngay lúc bắt đầu, và thời
+	// hạn tắt êm thành con số chỉ có trên giấy: mọi lượt nhập / xuất đang dở chết tức thì.
 	ctxYeuCau, huyYeuCau := context.WithCancel(context.Background())
 	defer huyYeuCau()
+	mux := srv.routes()
+	if tc.themRoute != nil {
+		tc.themRoute(mux)
+	}
 	httpSrv := &http.Server{
-		Handler:           srv.routes(),
+		Handler:           mux,
 		ReadHeaderTimeout: 10 * time.Second,
 		// Không đặt WriteTimeout: SSE là kết nối dài, WriteTimeout sẽ cắt stream
 		// giữa phiên theo đồng hồ chứ không theo lỗi thật.
 		BaseContext: func(net.Listener) context.Context { return ctxYeuCau },
 	}
-	httpSrv.RegisterOnShutdown(huyYeuCau)
+	httpSrv.RegisterOnShutdown(func() { close(dungSSE) })
 
 	ctx, huy := context.WithCancel(ctx)
 	defer huy()
@@ -229,6 +267,7 @@ func chay(ctx context.Context, tc tuyChon, stdin io.Reader, stdout, stderr io.Wr
 		// Quá hạn: cắt hẳn những kết nối còn lại. Vẫn là tắt êm từ phía người gọi — khóa
 		// truyện vẫn được trả ở defer phía trên.
 		slog.Warn("tắt êm quá hạn, cắt kết nối còn lại", "module", "serve", "err", err)
+		huyYeuCau()
 		_ = httpSrv.Close()
 	}
 	if err := <-loiPhucVu; err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -258,6 +297,10 @@ type server struct {
 	// cách tường minh, và để test dựng được ca "chỉ đọc" mà không phải mò.
 	choGhi bool
 	may    *boMay
+
+	// dungSSE đóng khi server bắt đầu tắt; luồng SSE chọn trên nó để thoát ngay thay vì giữ
+	// Shutdown tới hết hạn. nil (các bài kiểm dựng server trần) = không bao giờ đóng.
+	dungSSE <-chan struct{}
 }
 
 func (s *server) routes() *http.ServeMux {

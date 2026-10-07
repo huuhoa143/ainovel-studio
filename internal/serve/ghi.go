@@ -241,6 +241,8 @@ func maLoi(err error) int {
 		return http.StatusConflict
 	case errors.Is(err, errNotInitialized):
 		return http.StatusNotFound
+	case errors.Is(err, errDangTat):
+		return http.StatusServiceUnavailable
 	default:
 		return http.StatusBadRequest
 	}

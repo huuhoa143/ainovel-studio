@@ -56,6 +56,13 @@ type boMay struct {
 	soToiDa  int
 	dang     map[string]*phienMay
 	napConfg func() (bootstrap.Config, error) // tách ra để test tiêm được
+
+	// dangTat bật ở đầu dongTatCa và không bao giờ tắt lại. Canh bởi mu.
+	//
+	// Yêu cầu không-SSE được chạy tiếp trong thời hạn tắt êm, và khi quá hạn handler vẫn có
+	// thể đang chạy SAU lúc dongTatCa đã quét xong map. Không có cờ này thì một handler như thế
+	// gọi `mo` là mở một engine MỚI không ai đóng — giữ khóa truyện tới khi process chết.
+	dangTat bool
 }
 
 // mocBayGio là một chỗ duy nhất lấy thời điểm hiện tại trong gói này.
@@ -113,6 +120,7 @@ func (p *phienMay) tinhTrang() (loi error, dung bool) {
 var (
 	errQuaNhieuMay = errors.New("Studio chỉ viết một truyện mỗi lúc")
 	errChuaMoMay   = errors.New("tác phẩm này chưa mở engine")
+	errDangTat     = errors.New("Studio đang tắt, không mở thêm engine")
 )
 
 // mo mở engine cho một cuốn, hoặc trả lại engine đang mở.
@@ -128,6 +136,9 @@ func (b *boMay) mo(id string) (*phienMay, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
+	if b.dangTat {
+		return nil, errDangTat
+	}
 	if p, ok := b.dang[id]; ok {
 		return p, nil
 	}
@@ -262,8 +273,12 @@ func (b *boMay) dong(id string) error {
 }
 
 // dongTatCa dùng lúc tắt server. Trả khóa cho mọi cuốn để lần chạy sau không gặp khóa mồ côi.
+//
+// Bật dangTat CÙNG lượt khóa với lượt chụp danh sách: mọi `mo` sau đó bị từ chối, nên danh sách
+// này là đầy đủ — không engine nào mở chen vào sau lúc quét mà sống sót qua lúc tắt.
 func (b *boMay) dongTatCa() {
 	b.mu.Lock()
+	b.dangTat = true
 	ids := make([]string, 0, len(b.dang))
 	for id := range b.dang {
 		ids = append(ids, id)

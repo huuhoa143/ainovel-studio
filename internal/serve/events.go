@@ -122,6 +122,8 @@ func (s *server) handleEvents(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-ctx.Done():
 			return
+		case <-s.dungSSE:
+			return
 		case <-choVan:
 			// vòng lại để bơm; `choVan` nil thì nhánh này không bao giờ chọn được
 		case <-beat.C:

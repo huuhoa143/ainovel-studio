@@ -13,15 +13,25 @@ import (
 // dungNhaCauHinh dựng một HOME tạm + cwd tạm để mọi phép tra đường dẫn cấu hình trỏ vào
 // thư mục của bài kiểm.
 //
-// `DefaultConfigPath` đọc `os.UserHomeDir()` (tức $HOME trên unix) và `projectConfigPath`
-// giải theo cwd, nên phải khống chế cả hai. Thiếu một cái là bài kiểm ghi vào
-// ~/.ainovel/config.json THẬT của người chạy — tức xóa khóa API của chính họ.
+// `DefaultConfigPath` đọc `os.UserHomeDir()` và `projectConfigPath` giải theo cwd, nên phải
+// khống chế cả hai. Thiếu một cái là bài kiểm ghi vào ~/.ainovel/config.json THẬT của người
+// chạy — tức xóa khóa API của chính họ.
 func dungNhaCauHinh(t *testing.T) string {
 	t.Helper()
 	nha := t.TempDir()
-	t.Setenv("HOME", nha)
+	datNhaTam(t, nha)
 	t.Chdir(nha)
 	return nha
+}
+
+// datNhaTam trỏ thư mục nhà của người dùng vào `nha` trên MỌI hệ điều hành.
+//
+// `os.UserHomeDir()` đọc $HOME trên unix nhưng %USERPROFILE% trên Windows. Chỉ đặt HOME thì
+// trên Windows bài kiểm vẫn ghi vào nhà thật của người chạy.
+func datNhaTam(t *testing.T, nha string) {
+	t.Helper()
+	t.Setenv("HOME", nha)
+	t.Setenv("USERPROFILE", nha)
 }
 
 func goiCauHinh(t *testing.T, s *server, method, than string) *httptest.ResponseRecorder {

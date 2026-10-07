@@ -45,8 +45,12 @@ Electron là vỏ mỏng, không có renderer riêng. `BrowserWindow` tải
   `AINOVEL_READY http://127.0.0.1:<cổng thật>` + `\n`. Các dòng log khác giữ nguyên.
 - `--addr` với cổng `0` phải hoạt động (in cổng thật đã được cấp).
 - `--exit-on-stdin-close`: một goroutine đọc stdin tới EOF/lỗi → tắt êm.
-- Tắt êm (SIGINT, SIGTERM, hoặc stdin đóng): `http.Server.Shutdown` (timeout 5s) rồi đóng
-  engine/nhả khóa truyện (`dongTatCa`), thoát mã 0.
+- Tắt êm (SIGINT, SIGTERM, hoặc stdin đóng): luồng SSE dừng ngay, các yêu cầu khác được
+  `http.Server.Shutdown` chờ tối đa 2s (`thoiHanTatEm`), rồi đóng engine/nhả khóa truyện
+  (`dongTatCa`, từ đó `mo` từ chối mở engine mới), thoát mã 0. Toàn bộ chuỗi này phải xong
+  trong thời gian `stop()` của desktop chờ trước khi `kill()` (15s) — tăng bên này thì phải
+  tăng bên kia. Với `--exit-on-stdin-close`, SIGPIPE bị bỏ qua để ống stdout/stderr gãy khi
+  process cha chết không giết Go trước `dongTatCa`.
 - Lỗi khởi động (cổng bận, root không ghi được…): ghi stderr, thoát mã ≠ 0, không in `AINOVEL_READY`.
 
 ### Module trong `desktop/src/main/`
@@ -56,7 +60,7 @@ Electron là vỏ mỏng, không có renderer riêng. `BrowserWindow` tải
   trường `AINOVEL_BIN`/`AINOVEL_WEB` nếu có, không thì `<repo>/ainovel-cli` và `<repo>/web/out`.
 - `sidecar.ts` — spawn theo hợp đồng trên; stdin để `pipe` và giữ mở; parse `AINOVEL_READY`
   (timeout 20s); stdout+stderr ghi vào `<userData>/logs/sidecar.log` (cắt khi > 5MB) và giữ
-  vòng đệm 200 dòng cuối; phát sự kiện `exit` khi chết bất ngờ; `stop()` đóng stdin, chờ 5s,
+  vòng đệm 200 dòng cuối; phát sự kiện `exit` khi chết bất ngờ; `stop()` đóng stdin, chờ 15s,
   rồi `kill()`. Không phụ thuộc Electron để test được bằng vitest với nhị phân giả.
 - `window.ts` — một cửa sổ (nhớ kích thước/vị trí trong `<userData>/window-state.json`),
   `contextIsolation`, `sandbox`, không `nodeIntegration`, không preload. Chặn `will-navigate`

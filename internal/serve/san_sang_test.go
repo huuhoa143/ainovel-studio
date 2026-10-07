@@ -3,6 +3,7 @@ package serve
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"net"
 	"net/http"
@@ -116,7 +117,7 @@ func TestChay_Cong0InCongThatVaPhucVu(t *testing.T) {
 // hiệu, chỉ có ống stdin đóng. Serve phải thoát VÀ trả khóa truyện — không thì lần mở app
 // sau gặp "thư mục đang bị process khác giữ" bởi một PID đã chết.
 func TestChay_DongStdinThiTatEmVaTraKhoa(t *testing.T) {
-	t.Setenv("HOME", t.TempDir()) // host.New ghi bộ đệm giá model vào ~/.ainovel
+	datNhaTam(t, t.TempDir()) // host.New ghi bộ đệm giá model vào ~/.ainovel
 	root := t.TempDir()
 	newBook(t, root, "sach", nil)
 	dir := filepath.Join(root, "sach")
@@ -188,5 +189,103 @@ func TestChay_CongBanThiBaoLoiVaKhongBaoSanSang(t *testing.T) {
 	if strings.Contains(out.String(), dongSanSang) {
 		t.Errorf("khởi động hỏng mà vẫn in %s — app desktop sẽ tin một địa chỉ không ai nghe:\n%s",
 			dongSanSang, out.String())
+	}
+}
+
+// Tắt êm có HAI nhịp: SSE dừng ngay, yêu cầu khác được trọn thời hạn. Bản trước hủy mọi
+// context lúc bắt đầu tắt, nên một lượt nhập / xuất đang dở chết tức thì dù chú thích hứa
+// "chờ trả lời xong".
+//
+// Thứ tự được ép bằng channel chứ không bằng đồng hồ: yêu cầu chậm chỉ được trả lời SAU KHI
+// luồng SSE đã kết thúc. Nếu SSE không dừng ngay thì nó giữ tới hết thời hạn (thoiHanTatEm)
+// và bài kiểm quá hạn chờ; nếu yêu cầu chậm bị hủy sớm thì nó trả 503 thay vì 200.
+func TestChay_TatEmCatSSENgayNhungChoYeuCauKhac(t *testing.T) {
+	root := t.TempDir()
+	newBook(t, root, "sach", nil)
+
+	vao := make(chan struct{})
+	nha := make(chan struct{})
+	themRoute := func(mux *http.ServeMux) {
+		mux.HandleFunc("GET /cham", func(w http.ResponseWriter, r *http.Request) {
+			close(vao)
+			select {
+			case <-nha:
+				_, _ = io.WriteString(w, "xong")
+			case <-r.Context().Done():
+				w.WriteHeader(http.StatusServiceUnavailable)
+			}
+		})
+	}
+
+	ctx, huy := context.WithCancel(context.Background())
+	defer huy()
+	out := &boDemKhoa{}
+	ketQua := make(chan error, 1)
+	go func() {
+		ketQua <- chay(ctx, tuyChon{addr: "127.0.0.1:0", root: root, themRoute: themRoute}, nil, out, io.Discard)
+	}()
+	url := choSanSang(t, out, ketQua)
+
+	sse, err := http.Get(url + "/api/books/sach/events")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sse.Body.Close()
+	hetSSE := make(chan struct{})
+	go func() {
+		_, _ = io.Copy(io.Discard, sse.Body)
+		close(hetSSE)
+	}()
+
+	type traLoi struct {
+		ma   int
+		than string
+		err  error
+	}
+	cham := make(chan traLoi, 1)
+	go func() {
+		rep, err := http.Get(url + "/cham")
+		if err != nil {
+			cham <- traLoi{err: err}
+			return
+		}
+		b, _ := io.ReadAll(rep.Body)
+		rep.Body.Close()
+		cham <- traLoi{ma: rep.StatusCode, than: string(b)}
+	}()
+	<-vao
+
+	huy()
+	select {
+	case <-hetSSE:
+	case <-time.After(thoiHanTatEm - 500*time.Millisecond):
+		t.Fatal("luồng SSE không dừng ngay khi bắt đầu tắt — nó đang giữ Shutdown tới hết thời hạn")
+	}
+
+	close(nha)
+	tl := <-cham
+	if tl.err != nil || tl.ma != http.StatusOK || tl.than != "xong" {
+		t.Errorf("yêu cầu đang dở phải được trả lời xong trong lúc tắt êm, có ma=%d than=%q err=%v",
+			tl.ma, tl.than, tl.err)
+	}
+	if err := choTraVe(t, ketQua); err != nil {
+		t.Errorf("tắt êm phải trả nil, có %v", err)
+	}
+}
+
+// Sau khi dongTatCa bắt đầu, `mo` phải từ chối: một handler còn chạy sau thời hạn tắt êm mà
+// mở được engine mới thì engine đó không ai đóng và khóa truyện mồ côi.
+func TestBoMay_MoSauKhiTatThiTuChoi(t *testing.T) {
+	b := newBoMay(t.TempDir())
+	b.napConfg = func() (bootstrap.Config, error) {
+		t.Fatal("đã tắt mà `mo` vẫn đi đọc cấu hình để mở engine")
+		return bootstrap.Config{}, nil
+	}
+	b.dongTatCa()
+	if _, err := b.mo("sach"); !errors.Is(err, errDangTat) {
+		t.Fatalf("mo sau dongTatCa = %v, muốn errDangTat", err)
+	}
+	if maLoi(errDangTat) != http.StatusServiceUnavailable {
+		t.Errorf("errDangTat phải ra 503, có %d", maLoi(errDangTat))
 	}
 }
