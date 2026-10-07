@@ -2,6 +2,7 @@ import path from 'node:path';
 import { open, readFile, readdir, writeFile } from 'node:fs/promises';
 import type { ForgeConfig } from '@electron-forge/shared-types';
 import { MakerZIP } from '@electron-forge/maker-zip';
+import MakerNSIS from '@electron-addons/electron-forge-maker-nsis';
 import { VitePlugin } from '@electron-forge/plugin-vite';
 import { FusesPlugin } from '@electron-forge/plugin-fuses';
 import { FuseV1Options, FuseVersion } from '@electron/fuses';
@@ -61,6 +62,14 @@ async function checkSidecarBin(platform: string, arch: string): Promise<void> {
   }
 }
 
+// Maker NSIS tự khóa vào máy build win32, nhưng app-builder-lib bên dưới dựng NSIS trên
+// darwin được (đã thử: không cần wine/rcedit) — nhờ vậy release.sh làm luôn bản Windows từ Mac.
+class MakerNSISAnyHost extends MakerNSIS {
+  isSupportedOnCurrentPlatform(): boolean {
+    return true;
+  }
+}
+
 const config: ForgeConfig = {
   packagerConfig: {
     asar: true,
@@ -93,19 +102,18 @@ const config: ForgeConfig = {
   makers: [
     // Windows: NSIS (bọc target NSIS của electron-builder). Squirrel.Windows không được
     // electron-updater hỗ trợ. Chưa ký Authenticode — người dùng gặp SmartScreen một lần.
-    {
-      name: '@electron-addons/electron-forge-maker-nsis',
-      config: {
-        // `updater` làm maker sinh latest.yml cạnh bộ cài và app-update.yml provider github
-        // bên trong app (vì URL là endpoint release của github.com).
+    // `updater` làm maker sinh latest.yml cạnh bộ cài và app-update.yml provider github
+    // bên trong app (vì URL là endpoint release của github.com).
+    new MakerNSISAnyHost(
+      {
         updater: {
           url: `https://github.com/${UPDATER.owner}/${UPDATER.repo}/releases/latest/download`,
           updaterCacheDirName: UPDATER.updaterCacheDirName,
           channel: 'latest',
         },
       },
-      platforms: ['win32'],
-    },
+      ['win32'],
+    ),
     new MakerZIP({}, ['darwin']),
   ],
   plugins: [

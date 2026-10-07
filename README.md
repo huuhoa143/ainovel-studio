@@ -2,11 +2,43 @@
 
 [English](README.en.md) · **Tiếng Việt**
 
-**Trang giới thiệu: [ainovel.lingoreup.com](https://ainovel.lingoreup.com)** · cài trên máy bạn bằng một lệnh `go install` — xem [Bắt đầu nhanh](#bắt-đầu-nhanh).
+**Trang giới thiệu: [ainovel.lingoreup.com](https://ainovel.lingoreup.com)** · **[tải app cho macOS / Windows](#tải-về--cài-đặt)** — không cần terminal · hoặc [dựng từ nguồn](#bắt-đầu-nhanh).
 
 Engine viết tiểu thuyết dài bằng AI, toàn tự động. Engine tất định chạy trọn một cuốn sách, model chỉ được gọi đúng những chỗ cần phán đoán: Engine định tuyến theo sự thật để điều phối ba tác tử sáng tác tự chủ Architect / Writer / Editor, và đánh thức Arbiter khi cần phán quyết ngữ nghĩa. Từ một câu yêu cầu tới một cuốn tiểu thuyết hoàn chỉnh, không cần người can thiệp.
 
 > Đây là **bản fork tiếng Việt** của [voocel/ainovel-cli](https://github.com/voocel/ainovel-cli). Giao diện, prompt và tài liệu đã việt hóa nên AI sinh truyện tiếng Việt; xem [Ghi công](#ghi-công) ở cuối.
+
+## Tải về & cài đặt
+
+Cách dễ nhất: tải **AINovel Studio** — app desktop gói sẵn engine và web studio, không cần
+terminal, không cần cài Go hay Node. Vào **[bản phát hành mới nhất](https://github.com/huuhoa143/ainovel-studio/releases/latest)**
+rồi tải đúng một tệp cho máy của bạn:
+
+| Máy của bạn | Tải tệp |
+|---|---|
+| Mac chip Apple (M1, M2, M3, M4…) | `AINovel-Studio-<phiên bản>-arm64.dmg` |
+| Mac chip Intel | `AINovel-Studio-<phiên bản>-x64.dmg` |
+| Windows 10/11 (64-bit) | `AINovel-Studio-Setup-<phiên bản>.exe` |
+
+Không rõ Mac của mình dùng chip gì: menu Apple → **Giới thiệu về máy Mac này**. Dòng **Chip** ghi
+"Apple M…" là chip Apple; dòng **Bộ xử lý** ghi "Intel…" là chip Intel. Các tệp `.zip` và
+`.yml` trong trang phát hành là để app tự cập nhật — không cần tải.
+
+**macOS** — mở tệp `.dmg`, kéo **AINovel Studio** vào thư mục **Applications**, rồi mở từ
+Launchpad. App đã được ký và Apple notarize nên mở thẳng, không có cảnh báo.
+
+**Windows** — chạy `AINovel-Studio-Setup-….exe`. Bộ cài chưa có chữ ký số, nên lần đầu Windows
+hiện hộp xanh *"Windows protected your PC"*: bấm **More info** → **Run anyway**. Chỉ hỏi một lần.
+
+**Lần đầu mở app** — app mở thẳng màn **Cài đặt chung → Model & khóa API**. Dán API key của nhà
+cung cấp bạn dùng (OpenRouter, Anthropic, Gemini, OpenAI…), bấm lưu là tạo truyện được ngay.
+Key lưu ở `~/.ainovel/config.json`, dùng chung với bản CLI nếu bạn có cài.
+
+- Truyện nằm ở `~/Library/Application Support/AINovel Studio/books` (macOS) hoặc
+  `%APPDATA%\AINovel Studio\books` (Windows); menu **Tệp → Mở thư mục truyện** mở thẳng chỗ đó.
+- App tự kiểm tra bản mới mỗi lần mở, tải ngầm, xong thì hỏi khởi động lại để cập nhật.
+
+Muốn dùng TUI/CLI, chạy trên Linux, hay sửa mã: xem [Bắt đầu nhanh](#bắt-đầu-nhanh) bên dưới.
 
 <p align="center">
   <img src="docs/assets/studio.gif" alt="Web studio: Quản lý → Dòng sản xuất → Bản thảo → Chi phí → Model theo vai" width="820">
@@ -233,7 +265,7 @@ cd web && npm ci && npm run build && cd ..
 ./ainovel-cli serve --web web/out
 ```
 
-> ### Vì sao dựng từ nguồn là đường DUY NHẤT
+> ### Vì sao CLI chỉ có đường dựng từ nguồn
 >
 > Không có `go install`, và đây là ràng buộc thật chứ không phải việc còn tồn. Go từ chối
 > `go install pkg@version` với mọi module mang chỉ thị `replace`, và `go.mod` có một:

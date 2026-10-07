@@ -2,8 +2,9 @@
 
 **English** · [Tiếng Việt](README.md)
 
-**Project page: [ainovel.lingoreup.com](https://ainovel.lingoreup.com)** · install on your own
-machine with one `go install` — see [Quick start](#quick-start).
+**Project page: [ainovel.lingoreup.com](https://ainovel.lingoreup.com)** ·
+**[download the macOS / Windows app](#download--install)** — no terminal needed · or
+[build from source](#quick-start).
 
 A fully autonomous AI engine for writing long-form novels. A deterministic engine drives an
 entire book end to end and calls the model only where judgement is actually required: the
@@ -19,6 +20,43 @@ finished novel out, with no human in the loop.
 >
 > Read [Credits](#credits) for the full lineage before citing this repo as the source of any
 > idea described below.
+
+## Download & install
+
+The easy way: download **AINovel Studio**, a desktop app that bundles the engine and the web
+studio — no terminal, no Go or Node to install. Open the
+**[latest release](https://github.com/huuhoa143/ainovel-studio/releases/latest)** and download
+the one file that matches your machine:
+
+| Your machine | Download |
+|---|---|
+| Mac with Apple silicon (M1, M2, M3, M4…) | `AINovel-Studio-<version>-arm64.dmg` |
+| Mac with an Intel processor | `AINovel-Studio-<version>-x64.dmg` |
+| Windows 10/11 (64-bit) | `AINovel-Studio-Setup-<version>.exe` |
+
+Not sure which Mac you have: Apple menu → **About This Mac**. A **Chip** line reading "Apple M…"
+means Apple silicon; a **Processor** line reading "Intel…" means Intel. The `.zip` and `.yml`
+files on the release page are for the app's self-updater — you do not need them.
+
+**macOS** — open the `.dmg`, drag **AINovel Studio** into **Applications**, and launch it from
+Launchpad. The app is signed and notarized by Apple, so it opens without a warning.
+
+**Windows** — run `AINovel-Studio-Setup-….exe`. The installer is not code-signed yet, so the
+first run shows a blue *"Windows protected your PC"* box: click **More info** → **Run anyway**.
+It only asks once.
+
+**First launch** — the app opens straight on **General settings → Model & API key**. Paste the
+API key for your provider (OpenRouter, Anthropic, Gemini, OpenAI…), save, and you can create a
+novel right away. The key is stored in `~/.ainovel/config.json`, shared with the CLI if you
+have it.
+
+- Novels live in `~/Library/Application Support/AINovel Studio/books` (macOS) or
+  `%APPDATA%\AINovel Studio\books` (Windows); the **Tệp → Mở thư mục truyện** (File → Open novels folder) menu item takes you there.
+- The app checks for a new version on every launch, downloads it in the background, and asks
+  to restart when it is ready.
+
+The interface is Vietnamese (see the language note below). For the TUI/CLI, Linux, or hacking
+on the code, see [Quick start](#quick-start).
 
 <p align="center">
   <img src="docs/assets/studio.gif" alt="Web studio: management, production line, draft, cost, per-role models" width="820">
@@ -137,7 +175,7 @@ cd web && npm ci && npm run build && cd ..
 ./ainovel-cli serve --web web/out
 ```
 
-> ### Why building from source is the ONLY path
+> ### Why the CLI is build-from-source only
 >
 > There is no `go install`, and that is a real constraint rather than an unfinished chore. Go
 > refuses `go install pkg@version` for any module carrying a `replace` directive, and this
