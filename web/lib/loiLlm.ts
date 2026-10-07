@@ -128,6 +128,29 @@ export function giaiLoi(
 }
 
 /**
+ * Lỗi này sửa ở đâu: `'khoa'` — khóa API (sai, bị chặn, thiếu); `'cau-hinh'` — model hoặc địa
+ * chỉ ở cùng màn Model & khóa API; `undefined` — không phải lỗi cấu hình (giới hạn lượt, máy
+ * chủ tạm lỗi), chờ rồi thử lại mới là việc đúng.
+ *
+ * MỘT bảng cho mọi bề mặt muốn đặt nút "đi sửa" cạnh một lỗi, để hai nơi không bao giờ bất
+ * đồng chuyện một lỗi có sửa được ở cấu hình hay không.
+ */
+export function suaOCauHinh(l: LoiDaGiai | undefined): 'khoa' | 'cau-hinh' | undefined {
+  switch (l?.ma) {
+    case 'khoa-sai':
+    case 'cam':
+    case 'khong-khoa':
+      return 'khoa';
+    case 'khong-model':
+    case 'het-tuyen':
+    case 'mang':
+      return 'cau-hinh';
+    default:
+      return undefined;
+  }
+}
+
+/**
  * Engine TỰ dừng (không phải bạn bấm, không phải cửa duyệt) — và vì sao. MỘT phép đo cho mọi
  * bề mặt nói về lần dừng.
  *

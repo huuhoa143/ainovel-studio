@@ -113,6 +113,10 @@ export const TU_TRUYEN = {
   chuaRoY: 'Ý còn mơ hồ?',
   banTruoc: 'Bàn ý tưởng với AI trước',
   buocLau: ['10–30 giây', '1–4 phút', 'liên tục'],
+  /** Tạo hỏng vì khóa API — nút mở thẳng màn Model & khóa API. */
+  suaKhoaApi: 'Sửa khóa API',
+  /** Xưởng chưa có truyện nào: đường về biểu mẫu tạo truyện từ hai màn phụ của nó. */
+  veTaoTruyen: 'Về tạo truyện',
 
   /* ── Bàn ý tưởng ── */
   cdChaoDe: 'Kể ý tưởng của bạn, dù còn mơ hồ',

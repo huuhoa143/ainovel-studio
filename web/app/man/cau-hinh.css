@@ -17,6 +17,15 @@
   font: 400 13px/1.6 var(--ui);
   max-width: 70ch;
 }
+/* Câu quan trọng nhất với người mở app lần đầu: khóa API là gì, dán vào đâu. Cỡ body và mực
+   chính — đậm hơn câu giới thiệu (`ink-2`) chứ không nhạt hơn như `.chGoiY` (gợi ý phụ 12px
+   `ink-3`, dùng cho chú thích trong biểu mẫu). */
+#cau-hinh .chGoiYLanDau {
+  margin: 0;
+  color: var(--ink);
+  font: 400 13px/1.55 var(--ui);
+  max-width: 70ch;
+}
 #cau-hinh .chTrong {
   margin: 0;
   color: var(--ink-3);

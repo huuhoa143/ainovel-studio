@@ -18,6 +18,7 @@ const NET: Record<string, React.ReactNode> = {
   ),
   trang: <path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z" />,
   mui: <path d="m9 6 6 6-6 6" />,
+  lui: <path d="m15 6-6 6 6 6" />,
   dung: <path d="M8 5v14M16 5v14" />,
   chay: <path d="M7 4.5v15l12-7.5z" />,
   gopY: (

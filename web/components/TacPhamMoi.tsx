@@ -3,7 +3,10 @@
 import { useEffect, useState } from 'react';
 
 import { LoiApi, layCauHinh, taoSach } from '@/lib/api';
+import { docBanNhap, ghiBanNhap, xoaBanNhap } from '@/lib/banNhapTaoTruyen';
+import { LOI_LLM } from '@/lib/chu/tien-do';
 import { TU_TRUYEN as T } from '@/lib/chu/tu-truyen';
+import { cauLoi, giaiLoi, suaOCauHinh } from '@/lib/loiLlm';
 import { CHU, GIAI_THICH, nhanKenhVai, nhanVai } from '@/lib/nhan';
 import type { CauHinhDoc } from '@/lib/types';
 import { goiYTenThuMuc } from '@/lib/tenThuMuc';
@@ -52,11 +55,20 @@ export function TacPhamMoi({
    */
   nhapSan?: string;
 }) {
-  const [ten, datTen] = useState('');
+  /* Bản nháp còn lại từ lượt trước (sang sửa khóa / Bàn ý tưởng rồi quay về) — xem
+     lib/banNhapTaoTruyen.ts. Đọc MỘT lần lúc dựng, trong bộ khởi tạo của useState: biểu mẫu chỉ
+     dựng sau khi xưởng đã nạp ở phía trình duyệt, không bao giờ nằm trong HTML tĩnh, nên đọc
+     localStorage ở đây không gây lệch hydrate. Bản nháp dựng từ một bản Bàn ý tưởng CŨ thì nhường
+     chỗ cho bản mới vừa chốt. */
+  const [nhapCu] = useState(() => {
+    const d = docBanNhap();
+    return d && (!nhapSan || d.tuNhapSan === nhapSan) ? d : undefined;
+  });
+  const [ten, datTen] = useState(nhapCu?.ten ?? '');
   /* Tên thư mục tự đi theo ý tưởng cho tới khi người dùng tự sửa nó: bắt họ nghĩ ra một
      chuỗi không dấu trước khi được viết là một bước thừa, đúng lúc họ đang có hứng. */
-  const [tuDatTen, datTuDatTen] = useState(true);
-  const [yeuCau, datYeuCau] = useState(nhapSan);
+  const [tuDatTen, datTuDatTen] = useState(nhapCu?.tuDatTen ?? true);
+  const [yeuCau, datYeuCau] = useState(nhapCu?.yeuCau ?? nhapSan);
   const [dangGui, datDangGui] = useState(false);
   // Mốc bắt đầu lượt chờ — đồng hồ nhích từng giây nói "vẫn đang làm" suốt 10–30 giây Điều phối đọc.
   const [guiLuc, datGuiLuc] = useState<string | null>(null);
@@ -94,7 +106,8 @@ export function TacPhamMoi({
     if (tuDatTen) datTen(slug(v));
   };
   useEffect(() => {
-    if (nhapSan && tuDatTen) datTen(slug(nhapSan));
+    // Bản nháp đã khôi phục mang sẵn tên của nó — đừng đè.
+    if (nhapSan && tuDatTen && !nhapCu) datTen(slug(nhapSan));
     // chỉ chạy lúc nhận bản nháp từ Bàn ý tưởng
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nhapSan]);
@@ -103,7 +116,11 @@ export function TacPhamMoi({
     datGuiLuc(new Date().toISOString());
     datLoi(null);
     taoSach(ten.trim(), yeuCau.trim())
-      .then((r) => onXong(r.book))
+      .then((r) => {
+        // Chỉ xóa khi đã tạo được: tạo hỏng là đúng lúc bản nháp quý nhất.
+        xoaBanNhap();
+        onXong(r.book);
+      })
       .catch((e: unknown) => datLoi(e instanceof LoiApi ? e.message : String(e)))
       .finally(() => datDangGui(false));
   };
@@ -116,7 +133,26 @@ export function TacPhamMoi({
   // rỗng và nút chính bị khóa. Phần Tùy chọn phải tự mở ra lúc đó, nếu không người dùng thấy
   // một nút xám mà không biết vì sao.
   const thieuTen = !!yeuCau.trim() && !ten.trim();
-  const [moTuyChon, datMoTuyChon] = useState(false);
+  const [moTuyChon, datMoTuyChon] = useState(nhapCu?.moTuyChon ?? false);
+
+  // Mỗi lần gõ là một lần ghi: biểu mẫu có thể bị gỡ bất cứ lúc nào người dùng bấm sang màn
+  // khác, và không có lượt "lưu" nào để chờ.
+  useEffect(() => {
+    ghiBanNhap({ yeuCau, ten, tuDatTen, moTuyChon, tuNhapSan: nhapSan });
+  }, [yeuCau, ten, tuDatTen, moTuyChon, nhapSan]);
+
+  /**
+   * Lỗi tạo truyện, dịch sang câu người đọc được — và nếu nó sửa ở Model & khóa API thì kèm
+   * nút đi thẳng tới đó.
+   *
+   * Lỗi hay gặp nhất ở màn này là khóa API sai: lần tạo đầu tiên cũng là lần ĐẦU TIÊN khóa được
+   * dùng thật. Nguyên văn của nhà cung cấp (`401 Unauthorized: invalid_api_key…`) đúng nhưng
+   * không nói phải làm gì. Và ở xưởng chưa có truyện nào thì màn này đứng một mình, không có
+   * rail — thiếu nút này là người dùng kẹt hẳn, vì app desktop không có thanh địa chỉ để tự gõ
+   * đường sang màn cấu hình.
+   */
+  const loiGiai = giaiLoi(loi ?? undefined, { ncc: cauHinh?.provider });
+  const suaO = suaOCauHinh(loiGiai);
 
   return (
     <main className="canvas" id="tac-pham-moi">
@@ -207,9 +243,14 @@ export function TacPhamMoi({
             </details>
 
             {loi ? (
-              <p className="loiDoc" role="alert">
-                {loi}
-              </p>
+              <div className="loiDoc" role="alert">
+                <p title={loiGiai?.tho}>{loiGiai ? cauLoi(loiGiai) : loi}</p>
+                {suaO && onChonKhu ? (
+                  <button type="button" className="nutPhu" onClick={() => onChonKhu('cau-hinh')}>
+                    {suaO === 'khoa' ? T.suaKhoaApi : LOI_LLM.moCauHinh}
+                  </button>
+                ) : null}
+              </div>
             ) : null}
 
             {/* Đọc xuôi thành: sẽ viết bằng gì → tốn tiền thật → bấm. Câu cam kết là dòng SÁT

@@ -160,7 +160,14 @@ export default function Trang() {
         // Xưởng rỗng + ghi được → dẫn thẳng vào tạo tác phẩm. Hiện một trang trống kèm
         // một lệnh CLI là câu trả lời của bản chỉ-đọc; giờ studio tạo được nên để người
         // dùng tự đi tìm chỗ tạo là bắt họ đoán.
-        <TacPhamMoi onXong={xongTaoSach} />
+        <XuongDauTien
+          khu={s.khu}
+          onChonKhu={s.chonKhu}
+          onXongTaoSach={xongTaoSach}
+          onChotCungDung={chotCungDung}
+          onDoiCauHinh={may.hoiLai}
+          nhapSan={nhapTuCungDung}
+        />
       ) : xuongTrong ? (
         <XuongTrong root={s.workshop?.root} />
       ) : (
@@ -287,6 +294,44 @@ export default function Trang() {
       ) : null}
     </div>
   );
+}
+
+/**
+ * Xưởng chưa có truyện nào: biểu mẫu tạo truyện là màn nhà, KHÔNG có rail.
+ *
+ * Màn nhà dẫn sang được hai màn — Model & khóa API (từ "Sẽ viết bằng", và từ nút "Sửa khóa
+ * API" khi tạo hỏng vì khóa) và Bàn ý tưởng — nên nhánh này phải VẼ được cả hai, và cả hai phải
+ * mang lối về. Bản trước chỉ vẽ `TacPhamMoi` trần, không `onChonKhu`: lưu lần đầu với một khóa
+ * sai thì `needs_setup` thành false, người dùng đứng ở đây, tạo truyện hỏng, và không còn đường
+ * nào quay lại màn nhập khóa — app desktop không có thanh địa chỉ để tự gõ.
+ *
+ * Khu nào khác (kể cả `xuong` mặc định) đều rơi về biểu mẫu: không có truyện thì mọi bề mặt
+ * khác đều không có gì để nói.
+ */
+function XuongDauTien({
+  khu,
+  onChonKhu,
+  onXongTaoSach,
+  onChotCungDung,
+  onDoiCauHinh,
+  nhapSan,
+}: {
+  khu: KhuMa;
+  onChonKhu: (k: KhuMa) => void;
+  onXongTaoSach: (id: string) => void;
+  onChotCungDung: (banNhap: string) => void;
+  onDoiCauHinh: () => void;
+  nhapSan: string;
+}) {
+  const veTao = () => onChonKhu('tac-pham-moi');
+  switch (khu) {
+    case 'cau-hinh':
+      return <CauHinhXuong onDoiCauHinh={onDoiCauHinh} onVeTaoTruyen={veTao} />;
+    case 'cung-dung':
+      return <CungDung cheDo="mo-sach" tacPham={undefined} onXong={onChotCungDung} onVeTaoTruyen={veTao} />;
+    default:
+      return <TacPhamMoi onXong={onXongTaoSach} nhapSan={nhapSan} onChonKhu={onChonKhu} />;
+  }
 }
 
 /**

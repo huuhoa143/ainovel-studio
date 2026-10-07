@@ -115,9 +115,12 @@ key xong tạo/chạy truyện được ngay mà không khởi động lại sid
   staple DMG → `latest-mac.yml` hai arch (arm64 đứng trước) → `gh release create` + upload.
   Không có venv/cythonize/release-gate/announcement/submodule.
   `gh` luôn chạy với `env -u GITHUB_TOKEN` (máy này có GITHUB_TOKEN trỏ sai tài khoản).
-- Windows: thử `electron-forge make --platform=win32 --arch=x64` từ Mac trước. Được thì
-  `release.sh` làm luôn phần Windows (upload `Setup.exe`, `latest.yml`, `.blockmap`). Không
-  được thì `release.ps1` chạy trên máy Windows, upload vào cùng release.
+- Windows: `release.sh` build chéo NSIS từ Mac (đã kiểm chứng, không cần wine) và upload
+  `Setup.exe`, `latest.yml`, `.blockmap`. Bản build chéo không smoke được trên Mac nên ghi chú
+  phát hành có một dòng cảnh báo; `release.ps1` trên máy Windows chỉ GẮN THÊM vào release đã
+  có (cần tag + release sẵn trên origin): build, smoke, upload `--clobber`, gỡ dòng cảnh báo.
+  `release.sh` là đường duy nhất bump/tag/tạo release; tag chỉ tạo ở máy, push nhánh + tag
+  một lần (`--atomic`) ở bước cuối ngay trước `gh release create`.
 - Tên tệp: `AINovel-Studio-<ver>-arm64.dmg|.zip`, `AINovel-Studio-<ver>-x64.dmg|.zip`,
   `AINovel-Studio-Setup-<ver>.exe`.
 

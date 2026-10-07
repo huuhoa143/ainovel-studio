@@ -19,6 +19,7 @@ import type { CauHinhDoc, MucModel, NhaCungCap } from '@/lib/types';
 import { BieuTuong } from './BieuTuong';
 import { HopXacNhan } from './HopXacNhan';
 import { KenhVaiChung } from './KenhVaiChung';
+import { NutVeTaoTruyen } from './NutVeTaoTruyen';
 import { TrangThaiLuu, useTrangThaiLuu } from './TrangThaiLuu';
 
 /**
@@ -46,10 +47,13 @@ import { TrangThaiLuu, useTrangThaiLuu } from './TrangThaiLuu';
 export function CauHinhXuong({
   lanDau = false,
   onDoiCauHinh,
+  onVeTaoTruyen,
 }: {
   lanDau?: boolean;
   /** Gọi sau MỖI lần lưu thành công. Tách khỏi lần nạp lúc mount. */
   onDoiCauHinh?: () => void;
+  /** Có = xưởng chưa có truyện, không có rail — xem `NutVeTaoTruyen`. */
+  onVeTaoTruyen?: () => void;
 }) {
   const [du, datDu] = useState<CauHinhDoc | null>(null);
   const [loi, datLoi] = useState<string | null>(null);
@@ -83,6 +87,7 @@ export function CauHinhXuong({
   return (
     <main className="canvas" id="cau-hinh">
       <div className="head">
+        {onVeTaoTruyen ? <NutVeTaoTruyen onClick={onVeTaoTruyen} /> : null}
         <h1>{lanDau ? CH.tieuDeLanDau : CH.tieuDe}</h1>
       </div>
 
@@ -90,7 +95,7 @@ export function CauHinhXuong({
         <p className="chGioiThieu">{chuaCoGi ? CH.gioiThieuLanDau : CH.gioiThieu}</p>
         {/* Người mở app lần đầu có thể chưa từng nghe tới khóa API. Một câu nói nó là gì và
             dán vào đâu, đứng trước biểu mẫu — không bắt họ đoán từ nhãn ô nhập. */}
-        {chuaCoGi ? <p className="chGoiY">{CH.goiYKhoaLanDau}</p> : null}
+        {chuaCoGi ? <p className="chGoiYLanDau">{CH.goiYKhoaLanDau}</p> : null}
 
         {loi ? (
           <div className="the chBao red" role="alert">

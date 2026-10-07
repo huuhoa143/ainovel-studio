@@ -87,3 +87,25 @@ test('chip thể loại điền một câu mẫu và tên thư mục; gõ ý ri�
   fireEvent.change(o, { target: { value: 'Ý của tôi' } });
   expect(screen.queryByRole('button', { name: 'Trinh thám' })).toBeNull();
 });
+
+test('bản nháp đã lưu: cùng bản Bàn ý tưởng thì giữ chữ đã sửa; bản Bàn ý tưởng mới thì bản mới thắng', () => {
+  const luu = (yeuCau: string, tuNhapSan: string) =>
+    localStorage.setItem(
+      'ainovel.tacPhamMoi.banNhap',
+      JSON.stringify({ yeuCau, ten: 'ten-cu', tuDatTen: false, moTuyChon: false, tuNhapSan }),
+    );
+  const oMoTa = () => document.querySelector<HTMLTextAreaElement>('#tpm-y')!.value;
+
+  // Người dùng đã sửa trên bản A rồi sang màn khác: quay về vẫn là chữ đã sửa.
+  luu('bản A, đã sửa thêm', 'bản A');
+  const r1 = render(<TacPhamMoi onXong={() => {}} nhapSan="bản A" />);
+  expect(oMoTa()).toBe('bản A, đã sửa thêm');
+  r1.unmount();
+
+  // Bàn ý tưởng vừa chốt bản B: bản nháp cũ dựng trên A không được đè lên nó.
+  luu('bản A, đã sửa thêm', 'bản A');
+  const r2 = render(<TacPhamMoi onXong={() => {}} nhapSan="bản B" />);
+  expect(oMoTa()).toBe('bản B');
+  r2.unmount();
+  localStorage.clear();
+});

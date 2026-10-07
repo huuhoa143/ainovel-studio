@@ -16,6 +16,14 @@ const NHAN_DO_SUY_LUAN: Record<string, string> = {
   max: 'Tối đa',
 };
 
+/**
+ * Tên hai bước đầu của biểu mẫu và nhãn ô khóa — đặt riêng vì câu gợi ý lần đầu gọi đúng tên
+ * chúng. Đổi nhãn ở biểu mẫu mà câu gợi ý còn gọi tên cũ là chỉ đường tới một chỗ không có.
+ */
+const BUOC_1 = 'Chọn nhà cung cấp';
+const BUOC_2 = 'Kết nối';
+const KHOA_API = 'Khóa API';
+
 /** Chữ của màn. */
 export const CH = {
   tieuDe: 'Model & khóa API',
@@ -24,8 +32,7 @@ export const CH = {
   gioiThieuLanDau:
     'Thêm một nhà cung cấp và nhập khóa API. Kiểm tra kết nối, chọn model, rồi bạn có thể bắt đầu viết.',
   /** Lần đầu: khóa API là gì, lấy ở đâu, dán vào đâu — cho người chưa từng dùng. */
-  goiYKhoaLanDau:
-    'Khóa API là một mật khẩu riêng do nhà cung cấp model (OpenRouter, OpenAI, Google…) cấp cho tài khoản của bạn. Đăng nhập trang của họ, vào mục API keys, tạo một khóa rồi sao chép và dán vào ô Khóa API ở bước Kết nối bên dưới.',
+  goiYKhoaLanDau: `Khóa API là một mật khẩu riêng do nhà cung cấp model (OpenRouter, OpenAI, Google…) cấp cho tài khoản của bạn. Ở bước 1 (${BUOC_1}) bên dưới, bấm tên nhà cung cấp bạn dùng. Rồi đăng nhập trang của họ, vào mục API keys, tạo một khóa, sao chép và dán vào ô ${KHOA_API} ở bước 2 (${BUOC_2}).`,
   dangTai: 'Đang tải thiết lập…',
   taiLai: 'Tải lại',
 
@@ -116,8 +123,8 @@ export const CH = {
   dangXoa: 'Đang xóa…',
 
   /* ── biểu mẫu ── */
-  buoc1: 'Chọn nhà cung cấp',
-  buoc2: 'Kết nối',
+  buoc1: BUOC_1,
+  buoc2: BUOC_2,
   buoc3: 'Chọn model',
   tuNhap: 'Tự nhập',
   ten: 'Tên',
@@ -126,7 +133,7 @@ export const CH = {
   theoTen: (ten: string) => `Theo tên (${ten || 'chưa đặt'})`,
   diaChiGoc: 'Địa chỉ gốc',
   diaChiGocGoiY: 'Để trống nếu dùng địa chỉ chính thức của hãng.',
-  khoaApi: 'Khóa API',
+  khoaApi: KHOA_API,
   giuKhoaCu: 'Để trống để giữ khóa cũ',
   khoaCucBo: 'Gateway trên máy bạn có thể không cần khóa.',
   kiemKetNoi: 'Kiểm tra kết nối',

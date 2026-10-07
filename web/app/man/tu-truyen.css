@@ -1030,10 +1030,18 @@
 }
 
 #tac-pham-moi .loiDoc {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
   padding: 10px 14px;
   border-radius: 10px;
   background: color-mix(in oklab, var(--red) 10%, transparent);
   font: 400 13px/1.6 var(--ui);
+}
+#tac-pham-moi .loiDoc p {
+  flex: 1 1 32ch;
+  margin: 0;
 }
 
 /* ── chân form: sẽ viết bằng → cam kết → nút ── */

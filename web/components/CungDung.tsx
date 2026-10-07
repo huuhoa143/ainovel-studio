@@ -8,6 +8,7 @@ import { CHU, GIAI_THICH, nhanVai } from '@/lib/nhan';
 import type { DapCungDung, LuotCungDung } from '@/lib/types';
 
 import { BieuTuong } from './BieuTuong';
+import { NutVeTaoTruyen } from './NutVeTaoTruyen';
 
 /**
  * Cùng dựng — đối thoại nhiều lượt để làm rõ ý trước khi engine chạy.
@@ -34,11 +35,14 @@ export function CungDung({
   cheDo,
   tacPham,
   onXong,
+  onVeTaoTruyen,
 }: {
   cheDo: 'mo-sach' | 'giai-doan';
   tacPham: string | undefined;
   /** Gọi khi bản nháp đã sẵn sàng — bên gọi quyết định làm gì với nó. */
   onXong: (banNhap: string) => void;
+  /** Có = xưởng chưa có truyện, không có rail — xem `NutVeTaoTruyen`. */
+  onVeTaoTruyen?: () => void;
 }) {
   const [lichSu, datLichSu] = useState<LuotCungDung[]>([]);
   const [banNhap, datBanNhap] = useState('');
@@ -96,6 +100,7 @@ export function CungDung({
   return (
     <main className="canvas" id="cung-dung">
       <div className="head">
+        {onVeTaoTruyen ? <NutVeTaoTruyen onClick={onVeTaoTruyen} /> : null}
         <h1>{CHU.cungDung}</h1>
         {lichSu.length > 0 ? <span className="sub">{T.cdSoLuot(lichSu.filter((m) => m.role === 'user').length)}</span> : null}
       </div>

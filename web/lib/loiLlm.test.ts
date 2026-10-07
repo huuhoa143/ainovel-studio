@@ -3,7 +3,15 @@ import { expect, test } from 'vitest';
 import { nhanVai } from '@/lib/nhan';
 import type { StreamEvent } from '@/lib/types';
 
-import { cauLoi, giaiGiaoViec, giaiLoi, gopSuKien, phatHienKet, sapSuKien } from './loiLlm';
+import {
+  cauLoi,
+  giaiGiaoViec,
+  giaiLoi,
+  gopSuKien,
+  phatHienKet,
+  sapSuKien,
+  suaOCauHinh,
+} from './loiLlm';
 
 /** Nguyên văn đo được trên truyện thật dong-ho-qua-lac, kể cả chỗ bị cắt "c...". */
 const HET_TUYEN =
@@ -131,4 +139,16 @@ test('kẹt: một vòng kéo dài quá ngưỡng thời gian', () => {
     ev(2, '2026-10-02T09:02:00+07:00', 'Thử lại (2/7): routing_exhausted'),
   ];
   expect(phatHienKet(ds, { nguongMs: 90_000 })?.loi.ma).toBe('het-tuyen');
+});
+
+test('suaOCauHinh: lỗi khóa → khóa; model/địa chỉ → cấu hình; lỗi tạm thời → không có nút sửa', () => {
+  expect(suaOCauHinh(giaiLoi('401 Unauthorized: invalid_api_key'))).toBe('khoa');
+  expect(suaOCauHinh(giaiLoi('403 Forbidden'))).toBe('khoa');
+  expect(suaOCauHinh(giaiLoi('no usable key for model x'))).toBe('khoa');
+  expect(suaOCauHinh(giaiLoi('404 model_not_found'))).toBe('cau-hinh');
+  expect(suaOCauHinh(giaiLoi('dial tcp 127.0.0.1:1: connection refused'))).toBe('cau-hinh');
+  // Chờ rồi thử lại mới là việc đúng — một nút "đi sửa cấu hình" ở đây là chỉ sai đường.
+  expect(suaOCauHinh(giaiLoi('429 Too Many Requests'))).toBeUndefined();
+  expect(suaOCauHinh(giaiLoi('502 Bad Gateway'))).toBeUndefined();
+  expect(suaOCauHinh(undefined)).toBeUndefined();
 });
