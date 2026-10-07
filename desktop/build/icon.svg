@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- Biểu tượng app: dấu hiệu của web/app/icon.svg (lưới 32), thu vào 824px giữa khung 1024
+       theo lưới biểu tượng macOS. Đổi hình/màu thì sửa web/app/icon.svg trước rồi chép lại. -->
+  <g transform="translate(100 100) scale(25.75)">
+    <rect width="32" height="32" rx="6" fill="#0e0c09" />
+    <rect x="6" y="7" width="20" height="4" rx="1.5" fill="#71c1ad" />
+    <rect x="6" y="14" width="14" height="4" rx="1.5" fill="#eab656" />
+    <rect x="6" y="21" width="9" height="4" rx="1.5" fill="#8b8780" />
+  </g>
+</svg>
