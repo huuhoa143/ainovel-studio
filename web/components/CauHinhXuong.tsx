@@ -77,6 +77,8 @@ export function CauHinhXuong({
   useEffect(tai, []);
 
   const coNcc = !!du && du.providers.length > 0;
+  /** Lần đầu, hoặc đã có tệp mà chưa có nhà cung cấp nào: cùng một việc phải làm. */
+  const chuaCoGi = lanDau || (!!du && !coNcc);
 
   return (
     <main className="canvas" id="cau-hinh">
@@ -85,7 +87,10 @@ export function CauHinhXuong({
       </div>
 
       <div className="chThan">
-        <p className="chGioiThieu">{lanDau || (du && !coNcc) ? CH.gioiThieuLanDau : CH.gioiThieu}</p>
+        <p className="chGioiThieu">{chuaCoGi ? CH.gioiThieuLanDau : CH.gioiThieu}</p>
+        {/* Người mở app lần đầu có thể chưa từng nghe tới khóa API. Một câu nói nó là gì và
+            dán vào đâu, đứng trước biểu mẫu — không bắt họ đoán từ nhãn ô nhập. */}
+        {chuaCoGi ? <p className="chGoiY">{CH.goiYKhoaLanDau}</p> : null}
 
         {loi ? (
           <div className="the chBao red" role="alert">

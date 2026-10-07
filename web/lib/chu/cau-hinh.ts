@@ -23,6 +23,9 @@ export const CH = {
   gioiThieu: 'Chọn model cho từng vai và quản lý khóa API. Thiết lập ở đây dùng chung cho mọi truyện.',
   gioiThieuLanDau:
     'Thêm một nhà cung cấp và nhập khóa API. Kiểm tra kết nối, chọn model, rồi bạn có thể bắt đầu viết.',
+  /** Lần đầu: khóa API là gì, lấy ở đâu, dán vào đâu — cho người chưa từng dùng. */
+  goiYKhoaLanDau:
+    'Khóa API là một mật khẩu riêng do nhà cung cấp model (OpenRouter, OpenAI, Google…) cấp cho tài khoản của bạn. Đăng nhập trang của họ, vào mục API keys, tạo một khóa rồi sao chép và dán vào ô Khóa API ở bước Kết nối bên dưới.',
   dangTai: 'Đang tải thiết lập…',
   taiLai: 'Tải lại',
 
