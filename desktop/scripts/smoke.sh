@@ -2,11 +2,21 @@
 # Mở một AINovel Studio.app đã đóng gói và kiểm nó chạy THẬT, không chỉ "không sập":
 #
 #   1. Mở app qua LaunchServices (`open -n -g`, như người dùng bấm đúp).
-#   2. Chờ dòng `AINOVEL_READY http://127.0.0.1:<cổng>` MỚI trong
+#   2. Chờ dòng `AINOVEL_READY http://127.0.0.1:<cổng>` trong
 #      "<userData>/logs/sidecar.log" — tức sidecar Go đã spawn, đã Listen.
 #   3. `curl /api/workshop` trên cổng đó phải trả 200 — giao diện có API để nói chuyện.
-#   4. Thoát app theo đường Cmd+Q (AppleScript `quit` → before-quit → stop sidecar).
+#   4. Thoát app qua app.quit() (SIGTERM → before-quit → stop sidecar, cùng đường với Cmd+Q).
 #   5. Không được còn tiến trình ainovel-cli mồ côi của gói này.
+#
+# App LUÔN chạy cô lập, không đụng gì của máy:
+#   --user-data-dir=<thư mục tạm>  app.getPath('userData') trỏ vào đó (log, sách,
+#                                  khóa single-instance) — dữ liệu thật không bị
+#                                  ghi, và một AINovel Studio khác đang mở không
+#                                  chặn được bản đang kiểm.
+#   --use-mock-keychain            Chromium dùng Keychain giả: không đọc/tạo mục
+#                                  "<productName> Safe Storage", không hộp thoại
+#                                  Keychain nào treo app giữa chừng.
+# Thư mục tạm bị xóa khi đạt; khi hỏng thì giữ lại và in đường dẫn để xem log.
 #
 # Cách dùng:
 #   desktop/scripts/smoke.sh "<đường dẫn>/AINovel Studio.app"
@@ -14,8 +24,6 @@
 # Biến môi trường:
 #   AINOVEL_SMOKE_TIMEOUT    giây chờ AINOVEL_READY (mặc định 60 — lần mở đầu
 #                            tiên của một bản vừa notarize, Gatekeeper kiểm mạng)
-#   AINOVEL_SMOKE_USERDATA   thư mục userData (mặc định ~/Library/Application Support/<productName>)
-#   AINOVEL_SMOKE_FORCE=1    chạy kể cả khi đang có một AINovel Studio khác mở
 
 set -euo pipefail
 
@@ -25,45 +33,39 @@ APP="$(cd "$(dirname "$1")" && pwd -P)/$(basename "$1")"
 [[ -d "$APP/Contents" ]] || { echo "error: không phải .app: $APP" >&2; exit 1; }
 
 READY_TIMEOUT="${AINOVEL_SMOKE_TIMEOUT:-60}"
-QUIT_TIMEOUT=20
+# Sidecar có tới 15s để tự thoát trước khi bị kill (stopTimeoutMs trong
+# desktop/src/main), cộng thời gian Electron đóng cửa sổ — chừa dư.
+QUIT_TIMEOUT=30
 
 PLIST="$APP/Contents/Info.plist"
 BUNDLE_ID="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$PLIST")"
 EXE_NAME="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$PLIST")"
-# productName quyết định tên thư mục userData của Electron; CFBundleName mang đúng nó.
-PRODUCT_NAME="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleName' "$PLIST")"
 EXE_PATH="$APP/Contents/MacOS/$EXE_NAME"
 SIDECAR="$APP/Contents/Resources/bin/ainovel-cli"
-USERDATA="${AINOVEL_SMOKE_USERDATA:-$HOME/Library/Application Support/$PRODUCT_NAME}"
-LOG="$USERDATA/logs/sidecar.log"
 
 [[ -x "$EXE_PATH" ]] || { echo "error: không thấy tệp chạy: $EXE_PATH" >&2; exit 1; }
 [[ -x "$SIDECAR" ]]  || { echo "error: không thấy sidecar: $SIDECAR" >&2; exit 1; }
 
-# Một AINovel Studio khác đang mở (bản đã cài, hay `npm start`) giữ single-instance
-# lock: bản mới sẽ focus cửa sổ cũ rồi tự thoát ngay — không phân biệt được với
-# một cú sập thật. Bỏ qua thay vì báo đỏ giả (bài học lingoreup v0.1.59).
-if pgrep -f "/Contents/MacOS/$EXE_NAME" >/dev/null 2>&1 \
-   || pgrep -f "node_modules/electron/dist/Electron.app.*ainovel" >/dev/null 2>&1; then
-  echo "⚠ Đang có một $PRODUCT_NAME khác chạy — bản mới sẽ đụng single-instance lock."
-  if [[ "${AINOVEL_SMOKE_FORCE:-0}" != "1" ]]; then
-    echo "  Bỏ qua smoke. Thoát bản đang mở rồi chạy lại, hoặc đặt AINOVEL_SMOKE_FORCE=1."
-    exit 0
-  fi
+# Chính gói này đang chạy (smoke trước chết dở?): pgrep tìm PID chính và sidecar
+# theo đường dẫn gói, hai bản cùng đường dẫn thì không phân biệt được. Bản cài ở
+# chỗ khác, hay `npm start`, thì không sao — userData tạm tách hẳn chúng ra.
+if pgrep -f "^$EXE_PATH" >/dev/null 2>&1 || pgrep -f "$SIDECAR" >/dev/null 2>&1; then
+  echo "✘ Gói này đang chạy sẵn — thoát nó (hoặc: pkill -f '$APP/Contents/') rồi smoke lại." >&2
+  exit 1
 fi
 
-# Chỉ đọc phần log MỚI: tệp có thể đã chứa AINOVEL_READY của những lần mở trước,
-# cổng cũ ở đó không còn ai nghe.
-LOG_OFFSET=0
-[[ -f "$LOG" ]] && LOG_OFFSET="$(stat -f%z "$LOG")"
+USERDATA="$(mktemp -d -t ainovel-smoke)"
+# `pwd -P`: mktemp trả /var/folders/…, Electron báo đường dẫn thật /private/var/….
+USERDATA="$(cd "$USERDATA" && pwd -P)"
+LOG="$USERDATA/logs/sidecar.log"
 
 MAIN_PID=""
 cleanup() {
   local rc=$?
   if [[ -n "$MAIN_PID" ]] && kill -0 "$MAIN_PID" 2>/dev/null; then
     kill "$MAIN_PID" 2>/dev/null || true
-    # Electron xử lý SIGTERM bằng quit êm trên vòng lặp chính; main đang treo (vd chờ
-    # hộp Keychain) thì SIGTERM không bao giờ được xử lý → leo thang lên SIGKILL.
+    # SIGTERM được Electron xử lý bằng app.quit() trên vòng lặp chính; main đang
+    # treo thì không bao giờ tới lượt → leo thang lên SIGKILL.
     for _ in 1 2 3 4 5 6 7 8 9 10; do kill -0 "$MAIN_PID" 2>/dev/null || break; sleep 0.5; done
     kill -9 "$MAIN_PID" 2>/dev/null || true
     # Helper (GPU, renderer…) của đúng gói này.
@@ -72,29 +74,32 @@ cleanup() {
   # Chỉ giết sidecar của ĐÚNG gói này (khớp đường dẫn đầy đủ), không đụng
   # ainovel-cli nào khác người dùng đang chạy.
   pkill -f "$SIDECAR" 2>/dev/null || true
+  if (( rc == 0 )); then
+    rm -rf "$USERDATA"
+  else
+    echo "  userData của lượt smoke giữ lại để xem: $USERDATA" >&2
+  fi
   return $rc
 }
 trap cleanup EXIT
 
-new_log() {
+# userData mới tinh mỗi lượt: mọi dòng trong log đều của lượt này.
+read_log() {
   [[ -f "$LOG" ]] || return 0
-  local size
-  size="$(stat -f%z "$LOG")"
-  # sidecar.ts cắt log khi > 5MB: tệp nhỏ đi nghĩa là đã bị cắt, đọc lại từ đầu.
-  if (( size < LOG_OFFSET )); then LOG_OFFSET=0; fi
-  tail -c "+$((LOG_OFFSET + 1))" "$LOG"
+  cat "$LOG"
 }
 
 echo "▶ Mở $(basename "$APP")  (bundle: $BUNDLE_ID)"
 echo "  log: $LOG"
-/usr/bin/open -n -g "$APP" --args -ApplePersistenceIgnoreState YES
+/usr/bin/open -n -g "$APP" --args -ApplePersistenceIgnoreState YES \
+  --user-data-dir="$USERDATA" --use-mock-keychain
 
 # ─── 1. Chờ AINOVEL_READY ───────────────────────────────────────────────
 URL=""
 deadline=$((SECONDS + READY_TIMEOUT))
 while (( SECONDS < deadline )); do
   [[ -n "$MAIN_PID" ]] || MAIN_PID="$(pgrep -f "^$EXE_PATH" 2>/dev/null | head -1 || true)"
-  URL="$(new_log | grep -Eo 'AINOVEL_READY http://127\.0\.0\.1:[0-9]+' | tail -1 | awk '{print $2}' || true)"
+  URL="$(read_log | grep -Eo 'AINOVEL_READY http://127\.0\.0\.1:[0-9]+' | tail -1 | awk '{print $2}' || true)"
   [[ -n "$URL" ]] && break
   if [[ -n "$MAIN_PID" ]] && ! kill -0 "$MAIN_PID" 2>/dev/null; then
     echo "✘ Tiến trình chính chết trước khi sidecar báo READY" >&2
@@ -104,19 +109,11 @@ while (( SECONDS < deadline )); do
 done
 
 if [[ -z "$URL" ]]; then
-  echo "✘ Không thấy AINOVEL_READY mới trong ${READY_TIMEOUT}s" >&2
-  echo "  --- 30 dòng log mới nhất ---" >&2
-  new_log | tail -30 >&2 || true
+  echo "✘ Không thấy AINOVEL_READY trong ${READY_TIMEOUT}s" >&2
+  echo "  --- 30 dòng cuối sidecar.log ---" >&2
+  read_log | tail -30 >&2 || true
   echo "  Gợi ý: log show --last 5m --predicate \"process == '$EXE_NAME'\"" >&2
-  if [[ -n "$MAIN_PID" ]] && kill -0 "$MAIN_PID" 2>/dev/null; then
-    # Đã gặp thật trên máy build: fuse EnableCookieEncryption khiến Electron đọc mục
-    # Keychain "<productName> Safe Storage" trước khi main.ts kịp chạy. Mục đó do bản
-    # dev chưa ký tạo ra, ACL của nó không nhận chữ ký Developer ID → macOS hiện hộp
-    # hỏi mật khẩu (sau cửa sổ khác, vì `open -g`) và main đứng chờ mãi. Máy người
-    # dùng sạch không có mục đó; máy build thì xóa mục hoặc bấm "Always Allow" một lần.
-    echo "  App vẫn sống mà sidecar không khởi động: kiểm hộp thoại Keychain" >&2
-    echo "  \"$PRODUCT_NAME Safe Storage\" đang chờ (security delete-generic-password -s \"$PRODUCT_NAME Safe Storage\")." >&2
-  fi
+  [[ -f "$USERDATA/logs/main.log" ]] && { echo "  --- main.log ---" >&2; tail -30 "$USERDATA/logs/main.log" >&2; }
   exit 1
 fi
 [[ -n "$MAIN_PID" ]] || MAIN_PID="$(pgrep -f "^$EXE_PATH" 2>/dev/null | head -1 || true)"
@@ -126,7 +123,7 @@ echo "  ✔ sidecar sẵn sàng: $URL (PID app ${MAIN_PID:-?})"
 code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$URL/api/workshop" || echo 000)"
 if [[ "$code" != "200" ]]; then
   echo "✘ GET $URL/api/workshop trả $code (muốn 200)" >&2
-  new_log | tail -30 >&2 || true
+  read_log | tail -30 >&2 || true
   exit 1
 fi
 echo "  ✔ GET /api/workshop → 200"
@@ -140,8 +137,12 @@ echo "  ✔ GET / → 200"
 SIDECAR_PIDS="$(pgrep -f "$SIDECAR" 2>/dev/null || true)"
 [[ -n "$SIDECAR_PIDS" ]] || { echo "✘ READY đã báo nhưng không thấy tiến trình $SIDECAR" >&2; exit 1; }
 
-echo "▶ Thoát app (AppleScript quit → before-quit)"
-osascript -e "tell application id \"$BUNDLE_ID\" to quit" >/dev/null 2>&1 || true
+# SIGTERM vào đúng PID của bản đang kiểm: Electron xử lý bằng app.quit() →
+# before-quit → dừng sidecar, y như Cmd+Q. AppleScript `quit` theo bundle id thì
+# sẽ thoát luôn cả AINovel Studio người dùng đang mở.
+[[ -n "$MAIN_PID" ]] || { echo "✘ Không tìm thấy PID chính của $EXE_PATH để thoát" >&2; exit 1; }
+echo "▶ Thoát app (SIGTERM → app.quit → before-quit)"
+kill -TERM "$MAIN_PID"
 
 deadline=$((SECONDS + QUIT_TIMEOUT))
 while (( SECONDS < deadline )); do
@@ -165,5 +166,24 @@ if [[ -n "$ORPHANS" ]]; then
 fi
 MAIN_PID=""
 echo "  ✔ app đã thoát, không còn ainovel-cli mồ côi (đã có: $(echo "$SIDECAR_PIDS" | tr '\n' ' '))"
+
+# ─── 5. Sidecar tự thoát êm, không bị kill ─────────────────────────────
+# "Không mồ côi" chưa đủ: sidecar bị kill() sau stopTimeoutMs cũng không để lại mồ
+# côi, nên đường đóng-stdin → Go tự thoát hỏng vẫn qua. sidecar.ts ghi
+# "[main] tiến trình thoát: code=<c> signal=<s>" khi tiến trình con đóng — phải là
+# code=0 signal=null, và không có dòng "— kill()" nào.
+EXIT_LINE="$(read_log | grep -Eo 'code=[^ ]+ signal=[^ ]+' | tail -1 || true)"
+if [[ "$EXIT_LINE" != "code=0 signal=null" ]] || read_log | grep -q 'kill()'; then
+  echo "✘ Sidecar không tự thoát êm (dòng thoát: '${EXIT_LINE:-không có}')" >&2
+  read_log | tail -15 >&2 || true
+  exit 1
+fi
+# Khóa ghi của truyện (internal/store: <books>/<truyện>/meta/studio.lock) phải được trả.
+LOCKS="$(find "$USERDATA/books" -name studio.lock 2>/dev/null || true)"
+if [[ -n "$LOCKS" ]]; then
+  echo "✘ Còn tệp khóa sau khi thoát: $LOCKS" >&2
+  exit 1
+fi
+echo "  ✔ sidecar thoát code=0, không bị kill, không còn studio.lock"
 
 echo "✔ smoke đạt: $APP"

@@ -25,10 +25,15 @@ Không rõ Mac của mình dùng chip gì: menu Apple → **Giới thiệu về 
 `.yml` trong trang phát hành là để app tự cập nhật — không cần tải.
 
 **macOS** — mở tệp `.dmg`, kéo **AINovel Studio** vào thư mục **Applications**, rồi mở từ
-Launchpad. App đã được ký và Apple notarize nên mở thẳng, không có cảnh báo.
+Launchpad. Lần mở đầu tiên macOS hỏi *"…được tải về từ Internet. Bạn có chắc muốn mở?"* — bấm
+**Mở**. Chỉ hỏi một lần (app đã được Apple kiểm duyệt).
 
-**Windows** — chạy `AINovel-Studio-Setup-….exe`. Bộ cài chưa có chữ ký số, nên lần đầu Windows
-hiện hộp xanh *"Windows protected your PC"*: bấm **More info** → **Run anyway**. Chỉ hỏi một lần.
+**Windows** — tải `AINovel-Studio-Setup-….exe` rồi chạy. Bộ cài chưa có chữ ký số nên có thể gặp
+hai lời cảnh báo, mỗi cái chỉ một lần:
+
+1. Lúc tải, Edge/Chrome có thể báo tệp *"không thường được tải xuống"*: bấm **…** (hoặc mũi tên
+   cạnh tệp) → **Giữ lại** (*Keep*).
+2. Lúc chạy, Windows hiện hộp xanh *"Windows protected your PC"*: bấm **More info** → **Run anyway**.
 
 **Lần đầu mở app** — app mở thẳng màn **Cài đặt chung → Model & khóa API**. Dán API key của nhà
 cung cấp bạn dùng (OpenRouter, Anthropic, Gemini, OpenAI…), bấm lưu là tạo truyện được ngay.

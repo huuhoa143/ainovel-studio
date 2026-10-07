@@ -2,7 +2,7 @@
 # Thư viện nhỏ cho release.sh — chỉ những gì thật sự trừu tượng:
 #   1. Log có màu
 #   2. Tệp trạng thái JSON (.release-state.json) để --resume sau khi hỏng giữa chừng
-#   3. gh/git ghim đúng tài khoản huuhoa143
+#   3. gh/git ghim đúng tài khoản huuhoa143 (ghx, git_gh)
 #   4. notarize_resilient: tự poll notarytool, sống sót qua rớt mạng tạm thời
 #
 # Mọi lệnh Apple khác (codesign, ditto, stapler, spctl, create-dmg) viết thẳng
@@ -96,10 +96,11 @@ ensure_gh_token() {
 # ghx — gh luôn chạy với GITHUB_TOKEN đã bị gỡ (GH_TOKEN do ensure_gh_token đặt).
 ghx() { env -u GITHUB_TOKEN gh "$@"; }
 
-# git_push — push bằng credential helper của gh (mang GH_TOKEN ở trên). Phải xóa
-# helper kế thừa trước: osxkeychain giữ token của tài khoản KIA và sẽ thắng.
-git_push() {
-  env -u GITHUB_TOKEN git -c credential.helper= -c credential.helper='!gh auth git-credential' push "$@"
+# git_gh — mọi lệnh git nói chuyện với origin (fetch, ls-remote, push) đi qua
+# credential helper của gh (mang GH_TOKEN ở trên). Phải xóa helper kế thừa trước:
+# osxkeychain giữ token của tài khoản KIA và sẽ thắng.
+git_gh() {
+  env -u GITHUB_TOKEN git -c credential.helper= -c credential.helper='!gh auth git-credential' "$@"
 }
 
 # ─── notarytool submit + poll bền bỉ ────────────────────────────────────

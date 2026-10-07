@@ -39,11 +39,16 @@ means Apple silicon; a **Processor** line reading "Intel…" means Intel. The `.
 files on the release page are for the app's self-updater — you do not need them.
 
 **macOS** — open the `.dmg`, drag **AINovel Studio** into **Applications**, and launch it from
-Launchpad. The app is signed and notarized by Apple, so it opens without a warning.
+Launchpad. The first time, macOS asks *"…downloaded from the Internet. Are you sure you want to
+open it?"* — click **Open**. It only asks once (the app is notarized by Apple).
 
-**Windows** — run `AINovel-Studio-Setup-….exe`. The installer is not code-signed yet, so the
-first run shows a blue *"Windows protected your PC"* box: click **More info** → **Run anyway**.
-It only asks once.
+**Windows** — download `AINovel-Studio-Setup-….exe` and run it. The installer is not code-signed
+yet, so you may see two warnings, each only once:
+
+1. While downloading, Edge/Chrome may say the file *"isn't commonly downloaded"*: click **…** (or
+   the arrow next to the file) → **Keep**.
+2. When you run it, a blue *"Windows protected your PC"* box appears: click **More info** →
+   **Run anyway**.
 
 **First launch** — the app opens straight on **General settings → Model & API key**. Paste the
 API key for your provider (OpenRouter, Anthropic, Gemini, OpenAI…), save, and you can create a

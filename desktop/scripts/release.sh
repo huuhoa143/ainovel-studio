@@ -11,9 +11,17 @@
 # Chạy trên Mac Apple Silicon. Mỗi lệnh Apple (codesign qua sign-bundle.sh,
 # ditto, notarytool, stapler, spctl, create-dmg) gọi thẳng ở đây, không gói hàm.
 #
+# Đây là lối vào DUY NHẤT bump phiên bản, tạo tag và tạo GitHub release.
+# release.ps1 chỉ gắn thêm bản Windows dựng-trên-Windows vào release đã có.
+#
+# Không có gì lên remote cho tới bước 6: tag chỉ tạo ở máy (bước 2), nhánh + tag
+# được push nguyên tử ngay trước `gh release create`. Hỏng ở bất kỳ bước nào trước
+# đó thì origin y nguyên.
+#
 # Các bước (~30-45 phút, phần lớn là chờ Apple notarize 4 lượt):
-#   1.  Điều kiện tiên quyết
-#   2.  Bump desktop/package.json + commit + tag vX.Y.Z + push
+#   1.  Điều kiện tiên quyết; `git fetch origin`, HEAD phải bằng hoặc đi trước
+#       (fast-forward được) origin/$RELEASE_BRANCH
+#   2.  Bump desktop/package.json + commit + tag vX.Y.Z — CHỈ Ở MÁY
 #   3.  Với mỗi arch (arm64 rồi x64):
 #         a. build-sidecar.sh darwin <goarch>  → desktop/resources/{bin,web}
 #         b. electron-forge package --arch     → .app chưa ký
@@ -24,18 +32,22 @@
 #         g. ZIP (ditto) + DMG (create-dmg@8)
 #         h. notarize + staple DMG
 #         i. kiểm cuối: giải ZIP bằng ditto, mount DMG, spctl cả hai
-#   4.  Windows: electron-forge make --platform=win32 --arch=x64 (NSIS). Hỏng thì
-#       cảnh báo và chỉ sang release.ps1 — bản mac vẫn phát hành.
+#   4.  Windows: electron-forge make --platform=win32 --arch=x64 (NSIS), dựng chéo
+#       và KHÔNG smoke được trên Mac — release notes mang một dòng nhắc kiểm trên
+#       Windows thật (release.ps1 xóa dòng đó sau khi dựng lại + smoke + thay tệp).
+#       Hỏng thì cảnh báo — bản mac vẫn phát hành, Windows gắn sau bằng release.ps1.
 #   5.  latest-mac.yml hai arch (arm64 đứng TRƯỚC)
-#   6.  gh release create + upload
+#   6.  push nguyên tử nhánh + tag → gh release create --verify-tag + upload
 #
 # Cách dùng:
 #   desktop/scripts/release.sh 1.0.0                 # phát hành thật
 #   desktop/scripts/release.sh 1.0.0 --resume        # tiếp sau khi hỏng giữa chừng
 #   desktop/scripts/release.sh 1.0.0 --dry-run       # tập dượt: build + đóng gói +
-#                                                    # smoke; KHÔNG đụng git, KHÔNG
-#                                                    # ký/notarize, KHÔNG upload
-#   desktop/scripts/release.sh 1.0.0 --skip-windows  # chỉ mac (Windows làm bằng release.ps1)
+#                                                    # smoke; KHÔNG đụng git/remote/
+#                                                    # Keychain, KHÔNG ký/notarize,
+#                                                    # KHÔNG upload. package.json được
+#                                                    # bump tạm và trả lại khi thoát.
+#   desktop/scripts/release.sh 1.0.0 --skip-windows  # chỉ mac (Windows gắn sau bằng release.ps1)
 #
 # Thông tin xác thực (Keychain, thiết lập một lần mỗi máy):
 #   LINGOREUP_NOTARIZE   profile của notarytool (dùng chung với lingoreup — cùng team)
@@ -56,7 +68,7 @@ while [[ $# -gt 0 ]]; do
     --resume)       RESUME=1; shift ;;
     --dry-run)      DRY_RUN=1; shift ;;
     --skip-windows) SKIP_WINDOWS=1; shift ;;
-    -h|--help)      grep -E '^#( |$)' "$0" | head -48 | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help)      awk 'NR > 1 && /^#/ { sub(/^# ?/, ""); print; next } NR > 1 { exit }' "$0"; exit 0 ;;
     -*)             echo "ERROR: cờ lạ: $1" >&2; exit 2 ;;
     *)
       if [[ -z "$VERSION" ]]; then VERSION="$1"; shift
@@ -97,19 +109,48 @@ PRODUCT_NAME="AINovel Studio"
 ARTIFACT_PREFIX="AINovel-Studio"
 RELEASE_BRANCH="${RELEASE_BRANCH:-main}"
 DIST="$DESKTOP/out/release/$VERSION"
+ORIGIN_RE='github\.com[:/]huuhoa143/ainovel-studio(\.git)?/?$'
+BUMP_SUBJECT="chore(desktop): phát hành $TAG"
+
+# Dry-run bump tạm package.json + package-lock.json để mọi thứ dựng ra mang đúng
+# $VERSION; bản gốc chép vào đây và được trả về khi thoát, dù thoát kiểu gì.
+DRY_BACKUP=""
 
 cleanup_release() {
   local rc=$?
   rm -f /tmp/ainovel-notary-*.zip 2>/dev/null || true
+  if [[ -n "$DRY_BACKUP" ]]; then
+    cp "$DRY_BACKUP/package.json" "$DESKTOP/package.json"
+    cp "$DRY_BACKUP/package-lock.json" "$DESKTOP/package-lock.json"
+    rm -rf "$DRY_BACKUP"
+    echo "  [dry-run] Đã trả desktop/package.json + package-lock.json về như cũ"
+  fi
   # Chỉ xóa tệp trạng thái khi THÀNH CÔNG — giữ nó cho --resume khi hỏng.
   if (( rc == 0 )); then
     state_cleanup
   else
     red "Hỏng (mã $rc). Trạng thái giữ ở $STATE_FILE — sửa xong chạy lại với --resume."
+    if (( DRY_RUN == 0 )) && ! state_is_done published; then
+      red "origin chưa bị đổi gì: tag $TAG (nếu đã tạo) và commit bump chỉ nằm ở máy này."
+    fi
   fi
   return $rc
 }
 trap cleanup_release EXIT
+
+# In cách làm lại khi origin/$RELEASE_BRANCH đã đi trước bản đã build: tag ở máy
+# trỏ vào commit không còn fast-forward được, phải dựng lại từ mã mới.
+print_rebuild_recovery() {
+  red "origin/$RELEASE_BRANCH đã có commit mà HEAD không có — không push được, origin chưa bị đổi gì."
+  echo "  Tag $TAG ở máy dựa trên $(git -C "$REPO" rev-parse --short "$TAG^{commit}"). Làm lại từ mã mới nhất:" >&2
+  if [[ "$(git -C "$REPO" log -1 --format=%s "$TAG" 2>/dev/null)" == "$BUMP_SUBJECT" ]]; then
+    echo "    git reset --hard $TAG~1          # bỏ commit bump (cây đã sạch lúc bắt đầu)" >&2
+  fi
+  echo "    git tag -d $TAG" >&2
+  echo "    git pull --rebase origin $RELEASE_BRANCH" >&2
+  echo "    rm -f '$STATE_FILE'" >&2
+  echo "    desktop/scripts/release.sh $VERSION" >&2
+}
 
 # ════════════════════════════════════════════════════════════════════════
 # Bước 1 — Điều kiện tiên quyết
@@ -119,7 +160,7 @@ bold "1/6  Kiểm điều kiện (dry-run=$DRY_RUN, resume=$RESUME)"
 [[ "$(uname -s)" == "Darwin" && "$(uname -m)" == "arm64" ]] \
   || { red "release.sh chạy trên Mac Apple Silicon (máy này: $(uname -s)/$(uname -m))"; exit 1; }
 
-REQUIRED=(go node npm npx gh jq shasum xxd base64 file perl ditto create-dmg xcrun codesign hdiutil spctl curl osascript)
+REQUIRED=(go node npm npx gh jq shasum xxd base64 file perl ditto create-dmg xcrun codesign hdiutil spctl curl)
 MISSING=()
 for bin in "${REQUIRED[@]}"; do command -v "$bin" >/dev/null || MISSING+=("$bin"); done
 if (( ${#MISSING[@]} > 0 )); then
@@ -173,9 +214,14 @@ if [[ -n "$(git -C "$REPO" status --porcelain | grep -v '^??' || true)" ]]; then
   fi
 fi
 
+# Push nhầm remote (fork kj, upstream) là tag + nhánh rơi sai chỗ mà không ai báo.
+ORIGIN_URL="$(git -C "$REPO" remote get-url origin 2>/dev/null || true)"
+[[ "$ORIGIN_URL" =~ $ORIGIN_RE ]] \
+  || { red "origin là '${ORIGIN_URL:-<không có>}', phải là github.com/$GH_REPO"; exit 1; }
+
 BRANCH="$(git -C "$REPO" branch --show-current)"
 if (( DRY_RUN == 0 )) && [[ "$BRANCH" != "$RELEASE_BRANCH" ]]; then
-  # Bước 2 push nhánh hiện tại rồi tag lên đó: từ một nhánh khác, tag sẽ trỏ vào
+  # Tag phải nằm trên lịch sử của $RELEASE_BRANCH: từ một nhánh khác, tag sẽ trỏ vào
   # commit mà $RELEASE_BRANCH không bao giờ nhận (bài học release.ps1 của lingoreup).
   red "Đang ở nhánh '$BRANCH', chỉ phát hành từ '$RELEASE_BRANCH' (đổi bằng RELEASE_BRANCH=…)."
   exit 1
@@ -189,11 +235,15 @@ fi
 CURRENT_VERSION="$(jq -r .version "$DESKTOP/package.json")"
 # Tag desktop trước: không lấy `git describe` trần vì repo đã có tag v0.x của các
 # bản CLI (goreleaser) — chung không gian tên. Tag desktop là tag mà cây của nó có
-# desktop/package.json.
+# desktop/package.json (trừ chính $TAG, có thể đã tạo ở máy từ lượt trước).
 PREV_TAG=""
 while IFS= read -r t; do
+  [[ "$t" != "$TAG" ]] || continue
   if git -C "$REPO" cat-file -e "$t:desktop/package.json" 2>/dev/null; then PREV_TAG="$t"; break; fi
 done < <(git -C "$REPO" tag --list 'v[0-9]*' --sort=-v:refname)
+
+HEAD_SHA="$(git -C "$REPO" rev-parse HEAD)"
+LOCAL_TAG_SHA="$(git -C "$REPO" rev-parse -q --verify "refs/tags/$TAG^{commit}" || true)"
 
 if (( RESUME == 1 )); then
   [[ -f "$(state_path)" ]] || { red "Không có $(state_path) để resume"; exit 1; }
@@ -201,45 +251,106 @@ if (( RESUME == 1 )); then
     red "Trạng thái là của v$(state_get version), bạn yêu cầu v$VERSION"; exit 1; }
   green "Resume $TAG (đã xong: $(jq -r '.steps_done | join(",")' "$(state_path)"))"
   PREV_TAG="$(state_get prev_tag)"
-else
-  if git -C "$REPO" rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
-    red "Tag $TAG đã có. Chọn phiên bản mới, hoặc --resume nếu đang dở chính bản này."
-    exit 1
+  # Các bước đã xong được build từ commit của tag: resume từ commit khác là đem mã
+  # này dán nhãn của mã kia.
+  if (( DRY_RUN == 0 )) && state_is_done tag; then
+    [[ -n "$LOCAL_TAG_SHA" ]] || { red "Trạng thái ghi đã tag mà không thấy tag $TAG ở máy — làm lại từ đầu (bỏ --resume)."; exit 1; }
+    [[ "$HEAD_SHA" == "$LOCAL_TAG_SHA" ]] || {
+      red "HEAD (${HEAD_SHA:0:12}) không phải commit của $TAG (${LOCAL_TAG_SHA:0:12}) — mọi thứ đã build là của $TAG."
+      echo "  Đưa HEAD về đúng tag (vd. bỏ commit mới: git reset --hard $TAG) rồi chạy lại với --resume." >&2
+      exit 1
+    }
   fi
-  if (( DRY_RUN == 0 )) && ghx release view "$TAG" --repo "$GH_REPO" >/dev/null 2>&1; then
+else
+  state_init "$VERSION"
+  state_set prev_tag "$PREV_TAG"
+fi
+
+# Đối chiếu remote — chỉ ĐỌC (fetch, ls-remote, gh release view). Dry-run không nói
+# chuyện với remote, chỉ so với origin/$RELEASE_BRANCH đã có sẵn ở máy.
+if (( DRY_RUN == 0 )); then
+  git_gh -C "$REPO" fetch --quiet origin "$RELEASE_BRANCH"
+fi
+# Bước 6 push nhánh kiểu fast-forward: HEAD phải bằng hoặc đi trước origin. Sau khi
+# đã push (published) thì origin đi tiếp là chuyện bình thường, không chặn nữa.
+if ! state_is_done published; then
+  if ! git -C "$REPO" merge-base --is-ancestor "refs/remotes/origin/$RELEASE_BRANCH" HEAD 2>/dev/null; then
+    if (( DRY_RUN == 1 )); then
+      warn "HEAD không fast-forward được lên origin/$RELEASE_BRANCH (theo lần fetch gần nhất) — bản thật sẽ từ chối."
+    elif [[ -n "$LOCAL_TAG_SHA" ]]; then
+      print_rebuild_recovery; exit 1
+    else
+      red "HEAD không chứa origin/$RELEASE_BRANCH. Kéo về trước: git pull --rebase origin $RELEASE_BRANCH"
+      exit 1
+    fi
+  fi
+fi
+
+if (( DRY_RUN == 0 )); then
+  # Lấy commit tag trỏ tới (dòng ^{} của tag có chú thích, hoặc chính nó nếu là tag nhẹ).
+  REMOTE_TAG_SHA="$(git_gh -C "$REPO" ls-remote --tags origin "refs/tags/$TAG" "refs/tags/$TAG^{}" \
+    | awk -v t="refs/tags/$TAG" '$2 == t "^{}" { p = $1 } $2 == t { l = $1 } END { print (p != "" ? p : l) }')"
+  if [[ -n "$REMOTE_TAG_SHA" ]]; then
+    if (( RESUME == 1 )) && [[ "$REMOTE_TAG_SHA" == "$LOCAL_TAG_SHA" && "$REMOTE_TAG_SHA" == "$HEAD_SHA" ]]; then
+      # Lượt trước đã push rồi hỏng trước khi kịp ghi trạng thái.
+      state_is_done published || { state_mark_done tag; state_mark_done published; }
+    elif (( RESUME == 0 )); then
+      red "Tag $TAG đã có trên origin. Chọn phiên bản mới, hoặc --resume nếu đang dở chính bản này."
+      exit 1
+    else
+      red "Tag $TAG trên origin trỏ vào ${REMOTE_TAG_SHA:0:12}, không phải HEAD/tag ở máy (${HEAD_SHA:0:12})."
+      exit 1
+    fi
+  fi
+  if (( RESUME == 0 )) && ghx release view "$TAG" --repo "$GH_REPO" >/dev/null 2>&1; then
     red "Release $TAG đã có trên $GH_REPO."
     exit 1
   fi
-  state_init "$VERSION"
-  state_set prev_tag "$PREV_TAG"
 fi
 green "Điều kiện OK ($CURRENT_VERSION → $VERSION; tag trước: ${PREV_TAG:-không có})"
 
 # ════════════════════════════════════════════════════════════════════════
-# Bước 2 — Bump + commit + tag + push
+# Bước 2 — Bump + commit + tag, CHỈ Ở MÁY (push để dành cho bước 6)
 # ════════════════════════════════════════════════════════════════════════
-if ! state_is_done bump; then
-  bold "2/6  Bump $CURRENT_VERSION → $VERSION, commit, tag $TAG, push"
-  if (( DRY_RUN == 1 )); then
-    echo "  [dry-run] Sẽ bump desktop/package.json, commit, tag $TAG, push origin $RELEASE_BRANCH + $TAG"
+if (( DRY_RUN == 1 )); then
+  bold "2/6  [dry-run] Bump tạm $CURRENT_VERSION → $VERSION — không commit, không tag"
+  if [[ "$CURRENT_VERSION" != "$VERSION" ]]; then
+    # Không bump thì app, latest.yml và tên bộ cài Windows mang phiên bản cũ trong
+    # khi sidecar mang $VERSION — tập dượt khác bản thật.
+    DRY_BACKUP="$(mktemp -d -t ainovel-dry-pkg)"
+    cp "$DESKTOP/package.json" "$DESKTOP/package-lock.json" "$DRY_BACKUP/"
+    npm version "$VERSION" --no-git-tag-version >/dev/null
+  fi
+elif ! state_is_done tag; then
+  bold "2/6  Bump $CURRENT_VERSION → $VERSION, commit, tag $TAG (chỉ ở máy)"
+  if [[ -n "$LOCAL_TAG_SHA" ]]; then
+    # Tag sót của một lượt hỏng trước bước 6: dùng lại nếu đúng là HEAD.
+    [[ "$LOCAL_TAG_SHA" == "$HEAD_SHA" ]] || {
+      red "Tag $TAG ở máy trỏ vào ${LOCAL_TAG_SHA:0:12}, không phải HEAD (${HEAD_SHA:0:12})."
+      echo "  Tag chưa lên origin (đã kiểm ở bước 1). Nếu là tag sót: git tag -d $TAG" >&2
+      exit 1
+    }
+    [[ "$CURRENT_VERSION" == "$VERSION" ]] || {
+      red "Tag $TAG trỏ vào HEAD nhưng desktop/package.json là $CURRENT_VERSION"; exit 1; }
+    echo "  Tag $TAG ở máy đã trỏ vào HEAD — dùng lại"
   else
     if [[ "$CURRENT_VERSION" != "$VERSION" ]]; then
       # `npm version` sửa cả package-lock.json, đúng định dạng npm, không tự tag.
       npm version "$VERSION" --no-git-tag-version >/dev/null
       git -C "$REPO" add desktop/package.json desktop/package-lock.json
-      git -C "$REPO" commit -m "chore(desktop): phát hành $TAG"
+      git -C "$REPO" commit -m "$BUMP_SUBJECT"
     else
       # Bản đầu tiên: package.json đã sẵn 1.0.0, không có gì để bump — chỉ tag.
       echo "  desktop/package.json đã là $VERSION — chỉ tag"
     fi
     git -C "$REPO" tag -a "$TAG" -m "AINovel Studio $TAG"
-    git_push origin "$BRANCH"
-    git_push origin "$TAG"
-    green "Đã push $TAG"
+    HEAD_SHA="$(git -C "$REPO" rev-parse HEAD)"
+    LOCAL_TAG_SHA="$HEAD_SHA"
   fi
-  state_mark_done bump
+  state_mark_done tag
+  green "Tag $TAG ở máy → ${HEAD_SHA:0:12} (chưa push)"
 else
-  green "2/6  Bump (bỏ qua)"
+  green "2/6  Bump + tag (bỏ qua — $TAG ở máy)"
 fi
 
 # ════════════════════════════════════════════════════════════════════════
@@ -349,12 +460,9 @@ for ARCH in arm64 x64; do
   # ── f. smoke ──────────────────────────────────────────────────────────
   # KHÔNG bọc state_is_done: rẻ (~10s) và --resume chính là lúc một .app cũ từ
   # lượt trước dễ bị đem đi phát hành nhất. Chạy trên bản ĐÃ ký + staple, tức
-  # đúng thứ người dùng nhận; bản x64 chạy qua Rosetta.
-  #
-  # Trên máy build đã từng chạy bản dev chưa ký, lần smoke ĐẦU của bản ký Developer
-  # ID sẽ treo ở hộp thoại Keychain "AINovel Studio Safe Storage" (ACL của mục đó
-  # không nhận chữ ký mới). Bấm "Always Allow" một lần là xong cho mọi bản sau;
-  # smoke.sh in gợi ý này khi hết giờ chờ.
+  # đúng thứ người dùng nhận; bản x64 chạy qua Rosetta. smoke.sh luôn chạy app
+  # trong userData tạm + Keychain giả: không đụng dữ liệu/Keychain thật của máy
+  # build, nên không có hộp thoại Keychain nào chặn giữa chừng.
   bold "3f/$ARCH  Smoke (mở app, AINOVEL_READY, /api/workshop, thoát sạch)"
   bash "$SCRIPTS/smoke.sh" "$APP"
 
@@ -438,7 +546,7 @@ WIN_MAP="$WIN_EXE.blockmap"
 WIN_YML="$DIST/latest.yml"
 
 if (( SKIP_WINDOWS == 1 )); then
-  warn "4/6  Windows bỏ qua (--skip-windows) — chạy desktop/scripts/release.ps1 $VERSION trên máy Windows"
+  warn "4/6  Windows bỏ qua (--skip-windows) — máy Windows kiểm cập nhật sẽ gặp 404 tới khi release.ps1 gắn bộ cài + latest.yml (xem cuối lượt)"
 elif ! state_is_done win; then
   bold "4/6  Windows x64 — build-sidecar windows/amd64 + forge make (NSIS)"
   win_ok=1
@@ -481,10 +589,10 @@ elif ! state_is_done win; then
       red "sha512 trong latest.yml không khớp $WIN_EXE"; exit 1
     fi
     echo "  $(basename "$WIN_EXE") ($(du -h "$WIN_EXE" | cut -f1)), latest.yml, $( [[ -f "$WIN_MAP" ]] && basename "$WIN_MAP")"
+    warn "Bộ cài Windows dựng chéo — KHÔNG smoke được trên Mac. Release notes sẽ mang dòng nhắc; kiểm trên Windows thật sau khi phát hành (xem cuối lượt)."
     state_mark_done win
   else
-    warn "Dựng Windows từ Mac thất bại — bản mac vẫn phát hành."
-    warn "Sau đó chạy trên máy Windows: powershell -ExecutionPolicy Bypass -File desktop\\scripts\\release.ps1 $VERSION"
+    warn "Dựng Windows từ Mac thất bại — bản mac vẫn phát hành; máy Windows kiểm cập nhật sẽ gặp 404 tới khi release.ps1 gắn bộ cài + latest.yml (xem cuối lượt)."
   fi
 else
   green "4/6  Windows (bỏ qua — đã xong)"
@@ -526,7 +634,7 @@ echo "  arm64: $(basename "$A_ZIP") ($A_SZ B)"
 echo "  x64:   $(basename "$X_ZIP") ($X_SZ B)"
 
 # ════════════════════════════════════════════════════════════════════════
-# Bước 6 — gh release
+# Bước 6 — push nhánh + tag, rồi gh release
 # ════════════════════════════════════════════════════════════════════════
 ASSETS=(
   "$A_ZIP" "$DIST/$ARTIFACT_PREFIX-$VERSION-arm64.dmg"
@@ -538,6 +646,65 @@ if state_is_done win; then
   [[ -f "$WIN_MAP" ]] && ASSETS+=("$WIN_MAP")
 fi
 for f in "${ASSETS[@]}"; do [[ -f "$f" ]] || { red "Thiếu asset $f"; exit 1; }; done
+
+# Bản Windows của release.sh luôn dựng chéo — không có cách smoke nó trên Mac.
+# Dòng mang WIN_UNVERIFIED_MARKER trong release notes là lời nhắc công khai cho tới
+# khi release.ps1 dựng lại trên Windows, smoke, thay tệp và XÓA đúng dòng đó.
+# release.ps1 tìm theo chính chuỗi này — đổi ở đây thì đổi cả bên đó.
+WIN_UNVERIFIED_MARKER="<!-- ainovel:windows-unverified -->"
+if state_is_done win; then
+  WIN_NOTE="> Bộ cài Windows của bản này được dựng trên macOS và chưa được chạy thử trên máy Windows thật. Gặp lỗi xin báo ở mục Issues. $WIN_UNVERIFIED_MARKER"
+else
+  WIN_NOTE="> Bộ cài Windows chưa có trong bản này — sẽ được bổ sung sau. $WIN_UNVERIFIED_MARKER"
+fi
+
+windows_followup() {
+  warn "════════════════════════════════════════════════════════════════════"
+  if state_is_done win; then
+    warn " Bộ cài Windows được DỰNG CHÉO từ Mac và CHƯA SMOKE trên Windows thật."
+  else
+    warn " Release CHƯA có bộ cài Windows — và CHƯA có latest.yml."
+    warn " Từ giờ tới lúc gắn xong, MỌI máy Windows đang cài app kiểm cập nhật đều"
+    warn " nhận lỗi 404 (release mới nhất không có tệp cập nhật Windows). Gắn càng sớm càng tốt."
+  fi
+  warn " Trên một máy Windows (đứng ở tag $TAG), chạy:"
+  warn "   powershell -ExecutionPolicy Bypass -File desktop\\scripts\\release.ps1 $VERSION"
+  warn " Nó dựng lại, smoke, thay Setup.exe + .blockmap + latest.yml và gỡ dòng nhắc"
+  warn " trong release notes. Không có Windows để dựng: tải Setup.exe từ release về"
+  warn " một máy Windows, cài, mở app thấy màn Cài đặt, đóng app, Task Manager không"
+  warn " còn ainovel-cli.exe — rồi tự xóa dòng nhắc trong release notes."
+  warn "════════════════════════════════════════════════════════════════════"
+}
+
+if ! state_is_done published; then
+  bold "6/6  Push nguyên tử $RELEASE_BRANCH + $TAG lên origin"
+  if (( DRY_RUN == 1 )); then
+    echo "  [dry-run] Sẽ push --atomic origin $TAG^{commit}:$RELEASE_BRANCH + $TAG"
+  else
+    ensure_gh_token || exit 1
+    TAG_SHA="$(git -C "$REPO" rev-parse "$TAG^{commit}")"
+    # Kiểm lại ngay trước khi push: 30-45 phút build đủ lâu để origin đi tiếp.
+    git_gh -C "$REPO" fetch --quiet origin "$RELEASE_BRANCH"
+    git -C "$REPO" merge-base --is-ancestor "refs/remotes/origin/$RELEASE_BRANCH" "$TAG_SHA" \
+      || { print_rebuild_recovery; exit 1; }
+    # Push đúng commit của tag (không phải HEAD — HEAD có thể đã đổi trong lúc build).
+    # --atomic: origin nhận cả nhánh lẫn tag, hoặc không nhận gì — không bao giờ có
+    # tag trên origin mà $RELEASE_BRANCH chưa có commit của nó.
+    if ! git_gh -C "$REPO" push --atomic origin "$TAG_SHA:refs/heads/$RELEASE_BRANCH" "refs/tags/$TAG"; then
+      git_gh -C "$REPO" fetch --quiet origin "$RELEASE_BRANCH" || true
+      if ! git -C "$REPO" merge-base --is-ancestor "refs/remotes/origin/$RELEASE_BRANCH" "$TAG_SHA"; then
+        print_rebuild_recovery
+      else
+        red "Push hỏng (mạng/quyền?) — push nguyên tử nên origin chưa bị đổi gì. Sửa xong chạy lại với --resume."
+      fi
+      exit 1
+    fi
+    green "Đã push $RELEASE_BRANCH + $TAG"
+  fi
+  state_mark_done published
+else
+  green "6/6  Push (bỏ qua — đã lên origin)"
+fi
 
 if ! state_is_done gh_release; then
   bold "6/6  gh release $TAG trên $GH_REPO (${#ASSETS[@]} tệp)"
@@ -561,13 +728,16 @@ if ! state_is_done gh_release; then
 | Mac chip Intel | \`$ARTIFACT_PREFIX-$VERSION-x64.dmg\` |
 | Windows 10/11 (64-bit) | \`$ARTIFACT_PREFIX-Setup-$VERSION.exe\` |
 
-Windows: bộ cài chưa ký, SmartScreen sẽ hỏi một lần — bấm **More info → Run anyway**.
+Windows: bộ cài chưa ký. Trình duyệt có thể báo tệp \"không thường được tải\" — chọn **Giữ lại (Keep)**; lúc chạy, SmartScreen hỏi một lần — bấm **More info → Run anyway**.
+
+$WIN_NOTE
 
 ## Thay đổi${PREV_TAG:+ từ $PREV_TAG}
 
 ${CHANGES:-- (không có commit nào chạm desktop/internal/cmd/web)}"
-    if ghx release view "$TAG" --repo "$GH_REPO" >/dev/null 2>&1; then
-      # release.ps1 có thể đã tạo release này trước (Windows chạy trước) — gắn thêm.
+    if (( RESUME == 1 )) && ghx release view "$TAG" --repo "$GH_REPO" >/dev/null 2>&1; then
+      # Chỉ khi --resume: lượt trước của CHÍNH script này đã tạo release rồi chết
+      # trước khi kịp ghi trạng thái. Lượt mới đã bị bước 1 chặn nếu release có sẵn.
       ghx release upload "$TAG" --repo "$GH_REPO" --clobber "${ASSETS[@]}"
     else
       ghx release create "$TAG" --repo "$GH_REPO" --verify-tag \
@@ -581,10 +751,10 @@ fi
 
 echo
 if (( DRY_RUN == 1 )); then
-  green "Tập dượt $TAG xong — không ký, không notarize, không đụng git, không upload."
+  green "Tập dượt $TAG xong — không ký, không notarize, không commit/tag/push, không nói chuyện với remote, không upload."
   echo "    Tệp ở: $DIST"
 else
   green "Phát hành $TAG xong"
   echo "    https://github.com/$GH_REPO/releases/tag/$TAG"
-  state_is_done win || warn "Chưa có bản Windows: chạy desktop\\scripts\\release.ps1 $VERSION trên máy Windows."
+  windows_followup
 fi
