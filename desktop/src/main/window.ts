@@ -46,6 +46,8 @@ export interface MainWindowOptions {
   /** Origin của studio khi sidecar đang chạy; null khi đang ở trang cục bộ. */
   getOrigin: () => string | null;
   onAction: (action: ErrorAction) => void;
+  /** false khi app đang thoát: cửa sổ đã bị ẩn thì đừng để `ready-to-show` đến muộn hiện lại. */
+  canShow: () => boolean;
 }
 
 function isHttp(url: string): boolean {
@@ -79,7 +81,9 @@ export function createMainWindow(opts: MainWindowOptions): BrowserWindow {
     },
   });
   if (state.maximized) win.maximize();
-  win.once('ready-to-show', () => win.show());
+  win.once('ready-to-show', () => {
+    if (opts.canShow()) win.show();
+  });
 
   let saveTimer: NodeJS.Timeout | null = null;
   const scheduleSave = () => {

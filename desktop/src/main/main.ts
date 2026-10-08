@@ -3,6 +3,7 @@ import path from 'node:path';
 import { app, BrowserWindow, Menu, shell } from 'electron';
 import { APP_ID } from './appId';
 import { errorPageUrl, loadingPageUrl, type ErrorAction } from './errorPage';
+import { armExitWatchdog } from './exitWatchdog';
 import { isAbortedLoad, Lifecycle } from './lifecycle';
 import { createLogger } from './logger';
 import { buildMenu } from './menu';
@@ -48,6 +49,7 @@ function run() {
       stateFile: data.windowState,
       getOrigin: () => lifecycle.origin,
       onAction: (a) => onAction(a),
+      canShow: () => !quitting(),
     });
     w.on('closed', () => {
       if (win === w) win = null;
@@ -100,13 +102,15 @@ function run() {
     quitApp: () => app.quit(),
   });
 
+  const quitting = () => lifecycle.phase === 'quitting' || lifecycle.phase === 'exiting';
+
   const onAction = (a: ErrorAction) => {
     if (a === 'retry') void lifecycle.start();
     else openDir(data.logs);
   };
 
   app.on('second-instance', () => {
-    if (!win || win.isDestroyed() || lifecycle.phase === 'quitting' || lifecycle.phase === 'exiting') return;
+    if (!win || win.isDestroyed() || quitting()) return;
     if (win.isMinimized()) win.restore();
     win.show();
     win.focus();
@@ -118,6 +122,12 @@ function run() {
   // Chặn quit tới khi sidecar dừng xong (để Go kịp nhả khóa truyện); lifecycle tự quit lại.
   app.on('before-quit', (event) => {
     if (!lifecycle.onBeforeQuit()) event.preventDefault();
+  });
+
+  // Mọi đường thoát (Cmd+Q, đóng cửa sổ, SIGTERM, cài cập nhật) đều đi qua đây khi đã chắc chắn
+  // thoát. Chromium có thể treo ở bước tắt cuối khi máy bận — xem exitWatchdog.ts.
+  app.on('will-quit', () => {
+    armExitWatchdog({ pid: process.pid, platform: process.platform, logFile: data.mainLog });
   });
 
   app.whenReady().then(() => {
