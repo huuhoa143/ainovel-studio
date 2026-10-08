@@ -99,6 +99,17 @@ cd desktop && npx vitest run     # vỏ Electron (không cần chạy Electron)
 cd desktop && npm run typecheck
 ```
 
+**Repo không có CI.** GitHub Actions bị tắt có chủ đích (fork này từng xóa hết workflow, xem
+commit `54f1da4`), nên không có máy nào chạy kiểm thử thay bạn: mọi lệnh trên phải xanh **trên máy
+bạn** trước khi mở PR, và mẫu PR sẽ hỏi bạn đã chạy những lệnh nào. Xin đừng thêm workflow trong
+PR.
+
+**Thêm phụ thuộc?** Mỗi lần build, `desktop/scripts/gen-legal.sh` sinh danh sách giấy phép bên
+thứ ba đóng gói vào app, và **dừng build** nếu một gói không có tệp giấy phép hay giấy phép không
+nhận ra được. Chạy thử `desktop/scripts/gen-legal.sh /tmp/legal` sau khi thêm module Go hay gói
+npm chạy-thật. Đổi chỗ app gọi mạng hay dữ liệu nó lưu trên máy thì phải cập nhật
+[PRIVACY.md](PRIVACY.md) (và tăng `legal-version`).
+
 ## Phát hành
 
 Chỉ người bảo trì phát hành. Bản phát hành lên
@@ -203,6 +214,8 @@ Hai quy ước nữa:
 
 ## Báo lỗi
 
-Issues đang mở. Kèm log giúp rất nhiều: trong app, **Tệp → Mở thư mục log** (`sidecar.log` và
+Issues đang mở, có sẵn mẫu báo lỗi và đề xuất tính năng; câu hỏi cách dùng hợp hơn ở
+[Discussions](https://github.com/huuhoa143/ainovel-studio/discussions). Tham gia dự án nghĩa là
+đồng ý với [Bộ quy tắc ứng xử](CODE_OF_CONDUCT.md). Kèm log giúp rất nhiều: trong app, **Tệp → Mở thư mục log** (`sidecar.log` và
 `main.log`) — nhớ xóa khóa API nếu lỡ dán vào đâu đó. Lỗi bảo mật thì **đừng** mở issue công
 khai — xem [SECURITY.md](SECURITY.md).

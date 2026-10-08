@@ -30,10 +30,12 @@ go.work.sum
 # 项目级配置 dotdir（镜像 ~/.ainovel/）：config.json 含密钥，rules/ 为本地写作偏好
 .ainovel/
 
-# Editor/IDE
+# Editor/IDE/OS
 .idea/
 .vscode/
 .cache
+.DS_Store
+Thumbs.db
 
 # GoReleaser artifacts
 dist/
@@ -42,8 +44,14 @@ release-notes.md
 
 tasks
 refer/
+# Thư mục truyện của bản CLI cũ (output/, output-webfix/…) — dữ liệu cá nhân, không thuộc repo.
 output*
 workspace/
+
+# Đầu ra build của app (desktop/.gitignore cũng chặn; ghi lại ở gốc cho rõ):
+# desktop/resources/{bin,web,legal} do build-sidecar.sh + gen-legal.sh sinh mỗi lần build.
+desktop/out/
+desktop/resources/
 
 # công cụ i18n
 scripts/i18n/__pycache__/

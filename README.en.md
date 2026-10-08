@@ -1,5 +1,9 @@
 # AINovel Studio
 
+[![License: Apache-2.0](https://img.shields.io/github/license/huuhoa143/ainovel-studio)](LICENSE)
+[![Latest release](https://img.shields.io/github/v/release/huuhoa143/ainovel-studio?display_name=tag&sort=semver)](https://github.com/huuhoa143/ainovel-studio/releases/latest)
+[![Platforms: macOS | Windows](https://img.shields.io/badge/platforms-macOS%20%7C%20Windows-informational)](#download--install)
+
 **English** · [Tiếng Việt](README.md)
 
 **Project page: [ainovel.lingoreup.com](https://ainovel.lingoreup.com)** ·
@@ -260,8 +264,9 @@ examples ([Cấu hình nâng cao](README.md#cấu-hình-nâng-cao)); the JSON is
 There is no project server in the middle: your API key, novels and logs stay on your machine, and
 model calls go straight from your machine to the provider you chose. The app's internal API
 listens only on `127.0.0.1`. The API key is **write-only** — settable through the UI, never
-returned; where it must be shown, it is masked (`sk-4…802`). There is no hosted version. See
-[SECURITY.md](SECURITY.md).
+returned; where it must be shown, it is masked (`sk-4…802`). There is no hosted version. Every
+outbound connection the app makes and everything it stores is listed in
+[PRIVACY.md](PRIVACY.md); the security surface is described in [SECURITY.md](SECURITY.md).
 
 ## Internationalisation
 
@@ -339,9 +344,19 @@ The initial translation memory was taken from
 [kentjuno/ainovel-cli](https://github.com/kentjuno/ainovel-cli) at commit `68eb92d` — thanks
 for their localisation work.
 
+## Legal & community
+
+- [Privacy policy](PRIVACY.md#english) — what the app sends, what it stores, how to delete it
+- [Disclaimer](DISCLAIMER.md#english) — AI-generated content, API costs, no warranty
+- [Code of conduct](CODE_OF_CONDUCT.md) · [Contributing](CONTRIBUTING.md) ·
+  [Security policy](SECURITY.md#english-summary) · [Changelog](CHANGELOG.md)
+- [NOTICE](NOTICE) — Apache-2.0 attribution; the app ships a full third-party license list
+  (`THIRD_PARTY_NOTICES.md`, generated on every build by
+  [`desktop/scripts/gen-legal.sh`](desktop/scripts/gen-legal.sh))
+
 ## License
 
-Apache License 2.0 — see [LICENSE](LICENSE).
+Apache License 2.0 — see [LICENSE](LICENSE) and [NOTICE](NOTICE).
 
 This project actively participates in and acknowledges the
 [linux.do community](https://linux.do/).

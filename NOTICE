@@ -1,0 +1,43 @@
+AINovel Studio
+Copyright 2026 huuhoa143 and the AINovel Studio contributors
+https://github.com/huuhoa143/ainovel-studio
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+------------------------------------------------------------------------------
+Upstream project
+------------------------------------------------------------------------------
+
+This product is a fork of, and includes software developed by, the ainovel-cli
+project (https://github.com/voocel/ainovel-cli).
+Copyright 2026 voocel and the ainovel-cli contributors.
+Licensed under the Apache License, Version 2.0.
+
+The engine, the architecture and the original design are the work of the
+upstream project. Files carried over from upstream have been modified by this
+fork (localisation layer, Vietnamese prompts and reference material, the HTTP
+studio, the desktop shell); the git history records every change.
+
+------------------------------------------------------------------------------
+Vendored code
+------------------------------------------------------------------------------
+
+third_party/litellm
+  A modified copy of litellm v1.8.8 (https://github.com/voocel/litellm).
+  Copyright 2026 voocel and the litellm contributors.
+  Licensed under the Apache License, Version 2.0 (third_party/litellm/LICENSE).
+  Modified by this project: provider/openai/stream.go and
+  provider/compat/stream.go (see third_party/README.md).
+
+------------------------------------------------------------------------------
+Acknowledgements
+------------------------------------------------------------------------------
+
+The initial Vietnamese translation memory was based on kentjuno/ainovel-cli
+(https://github.com/kentjuno/ainovel-cli) at commit 68eb92d.
+
+The packaged desktop application also bundles third-party components (Go
+modules, npm packages, fonts, Electron and Chromium), each under its own
+license. Their notices are listed in THIRD_PARTY_NOTICES.md, which is
+generated at build time by desktop/scripts/gen-legal.sh and shipped inside the
+application.

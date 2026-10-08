@@ -1,5 +1,9 @@
 # AINovel Studio
 
+[![Giấy phép: Apache-2.0](https://img.shields.io/github/license/huuhoa143/ainovel-studio)](LICENSE)
+[![Bản phát hành mới nhất](https://img.shields.io/github/v/release/huuhoa143/ainovel-studio?display_name=tag&sort=semver)](https://github.com/huuhoa143/ainovel-studio/releases/latest)
+[![Nền tảng: macOS | Windows](https://img.shields.io/badge/n%E1%BB%81n%20t%E1%BA%A3ng-macOS%20%7C%20Windows-informational)](#tải-về--cài-đặt)
+
 [English](README.en.md) · **Tiếng Việt**
 
 **Trang giới thiệu: [ainovel.lingoreup.com](https://ainovel.lingoreup.com)** · **[Tải app cho macOS / Windows](https://github.com/huuhoa143/ainovel-studio/releases/latest)** — không cần terminal.
@@ -563,8 +567,9 @@ Mỗi tool chạy xong là ghi một checkpoint (`meta/checkpoints.jsonl`). Khi 
 App không có máy chủ nào của dự án đứng giữa: khóa API, truyện và log nằm trên máy bạn, lời gọi
 model đi thẳng từ máy bạn tới nhà cung cấp bạn chọn. API nội bộ của app chỉ nghe trên
 `127.0.0.1`. Khóa API đi **một chiều**: đặt được qua giao diện, nhưng không bao giờ được trả về —
-chỗ nào cần hiện thì chỉ hiện dạng che (`sk-4…802`). Không có bản chạy trên web. Chi tiết ở
-[SECURITY.md](SECURITY.md).
+chỗ nào cần hiện thì chỉ hiện dạng che (`sk-4…802`). Không có bản chạy trên web. Mọi kết nối
+app tự mở ra ngoài và mọi thứ nó lưu trên máy được liệt kê đầy đủ ở [PRIVACY.md](PRIVACY.md);
+bề mặt bảo mật ở [SECURITY.md](SECURITY.md).
 
 ## Triết lý thiết kế
 
@@ -643,8 +648,18 @@ Phần fork thêm vào so với upstream:
 
 Bản dịch ban đầu tham khảo [kentjuno/ainovel-cli](https://github.com/kentjuno/ainovel-cli) tại commit `68eb92d` — cảm ơn công sức việt hóa của họ.
 
+## Pháp lý & cộng đồng
+
+- [Chính sách quyền riêng tư](PRIVACY.md) — app gửi gì ra mạng, lưu gì trên máy, xóa thế nào
+- [Tuyên bố miễn trừ trách nhiệm](DISCLAIMER.md) — nội dung do AI tạo, chi phí API, không bảo đảm
+- [Bộ quy tắc ứng xử](CODE_OF_CONDUCT.md) · [Hướng dẫn đóng góp](CONTRIBUTING.md) ·
+  [Chính sách bảo mật](SECURITY.md) · [Nhật ký thay đổi](CHANGELOG.md)
+- [NOTICE](NOTICE) — ghi công theo Giấy phép Apache 2.0; app đóng gói kèm danh sách giấy phép bên
+  thứ ba đầy đủ (`THIRD_PARTY_NOTICES.md`, sinh mỗi lần build bởi
+  [`desktop/scripts/gen-legal.sh`](desktop/scripts/gen-legal.sh))
+
 ## Giấy phép
 
-Apache License 2.0 — xem [LICENSE](LICENSE).
+Apache License 2.0 — xem [LICENSE](LICENSE) và [NOTICE](NOTICE).
 
 Dự án này tích cực tham gia và ghi nhận [cộng đồng linux.do](https://linux.do/).

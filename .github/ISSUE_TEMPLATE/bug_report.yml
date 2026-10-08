@@ -1,0 +1,81 @@
+name: Báo lỗi / Bug report
+description: App chạy sai, treo, hay báo lỗi. (English welcome.)
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Cảm ơn bạn đã báo lỗi. Lỗi **bảo mật** (rò khóa API, gọi được API nội bộ từ trang web khác…) thì **đừng** mở issue công khai — dùng [Report a vulnerability](https://github.com/huuhoa143/ainovel-studio/security/advisories/new).
+
+        > **Đừng dán khóa API hay nội dung `config.json`** vào issue. Issue là công khai và được lưu vĩnh viễn. Nếu lỡ dán, hãy thu hồi (revoke) khóa ngay trên trang của nhà cung cấp.
+  - type: input
+    id: version
+    attributes:
+      label: Phiên bản app
+      description: "macOS: menu **AINovel Studio → Giới thiệu AINovel Studio**. Windows: **Cài đặt → Ứng dụng**, dòng AINovel Studio."
+      placeholder: "1.0.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Hệ điều hành
+      options:
+        - macOS — chip Apple (M1/M2/M3/M4…)
+        - macOS — chip Intel
+        - Windows 11 x64
+        - Windows 10 x64
+        - Khác (ghi ở dưới)
+    validations:
+      required: true
+  - type: input
+    id: os-version
+    attributes:
+      label: Phiên bản hệ điều hành
+      placeholder: "macOS 15.3 / Windows 11 24H2"
+  - type: input
+    id: provider
+    attributes:
+      label: Nhà cung cấp và model (nếu lỗi liên quan tới chạy truyện)
+      description: Chỉ tên, ví dụ "OpenRouter · gemini-2.5-pro". **Không** dán khóa API hay base URL riêng tư.
+  - type: textarea
+    id: steps
+    attributes:
+      label: Các bước tái hiện
+      placeholder: |
+        1. Mở app
+        2. Bấm …
+        3. Thấy …
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Mong đợi
+      description: Bạn nghĩ lẽ ra phải xảy ra điều gì?
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Thực tế
+      description: Điều gì đã xảy ra? Ảnh chụp màn hình giúp rất nhiều (che khóa API nếu có).
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Log
+      description: |
+        Trong app: **Tệp → Mở thư mục log**, đính kèm `main.log` và `sidecar.log` (kéo thả tệp vào ô này), hoặc dán đoạn liên quan.
+        Đọc lại trước khi gửi: log có thể chứa tên truyện và trích đoạn phản hồi của model. **Không đính kèm `config.json`.**
+      render: text
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Xác nhận
+      options:
+        - label: Tôi đã tìm trong các issue hiện có và không thấy lỗi trùng.
+          required: true
+        - label: Tôi không dán khóa API hay nội dung `config.json` vào issue này.
+          required: true

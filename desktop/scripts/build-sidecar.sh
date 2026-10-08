@@ -4,9 +4,10 @@
 # Cách dùng:
 #   desktop/scripts/build-sidecar.sh <darwin|windows> <arm64|amd64> <version> [--skip-web]
 #
-# Đầu ra (forge chép nguyên hai thư mục này vào <Resources>/ qua `extraResource`):
+# Đầu ra (forge chép các thư mục này vào <Resources>/ qua `extraResource`):
 #   desktop/resources/bin/ainovel-cli[.exe]   Go, CGO_ENABLED=0, đúng GOOS/GOARCH yêu cầu
 #   desktop/resources/web/                    bản sao web/out
+#   desktop/resources/legal/                  giấy phép + chính sách, xem gen-legal.sh
 #
 # `--skip-web` chỉ bỏ bước `npm ci && npm run build` trong web/ — vẫn CHÉP web/out.
 # release.sh dựng web một lần rồi gọi lại script này với `--skip-web` cho các
@@ -111,5 +112,12 @@ mkdir -p "$WEB_DIR"
 # `cp -R out/. dst` chép NỘI DUNG (kể cả tệp chấm), không tạo thêm tầng out/.
 cp -R "$REPO/web/out/." "$WEB_DIR/"
 echo "  web: $(find "$WEB_DIR" -type f | wc -l | tr -d ' ') tệp → $WEB_DIR"
+
+# ─── 4. Giấy tờ pháp lý ─────────────────────────────────────────────────
+# Sau go build (module đã có trong cache) và sau bước web (node_modules đã có): gen-legal.sh
+# không gọi mạng. Mỗi lần build sinh lại, nên một phụ thuộc mới không thể vào gói mà thiếu
+# giấy phép — gen-legal.sh dừng nếu không tìm được.
+echo "▶ legal: LICENSE, NOTICE, PRIVACY, DISCLAIMER, THIRD_PARTY_NOTICES"
+"$DESKTOP/scripts/gen-legal.sh" "$DESKTOP/resources/legal"
 
 echo "✔ sidecar $GOOS_T/$GOARCH_T sẵn sàng trong $DESKTOP/resources/"

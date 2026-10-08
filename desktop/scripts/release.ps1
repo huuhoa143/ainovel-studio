@@ -12,13 +12,14 @@
       duoc .exe). Chay script nay de thay no bang ban dung + smoke tren Windows.
 
   Cac buoc (~5-10 phut):
-    1. Dieu kien: go, node, npm, git, gh; origin dung repo; cay lam viec sach;
+    1. Dieu kien: go, node, npm, git, gh, Git Bash; origin dung repo; cay lam viec sach;
        gh ghim huuhoa143; tag vX.Y.Z DA CO tren origin; release vX.Y.Z DA CO
     2. HEAD phai dung tai commit cua tag (git checkout vX.Y.Z) va
        desktop\package.json phai la X.Y.Z
     3. Sidecar: npm ci + build web, go build windows/amd64 -> desktop\resources\bin,
        chep web\out -> desktop\resources\web (cung hop dong voi build-sidecar.sh)
-    4. electron-forge make --platform=win32 --arch=x64 -> NSIS
+    4. desktop\resources\legal qua gen-legal.sh (chay bang Git Bash), roi
+       electron-forge make --platform=win32 --arch=x64 -> NSIS
     5. Doi ten "AINovel Studio Setup X.Y.Z.exe" -> AINovel-Studio-Setup-X.Y.Z.exe
        va sua latest.yml cho khop (GitHub doi dau cach thanh dau cham khi upload)
     6. Smoke: mo ban da dong goi voi userData TAM (khong dung du lieu that),
@@ -142,6 +143,31 @@ function Get-Sha512B64([string]$Path) {
   try { return [Convert]::ToBase64String($sha.ComputeHash($fs)) } finally { $fs.Dispose(); $sha.Dispose() }
 }
 
+# bash.exe cua Git for Windows, de chay desktop/scripts/gen-legal.sh: mot nguon duy nhat
+# cho giay to phap ly, khong port sang PowerShell roi lech nhau. KHONG lay `bash` tren PATH:
+# tren Windows do thuong la C:\Windows\System32\bash.exe cua WSL - chay trong mot Linux
+# khac, khong thay go/node cua Windows. Suy tu git.exe (<Git>\cmd\git.exe -> <Git>\bin\bash.exe),
+# roi thu cac cho cai mac dinh.
+function Find-GitBash {
+  $candidates = @()
+  $git = Get-Command git -ErrorAction SilentlyContinue
+  if ($git) {
+    $gitRoot = Split-Path -Parent (Split-Path -Parent $git.Source)
+    $candidates += (Join-Path $gitRoot 'bin\bash.exe')
+    $candidates += (Join-Path (Split-Path -Parent $gitRoot) 'bin\bash.exe')
+  }
+  # StrictMode: bien moi truong khong co la $null, Join-Path $null nem loi - loc truoc.
+  $bases = @($env:ProgramFiles, ${env:ProgramFiles(x86)})
+  if ($env:LOCALAPPDATA) { $bases += (Join-Path $env:LOCALAPPDATA 'Programs') }
+  foreach ($base in $bases) {
+    if ($base) { $candidates += (Join-Path $base 'Git\bin\bash.exe') }
+  }
+  foreach ($c in $candidates) {
+    if ($c -and (Test-Path $c) -and ($c -notmatch '\\System32\\')) { return (Resolve-Path $c).Path }
+  }
+  return $null
+}
+
 # Loi chan ban that nhung chi canh bao khi -DryRun (tap duot tu bat ky commit nao).
 function Stop-OrWarn([string]$Message) {
   if ($DryRun) { Warn "  [dry-run] $Message" } else { throw $Message }
@@ -157,6 +183,8 @@ try {
   Bold "1/7  Dieu kien (dry-run=$DryRun)"
   $missing = @('go', 'node', 'npm', 'npx', 'git', 'gh') | Where-Object { -not (Get-Command $_ -ErrorAction SilentlyContinue) }
   if ($missing) { throw "Thieu cong cu: $($missing -join ', ')" }
+  $gitBash = Find-GitBash
+  if (-not $gitBash) { throw 'Thieu Git Bash (bash.exe cua Git for Windows) - can de chay desktop\scripts\gen-legal.sh. Cai Git for Windows.' }
   if (-not (Test-Path (Join-Path $Desktop 'forge.config.ts'))) { throw 'Thieu desktop\forge.config.ts' }
 
   Set-Location $Repo
@@ -244,6 +272,17 @@ try {
   Bold '4/7  electron-forge make --platform=win32 --arch=x64'
   Set-Location $Desktop
   if (-not (Test-Path (Join-Path $Desktop 'node_modules'))) { [void](Invoke-Native npm @('ci')) }
+  # Giay to phap ly (LICENSE, NOTICE, PRIVACY, DISCLAIMER, THIRD_PARTY_NOTICES, LICENSES.chromium.html)
+  # -> desktop\resources\legal. Sau go build (module da trong cache) va sau npm ci cua web\ va
+  # desktop\: gen-legal.sh khong goi mang. prePackage cua forge.config.ts tu choi dong goi neu
+  # thieu. Duong dan truyen dang C:/... (dau gach xuoi): Git Bash hieu, khong can cygpath.
+  $legalDir = Join-Path $Desktop 'resources\legal'
+  $genLegal = (Join-Path $PSScriptRoot 'gen-legal.sh') -replace '\\', '/'
+  [void](Invoke-Native $gitBash @($genLegal, ($legalDir -replace '\\', '/')))
+  foreach ($f in @('LICENSE', 'NOTICE', 'PRIVACY.md', 'DISCLAIMER.md', 'THIRD_PARTY_NOTICES.md', 'LICENSES.chromium.html')) {
+    if (-not (Test-Path (Join-Path $legalDir $f))) { throw "gen-legal.sh khong tao $legalDir\$f" }
+  }
+  Green "  legal -> $legalDir"
   foreach ($d in @("out\$ProductName-win32-x64", 'out\make\nsis')) {
     $p = Join-Path $Desktop $d
     if (Test-Path $p) { Remove-Item -Recurse -Force $p }
@@ -256,6 +295,7 @@ try {
   if (-not (Test-Path $appDir)) { throw "Khong thay $appDir" }
   if (-not (Test-Path (Join-Path $appDir 'resources\bin\ainovel-cli.exe'))) { throw 'Goi thieu resources\bin\ainovel-cli.exe - extraResource?' }
   if (-not (Test-Path (Join-Path $appDir 'resources\web\index.html'))) { throw 'Goi thieu resources\web\index.html - extraResource?' }
+  if (-not (Test-Path (Join-Path $appDir 'resources\legal\THIRD_PARTY_NOTICES.md'))) { throw 'Goi thieu resources\legal\THIRD_PARTY_NOTICES.md - extraResource?' }
 
   # ======================================================================
   # 5. Doi ten bo cai + sua latest.yml
