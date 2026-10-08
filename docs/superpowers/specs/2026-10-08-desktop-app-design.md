@@ -145,3 +145,40 @@ Cách build từ nguồn giữ nguyên bên dưới.
 
 Linux, ký Windows, chọn thư mục truyện, nhúng web vào nhị phân, TUI/CLI trong app, telemetry,
 nhiều cửa sổ, IPC/preload.
+
+## Bổ sung 2026-10-08 — chỉ còn app (đã duyệt)
+
+Sản phẩm chỉ còn app desktop. Không còn bản CLI/TUI, Docker, goreleaser hay demo web.
+
+### Go
+- Xóa `internal/entry/tui`, `internal/entry/headless`, `Dockerfile`, `docker-compose.yml`,
+  `.goreleaser.yml`, `scripts/install.sh`, `config.example.jsonc`. Giữ `internal/entry/startup`
+  (sidecar dùng nó để khởi động engine).
+- `cmd/ainovel-cli` chỉ còn `serve`. Gọi không đúng thì in một dòng "đây là thành phần của
+  AINovel Studio, mở app để dùng" và thoát mã 2.
+- `serve` chỉ nghe loopback: `--addr` không phải loopback thì là lỗi khởi động, không còn chế
+  độ chỉ-đọc. Mọi đường ghi luôn được bật.
+- Cờ mới `--config <đường dẫn tuyệt đối>` (bắt buộc với app): đọc và ghi đúng một file này. Bỏ
+  cơ chế chồng hai tầng `~/.ainovel` + `./.ainovel`. Thiếu cờ thì là lỗi khởi động.
+- `NeedsSetup`: chỉ coi là đã cài khi có ít nhất một nhà cung cấp dùng được (có `api_key`,
+  hoặc là loại không cần khóa) và một model mặc định thuộc nhà cung cấp đó.
+
+### Desktop
+- Sidecar chạy với `--config <userData>/config.json`.
+- Lần mở đầu: `<userData>/config.json` chưa có mà `~/.ainovel/config.json` có thì chép sang.
+  Không xóa file cũ.
+- Menu **Tệp → Nhập truyện từ thư mục…**: chọn thư mục, chép mọi truyện hợp lệ vào
+  `<userData>/books`. Bỏ qua tệp `studio.lock`. Truyện trùng tên thì bỏ qua và báo lại.
+
+### Web
+- Gỡ mọi nhánh chỉ-đọc và mọi chỗ nhắc lệnh CLI hay `ainovel-cli`.
+
+### Nền cho agent điều khiển (làm sau)
+`AINovel Studio --mcp-bridge` (cùng mẫu với lingoreup): MCP qua stdio, chuyển tiếp lệnh tới
+sidecar của app đang chạy. Tìm cổng qua `<userData>/sidecar-port`, ghi kèm header
+`X-Ainovel-Studio`. HTTP API của sidecar là bề mặt điều khiển duy nhất, dùng chung cho giao
+diện và agent. Không xóa endpoint nào agent có thể cần.
+
+### Trang web
+- `landing/` thành trang tải app (GitHub Releases).
+- Gỡ studio demo chỉ-đọc trên server `/opt/ainovel`. Phải báo người dùng trước khi gỡ.
