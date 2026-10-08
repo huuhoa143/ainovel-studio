@@ -59,7 +59,10 @@ export class Sidecar extends EventEmitter {
     super();
     this.opts = {
       readyTimeoutMs: 20_000,
-      stopTimeoutMs: 5_000,
+      // Ngân sách tắt êm chung với Go: trong khoảng này Go phải xả HTTP (thoiHanTatEm = 2 giây,
+      // internal/serve/serve.go), dừng engine, lưu sổ chi phí và nhả khóa truyện. kill() sớm hơn
+      // là để lại khóa mồ côi. Đổi số này thì sửa cả chú thích của thoiHanTatEm.
+      stopTimeoutMs: 15_000,
       maxLogBytes: 5 * 1024 * 1024,
       ringSize: 200,
       ...opts,
@@ -98,6 +101,8 @@ export class Sidecar extends EventEmitter {
 
     return new Promise<string>((resolve, reject) => {
       let settled = false;
+      // Khai báo TRƯỚC fail(): spawn() có thể ném đồng bộ (đối số hỏng) và gọi fail() ngay.
+      let timer: NodeJS.Timeout | undefined;
       const fail = (err: Error) => {
         if (settled) return;
         settled = true;
@@ -126,7 +131,7 @@ export class Sidecar extends EventEmitter {
       // Ghi vào stdin đã đóng (EPIPE) không được làm sập main.
       child.stdin?.on('error', () => {});
 
-      const timer = setTimeout(() => {
+      timer = setTimeout(() => {
         this.record('main', `không thấy AINOVEL_READY sau ${this.opts.readyTimeoutMs}ms — dừng tiến trình`);
         fail(new Error(`sidecar không sẵn sàng sau ${Math.round(this.opts.readyTimeoutMs / 1000)} giây`));
         child.kill();
@@ -160,7 +165,8 @@ export class Sidecar extends EventEmitter {
           fail(new Error(`sidecar thoát trước khi sẵn sàng (code=${code}${signal ? `, signal=${signal}` : ''})`));
           if (prev === 'ready') this.emit('exit', info);
         };
-        child.once('error', (err) => {
+        // on() chứ không once(): lần 'error' thứ hai không có listener là ném ra và làm sập main.
+        child.on('error', (err) => {
           this.record('main', `lỗi tiến trình: ${err.message}`);
           fail(err);
           // Spawn thất bại (ENOENT…) thì không có 'close' đáng tin, tự khép vòng đời.
@@ -235,11 +241,26 @@ export class Sidecar extends EventEmitter {
     }
   }
 
-  /** Cắt log: đổi tên thành `.1` (đè bản cũ) và mở tệp mới. */
+  /**
+   * Cắt log: đổi tên thành `.1` (đè bản cũ) và mở tệp mới. Trên Windows, phần mềm diệt virus
+   * hay bộ lập chỉ mục đang giữ tệp thì rename hỏng (EPERM/EBUSY): khi đó cắt ngắn tệp tại chỗ
+   * — mất phần log cũ nhưng dung lượng vẫn có trần, và logBytes về 0 nên không thử lại mỗi dòng.
+   * Không bao giờ để logFd trỏ vào fd đã đóng.
+   */
   private rotateLog() {
-    if (this.logFd !== null) fs.closeSync(this.logFd);
-    fs.renameSync(this.opts.logFile, `${this.opts.logFile}.1`);
-    this.logFd = fs.openSync(this.opts.logFile, 'a');
+    this.closeLog();
+    let renamed = false;
+    try {
+      fs.renameSync(this.opts.logFile, `${this.opts.logFile}.1`);
+      renamed = true;
+    } catch {
+      // xem chú thích ở trên
+    }
+    try {
+      this.logFd = fs.openSync(this.opts.logFile, renamed ? 'a' : 'w');
+    } catch {
+      this.logFd = null;
+    }
     this.logBytes = 0;
   }
 
@@ -247,8 +268,11 @@ export class Sidecar extends EventEmitter {
     if (this.logFd === null) return;
     try {
       const bytes = Buffer.byteLength(text);
-      if (this.logBytes + bytes > this.opts.maxLogBytes) this.rotateLog();
-      fs.writeSync(this.logFd!, text);
+      if (this.logBytes + bytes > this.opts.maxLogBytes) {
+        this.rotateLog();
+        if (this.logFd === null) return;
+      }
+      fs.writeSync(this.logFd, text);
       this.logBytes += bytes;
     } catch {
       // Đĩa đầy hay tệp bị xóa giữa chừng: bỏ dòng này, không làm sập main.

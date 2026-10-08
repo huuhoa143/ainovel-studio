@@ -1,20 +1,28 @@
 import path from 'node:path';
-import { open, readFile, readdir, writeFile } from 'node:fs/promises';
+import { mkdir, open, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import type { ForgeConfig } from '@electron-forge/shared-types';
+import type { MakerOptions } from '@electron-forge/maker-base';
 import { MakerZIP } from '@electron-forge/maker-zip';
 import MakerNSIS from '@electron-addons/electron-forge-maker-nsis';
 import { VitePlugin } from '@electron-forge/plugin-vite';
 import { FusesPlugin } from '@electron-forge/plugin-fuses';
 import { FuseV1Options, FuseVersion } from '@electron/fuses';
+import { build as electronBuilder, type Configuration } from 'app-builder-lib';
+import { APP_ID } from './src/main/appId';
+import pkg from './package.json';
 
-// Một nguồn duy nhất cho kênh cập nhật: maker NSIS (Windows) và `app-update.yml` ghi vào
-// .app (macOS) cùng đọc từ đây nên không thể lệch nhau.
+// Một nguồn duy nhất cho kênh cập nhật: `app-update.yml` trong gói (mọi nền tảng, hook
+// packageAfterCopy) và cấu hình publish mà electron-builder dùng để sinh latest.yml cho bộ cài
+// Windows cùng đọc từ đây nên không thể lệch nhau. Cả hai nền tảng dùng provider github.
 const UPDATER = {
   provider: 'github' as const,
   owner: 'huuhoa143',
   repo: 'ainovel-studio',
-  // Tên thư mục cache của electron-updater (~/Library/Caches/<tên>). Giữ cố định qua các bản.
-  updaterCacheDirName: 'ainovel-studio-updater',
+  // Thư mục cache của electron-updater (~/Library/Caches/<tên>, %LOCALAPPDATA%\<tên>). PHẢI là
+  // `<tên gói npm>-updater`: bộ cài NSIS tự chép mình vào đúng thư mục electron-builder suy ra
+  // từ tên gói (APP_INSTALLER_STORE_FILE), và NsisUpdater lấy bản đó làm gốc cho cập nhật vi
+  // sai — lệch tên là âm thầm tải lại cả bộ cài mỗi lần. Giữ cố định qua các bản.
+  updaterCacheDirName: `${pkg.name}-updater`,
 };
 
 // YAML viết tay để hook không cần thêm dependency. Các khóa bắt buộc đứng đầu.
@@ -62,18 +70,70 @@ async function checkSidecarBin(platform: string, arch: string): Promise<void> {
   }
 }
 
-// Maker NSIS tự khóa vào máy build win32, nhưng app-builder-lib bên dưới dựng NSIS trên
-// darwin được (đã thử: không cần wine/rcedit) — nhờ vậy release.sh làm luôn bản Windows từ Mac.
-class MakerNSISAnyHost extends MakerNSIS {
+// Ghim tường minh mọi lựa chọn của bộ cài để đổi mặc định ở bản electron-builder sau không
+// lặng lẽ đổi hành vi cài/gỡ của người dùng đang có.
+const NSIS: NonNullable<Configuration['nsis']> = {
+  oneClick: true,
+  perMachine: false,
+  // Gỡ app KHÔNG xóa %APPDATA%\AINovel Studio — truyện của người dùng nằm trong đó.
+  deleteAppDataOnUninstall: false,
+  createDesktopShortcut: true,
+  createStartMenuShortcut: true,
+  shortcutName: 'AINovel Studio',
+  runAfterFinish: true,
+  // Không dấu cách: GitHub đổi dấu cách trong tên asset thành dấu chấm, latest.yml sẽ lệch.
+  artifactName: 'AINovel-Studio-Setup-${version}.${ext}',
+};
+
+// Maker NSIS gốc gọi electron-builder KHÔNG kèm cấu hình (appId rơi về mặc định
+// com.electron.<tên gói> — chính là GUID gỡ cài đặt và AUMID của shortcut) và tự ghi
+// app-update.yml provider generic đè lên bản github của hook. Nên ta tự gọi electron-builder
+// với cấu hình đầy đủ ở đây; chỉ mượn lớp gốc làm vỏ maker. Nó cũng tự khóa vào máy build
+// win32, nhưng electron-builder dựng NSIS trên darwin được (không cần wine/rcedit) — nhờ vậy
+// release.sh làm luôn bản Windows từ Mac.
+class MakerNSISFull extends MakerNSIS {
   isSupportedOnCurrentPlatform(): boolean {
     return true;
+  }
+
+  async make({ dir, makeDir, targetArch }: MakerOptions): Promise<string[]> {
+    const outDir = path.resolve(makeDir, 'nsis', targetArch);
+    const workDir = path.resolve(makeDir, 'nsis', `${targetArch}-build`);
+    await rm(outDir, { recursive: true, force: true });
+    await rm(workDir, { recursive: true, force: true });
+    await mkdir(outDir, { recursive: true });
+    await electronBuilder({
+      prepackaged: dir,
+      win: [`nsis:${targetArch}`],
+      // Chỉ dựng; release.sh upload. Không để electron-builder tự publish khi thấy CI/tag.
+      publish: 'never',
+      config: {
+        appId: APP_ID,
+        directories: { output: workDir },
+        nsis: NSIS,
+        publish: { provider: UPDATER.provider, owner: UPDATER.owner, repo: UPDATER.repo },
+      },
+    });
+    // Lấy bộ cài, .blockmap (cập nhật vi sai) và latest.yml; bỏ tệp phụ của electron-builder.
+    const keep = (f: string) => f.endsWith('.exe') || f.endsWith('.exe.blockmap') || f === 'latest.yml';
+    const files = (await readdir(workDir)).filter(keep);
+    if (!files.some((f) => f.endsWith('.exe')) || !files.includes('latest.yml')) {
+      throw new Error(`electron-builder không sinh đủ bộ cài + latest.yml trong ${workDir}: [${files.join(', ')}]`);
+    }
+    const result: string[] = [];
+    for (const f of files) {
+      await rename(path.join(workDir, f), path.join(outDir, f));
+      result.push(path.join(outDir, f));
+    }
+    await rm(workDir, { recursive: true, force: true });
+    return result;
   }
 }
 
 const config: ForgeConfig = {
   packagerConfig: {
     asar: true,
-    appBundleId: 'com.huuhoa143.ainovelstudio',
+    appBundleId: APP_ID,
     icon: 'build/icon',
     // Sidecar Go và web tĩnh nằm NGOÀI asar để spawn() được và để Go đọc thẳng từ đĩa.
     // Chúng rơi vào <Resources>/bin và <Resources>/web (paths.ts đọc qua process.resourcesPath).
@@ -86,7 +146,8 @@ const config: ForgeConfig = {
       await checkSidecarBin(platform, arch);
     },
     // packageAfterCopy chạy TRƯỚC khi chép extraResource, nhưng thư mục Resources đã có,
-    // nên ghi app-update.yml ở đây được. Chỉ cần cho macOS — NSIS maker tự sinh bản Windows.
+    // nên ghi app-update.yml ở đây được. Cho cả macOS (<App>.app/Contents/Resources) lẫn
+    // Windows (<thư mục app>/resources); maker NSIS ở trên không ghi đè.
     packageAfterCopy: async (_forgeConfig, buildPath) => {
       const resourcesDir = path.resolve(buildPath, '..');
       const ymlPath = path.join(resourcesDir, 'app-update.yml');
@@ -100,20 +161,9 @@ const config: ForgeConfig = {
     },
   },
   makers: [
-    // Windows: NSIS (bọc target NSIS của electron-builder). Squirrel.Windows không được
+    // Windows: NSIS (target NSIS của electron-builder). Squirrel.Windows không được
     // electron-updater hỗ trợ. Chưa ký Authenticode — người dùng gặp SmartScreen một lần.
-    // `updater` làm maker sinh latest.yml cạnh bộ cài và app-update.yml provider github
-    // bên trong app (vì URL là endpoint release của github.com).
-    new MakerNSISAnyHost(
-      {
-        updater: {
-          url: `https://github.com/${UPDATER.owner}/${UPDATER.repo}/releases/latest/download`,
-          updaterCacheDirName: UPDATER.updaterCacheDirName,
-          channel: 'latest',
-        },
-      },
-      ['win32'],
-    ),
+    new MakerNSISFull({}, ['win32']),
     new MakerZIP({}, ['darwin']),
   ],
   plugins: [

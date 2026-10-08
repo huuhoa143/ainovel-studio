@@ -106,7 +106,7 @@ key xong tạo/chạy truyện được ngay mà không khởi động lại sid
 - `forge.config.ts` — `extraResource: ['resources/bin', 'resources/web']`, maker ZIP (darwin),
   maker NSIS (`@electron-addons/electron-forge-maker-nsis`, win32, updater url
   `https://github.com/huuhoa143/ainovel-studio/releases/latest/download`), hook ghi
-  `app-update.yml` (copy mẫu lingoreup), `updaterCacheDirName: ainovel-studio-updater`.
+  `app-update.yml` (copy mẫu lingoreup), `updaterCacheDirName: ainovel-studio-desktop-updater` (phải trùng `<npm name>-updater` vì NSIS chép bản cài vào đó làm gốc cho cập nhật vi sai).
 - `release.sh X.Y.Z [--dry-run] [--resume]` (chạy trên Mac arm64) — rút gọn từ lingoreup
   `local-release.sh` + `release-with-x64.sh`: prereqs → bump `desktop/package.json` + commit + tag
   `vX.Y.Z` → với mỗi arch (arm64, x64): build-sidecar → `electron-forge package/make --arch` →

@@ -25,6 +25,7 @@
     "@electron-forge/plugin-vite": "^7.11.1",
     "@electron/fuses": "^1.8.0",
     "@types/node": "^22.10.0",
+    "app-builder-lib": "24.13.3",
     "electron": "42.0.1",
     "typescript": "~5.4.5",
     "vite": "^5.4.21",

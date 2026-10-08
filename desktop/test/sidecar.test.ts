@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Sidecar, sidecarArgs, type SidecarExit, type SidecarOptions } from '../src/main/sidecar';
 
 const FAKE = path.join(__dirname, 'fixtures', 'fake-sidecar.mjs');
@@ -14,6 +14,7 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
+  vi.restoreAllMocks();
   await Promise.all(live.map((s) => s.stop()));
   live = [];
   fs.rmSync(dir, { recursive: true, force: true });
@@ -99,17 +100,39 @@ describe('Sidecar', () => {
     expect(sc.running).toBe(false);
   });
 
+  it('spawn() ném đồng bộ → reject đúng lỗi đó (không phải ReferenceError), khởi động lại được', async () => {
+    const sc = make('ready', { bin: 'khong\0hop-le', binArgsPrefix: [] });
+    const err = await sc.start().catch((e: Error) => e);
+    expect(err).toBeInstanceOf(Error);
+    expect(err).not.toBeInstanceOf(ReferenceError);
+    expect((err as Error).message).toMatch(/null bytes|ERR_INVALID_ARG/i);
+    expect(sc.running).toBe(false);
+    expect(sc.lastLines().join('\n')).toContain('không spawn được');
+  });
+
+  it("'error' phát hai lần trên tiến trình con không làm sập main", async () => {
+    const sc = make('ready');
+    await sc.start();
+    const child = (sc as unknown as { child: EventEmitterLike }).child;
+    expect(() => {
+      child.emit('error', new Error('lỗi một'));
+      child.emit('error', new Error('lỗi hai'));
+    }).not.toThrow();
+    expect(sc.lastLines().join('\n')).toContain('lỗi hai');
+  });
+
   it('stop() đóng stdin và sidecar tắt êm, không phát exit', async () => {
     const sc = make('ready');
     let exitEvents = 0;
     sc.on('exit', () => exitEvents++);
     await sc.start();
-    const t0 = Date.now();
     await sc.stop();
-    expect(Date.now() - t0).toBeLessThan(2000);
     expect(sc.running).toBe(false);
     expect(exitEvents).toBe(0);
-    expect(fs.readFileSync(path.join(dir, 'logs', 'sidecar.log'), 'utf8')).toContain('fake: stdin đóng, tắt êm');
+    const log = fs.readFileSync(path.join(dir, 'logs', 'sidecar.log'), 'utf8');
+    expect(log).toContain('fake: stdin đóng, tắt êm');
+    // Tự thoát vì stdin đóng, không phải bị kill khi hết hạn chờ.
+    expect(log).not.toContain('kill()');
   });
 
   it('stop() kill khi sidecar phớt lờ stdin', async () => {
@@ -157,6 +180,24 @@ describe('Sidecar', () => {
     expect(fs.statSync(`${logFile}.1`).size).toBeLessThanOrEqual(10_000);
   });
 
+  it('không đổi tên được log khi cắt (Windows: EPERM do diệt virus giữ tệp) → cắt ngắn tại chỗ, vẫn ghi tiếp', async () => {
+    const logFile = path.join(dir, 'logs', 'sidecar.log');
+    const rename = vi.spyOn(fs, 'renameSync').mockImplementation(() => {
+      throw Object.assign(new Error('EPERM: operation not permitted, rename'), { code: 'EPERM' });
+    });
+    const sc = make('chatty', { maxLogBytes: 10_000 }, { FAKE_LINES: '400' });
+    await sc.start();
+    await sc.stop();
+    expect(rename).toHaveBeenCalled();
+    // ~40KB log qua ngưỡng 10KB: mỗi lần cắt thử rename đúng một lần, không thử lại mỗi dòng.
+    expect(rename.mock.calls.length).toBeLessThan(10);
+    expect(fs.existsSync(`${logFile}.1`)).toBe(false);
+    const log = fs.readFileSync(logFile, 'utf8');
+    expect(log.length).toBeLessThanOrEqual(10_000);
+    // Vẫn ghi được tới tận dòng cuối cùng (không ghi vào fd đã đóng).
+    expect(log).toContain('tiến trình thoát');
+  });
+
   it('log cũ đã quá ngưỡng thì cắt ngay lúc khởi động', async () => {
     const logFile = path.join(dir, 'logs', 'sidecar.log');
     fs.mkdirSync(path.dirname(logFile), { recursive: true });
@@ -168,6 +209,10 @@ describe('Sidecar', () => {
     expect(fs.readFileSync(logFile, 'utf8')).toContain('AINOVEL_READY');
   });
 });
+
+interface EventEmitterLike {
+  emit(event: string, ...args: unknown[]): boolean;
+}
 
 async function waitFor(cond: () => boolean, ms = 5000) {
   const t0 = Date.now();

@@ -1,4 +1,4 @@
-import { app, dialog, type BrowserWindow } from 'electron';
+import { app, dialog, autoUpdater as nativeUpdater, type BrowserWindow } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import type { Logger } from './logger';
 
@@ -8,8 +8,15 @@ import type { Logger } from './logger';
 export interface UpdaterOptions {
   log: Logger;
   getWindow: () => BrowserWindow | null;
-  /** Dừng sidecar trước khi cài, để quitAndInstall không phải chờ before-quit. */
-  beforeInstall: () => Promise<void>;
+  /**
+   * Dừng sidecar trước khi cài, để quitAndInstall không phải chờ before-quit (chặn before-quit
+   * lúc đó là quitAndInstall đứng im). Trả false = đừng cài lúc này (app đang thoát).
+   */
+  prepareInstall: () => Promise<boolean>;
+  /** Trình cài đã tiếp quản (`before-quit-for-update`), app sắp thoát thật. */
+  installProceeding: () => void;
+  /** Cài không thành: khôi phục sidecar. No-op nếu không đang cài. */
+  installFailed: (reason: string) => void;
 }
 
 let opts: UpdaterOptions | null = null;
@@ -69,9 +76,15 @@ export function initUpdater(o: UpdaterOptions): void {
     manualCheck = false;
   });
 
+  // Cả NsisUpdater lẫn MacUpdater đều phát sự kiện này trên autoUpdater gốc của Electron ngay
+  // trước khi quit để cài — mốc duy nhất cho biết cài đã thật sự đi tiếp.
+  nativeUpdater.on('before-quit-for-update', () => o.installProceeding());
+
   autoUpdater.on('error', (err) => {
     // Lỗi mạng chỉ ghi log — không làm phiền, trừ khi người dùng vừa tự bấm kiểm tra.
     o.log.warn(`updater: lỗi — ${firstLine(err)}`);
+    // quitAndInstall hỏng (không spawn được trình cài, Squirrel lỗi…) cũng báo qua đây.
+    o.installFailed(firstLine(err));
     if (manualCheck) {
       void showBox({
         type: 'warning',
@@ -96,10 +109,12 @@ export function initUpdater(o: UpdaterOptions): void {
       detail: `AINovel Studio ${info.version} đã sẵn sàng. Bấm "Để sau" thì bản mới sẽ được cài khi bạn thoát app.`,
     });
     if (response !== 0) return;
+    if (!(await o.prepareInstall())) return;
     try {
-      await o.beforeInstall();
-    } finally {
       autoUpdater.quitAndInstall();
+    } catch (err) {
+      o.log.warn(`updater: quitAndInstall ném lỗi — ${firstLine(err)}`);
+      o.installFailed(firstLine(err));
     }
   });
 }

@@ -49,13 +49,6 @@ function occupyPort(): Promise<number> {
   });
 }
 
-async function freePort(): Promise<number> {
-  const port = await occupyPort();
-  const srv = blockers.pop()!;
-  await new Promise((r) => srv.close(r));
-  return port;
-}
-
 const portOf = (url: string) => Number(new URL(url).port);
 
 describe('readSavedPort / savePort', () => {
@@ -93,11 +86,12 @@ describe('startOnStablePort', () => {
   });
 
   it('dùng lại cổng đã nhớ — origin giữ nguyên qua các lần khởi động', async () => {
-    const port = await freePort();
-    savePort(portFile, port);
+    // Không "tìm cổng trống rồi nhả ra" (tiến trình khác có thể chiếm mất trước khi dùng): để
+    // chính sidecar giữ cổng hệ điều hành cấp, rồi dừng và mở lại — đúng kịch bản thật.
     const sc = make();
     const a = await startOnStablePort(sc, portFile);
-    expect(portOf(a)).toBe(port);
+    const port = portOf(a);
+    expect(readSavedPort(portFile)).toBe(port);
     await sc.stop();
     const b = await startOnStablePort(sc, portFile);
     expect(b).toBe(a);
@@ -113,6 +107,15 @@ describe('startOnStablePort', () => {
     expect(portOf(url)).toBeGreaterThan(0);
     expect(readSavedPort(portFile)).toBe(portOf(url));
     expect((await fetch(url)).status).toBe(200);
+  });
+
+  it('signal đã hủy → không thử cổng khác dù lỗi là bind', async () => {
+    const busy = await occupyPort();
+    savePort(portFile, busy);
+    const ac = new AbortController();
+    ac.abort();
+    await expect(startOnStablePort(make(), portFile, ac.signal)).rejects.toThrow(/thoát trước khi sẵn sàng/);
+    expect(readSavedPort(portFile)).toBe(busy);
   });
 
   it('lỗi không phải bind → không thử lại, ném lỗi và giữ nguyên cổng đã nhớ', async () => {

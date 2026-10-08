@@ -1,6 +1,6 @@
 import fs from 'node:fs';
-import { BrowserWindow, screen, shell, type Rectangle } from 'electron';
-import { parseAction, type ErrorAction } from './errorPage';
+import { BrowserWindow, screen, shell, type Event, type Rectangle } from 'electron';
+import { actionFor, type ErrorAction } from './errorPage';
 
 interface WindowState {
   x?: number;
@@ -31,6 +31,7 @@ function loadState(file: string): WindowState {
 }
 
 function saveState(file: string, win: BrowserWindow) {
+  if (win.isDestroyed()) return;
   const b = win.getNormalBounds();
   const state: WindowState = { ...b, maximized: win.isMaximized() };
   try {
@@ -42,7 +43,7 @@ function saveState(file: string, win: BrowserWindow) {
 
 export interface MainWindowOptions {
   stateFile: string;
-  /** Origin hiện tại của sidecar (đổi sau mỗi lần "Thử lại" vì cổng do hệ điều hành cấp). */
+  /** Origin của studio khi sidecar đang chạy; null khi đang ở trang cục bộ. */
   getOrigin: () => string | null;
   onAction: (action: ErrorAction) => void;
 }
@@ -87,16 +88,22 @@ export function createMainWindow(opts: MainWindowOptions): BrowserWindow {
   };
   win.on('resize', scheduleSave);
   win.on('move', scheduleSave);
-  win.on('close', () => {
+  const clearSaveTimer = () => {
     if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = null;
+  };
+  win.on('close', () => {
+    clearSaveTimer();
     saveState(opts.stateFile, win);
   });
+  win.on('closed', clearSaveTimer);
 
   const wc = win.webContents;
   // Chỉ ở lại origin của sidecar. Liên kết http(s) ra ngoài mở bằng trình duyệt; nút trên
-  // trang lỗi đi qua scheme `ainovel-action:`; còn lại chặn.
-  wc.on('will-navigate', (event, url) => {
-    const action = parseAction(url);
+  // trang cục bộ đi qua scheme `ainovel-action:`; còn lại chặn. Chuyển hướng (3xx) đi cùng luật,
+  // trừ việc nó không bao giờ là một cú bấm nút.
+  const guard = (event: Event, url: string, isRedirect: boolean) => {
+    const action = isRedirect ? null : actionFor(wc.getURL(), url);
     if (action) {
       event.preventDefault();
       opts.onAction(action);
@@ -106,11 +113,19 @@ export function createMainWindow(opts: MainWindowOptions): BrowserWindow {
     if (origin && originOf(url) === origin) return;
     event.preventDefault();
     if (isHttp(url)) void shell.openExternal(url);
-  });
+  };
+  wc.on('will-navigate', (event, url) => guard(event, url, false));
+  wc.on('will-redirect', (event, url) => guard(event, url, true));
   wc.setWindowOpenHandler(({ url }) => {
     if (isHttp(url)) void shell.openExternal(url);
     return { action: 'deny' };
   });
+
+  // Studio không cần quyền nào của trình duyệt (camera, micro, vị trí, thông báo…); chỉ cho
+  // ghi clipboard (navigator.clipboard.writeText) để nút "Sao chép" chạy được.
+  const allowed = (permission: string) => permission === 'clipboard-sanitized-write';
+  wc.session.setPermissionRequestHandler((_wc, permission, callback) => callback(allowed(permission)));
+  wc.session.setPermissionCheckHandler((_wc, permission) => allowed(permission));
 
   return win;
 }

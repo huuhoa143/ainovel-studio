@@ -37,14 +37,18 @@ export function isListenError(lines: string[]): boolean {
   return lines.some((l) => /listen tcp [^\s]*: bind:/i.test(l));
 }
 
-/** Khởi động sidecar trên cổng đã nhớ (nếu có), lùi về :0 một lần khi cổng đó không dùng được. */
-export async function startOnStablePort(sidecar: Sidecar, portFile: string): Promise<string> {
+/**
+ * Khởi động sidecar trên cổng đã nhớ (nếu có), lùi về :0 một lần khi cổng đó không dùng được.
+ * `signal` bị hủy (app đang thoát / cài cập nhật) thì không thử lại — không spawn tiến trình mới
+ * sau khi chủ của nó đã thôi cần.
+ */
+export async function startOnStablePort(sidecar: Sidecar, portFile: string, signal?: AbortSignal): Promise<string> {
   const saved = readSavedPort(portFile);
   let url: string;
   try {
     url = await sidecar.start(saved);
   } catch (err) {
-    if (saved === 0 || !isListenError(sidecar.lastRunLines())) throw err;
+    if (saved === 0 || signal?.aborted || !isListenError(sidecar.lastRunLines())) throw err;
     url = await sidecar.start(0);
   }
   const port = Number(new URL(url).port);
