@@ -32,6 +32,7 @@ function make(mode = 'ready') {
     binArgsPrefix: [FAKE],
     booksDir: path.join(dir, 'books'),
     webDir: path.join(dir, 'web'),
+    configFile: path.join(dir, 'config.json'),
     cwd: dir,
     logFile: path.join(dir, 'logs', 'sidecar.log'),
     env: { ...process.env, FAKE_MODE: mode },

@@ -45,6 +45,11 @@ export interface DataPaths {
   /** cwd của sidecar. */
   userData: string;
   books: string;
+  /** File cấu hình duy nhất của sidecar (`--config`). */
+  config: string;
+  /** Chỗ chép tạm khi nhập truyện — cùng ổ với `books` để rename được, nhưng nằm NGOÀI
+   *  `books` để sidecar không thấy truyện chép dở. */
+  importStaging: string;
   logs: string;
   sidecarLog: string;
   mainLog: string;
@@ -58,6 +63,8 @@ export function resolveDataPaths(userData: string): DataPaths {
   return {
     userData,
     books: path.join(userData, 'books'),
+    config: path.join(userData, 'config.json'),
+    importStaging: path.join(userData, '.import-staging'),
     logs,
     sidecarLog: path.join(logs, 'sidecar.log'),
     mainLog: path.join(logs, 'main.log'),

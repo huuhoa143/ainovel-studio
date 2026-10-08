@@ -26,6 +26,7 @@ function make(mode: string, extra: Partial<SidecarOptions> = {}, env: Record<str
     binArgsPrefix: [FAKE],
     booksDir: path.join(dir, 'books'),
     webDir: path.join(dir, 'web'),
+    configFile: path.join(dir, 'config.json'),
     cwd: dir,
     logFile: path.join(dir, 'logs', 'sidecar.log'),
     env: { ...process.env, FAKE_MODE: mode, ...env },
@@ -46,9 +47,13 @@ function pidAlive(pid: number): boolean {
 
 describe('sidecarArgs', () => {
   it('đúng hợp đồng', () => {
-    expect(sidecarArgs('/b', '/w')).toEqual([
-      'serve', '--addr', '127.0.0.1:0', '--root', '/b', '--web', '/w', '--exit-on-stdin-close',
+    expect(sidecarArgs({ booksDir: '/b', webDir: '/w', configFile: '/u/config.json' })).toEqual([
+      'serve', '--addr', '127.0.0.1:0', '--root', '/b', '--web', '/w', '--config', '/u/config.json',
+      '--exit-on-stdin-close',
     ]);
+    expect(sidecarArgs({ booksDir: '/b', webDir: '/w', configFile: '/u/config.json' }, 8421)[2]).toBe(
+      '127.0.0.1:8421',
+    );
   });
 });
 
@@ -63,7 +68,7 @@ describe('Sidecar', () => {
     expect(res.status).toBe(200);
     // Đối số truyền đúng hợp đồng.
     expect(sc.lastLines().join('\n')).toContain(
-      `fake argv: serve --addr 127.0.0.1:0 --root ${path.join(dir, 'books')} --web ${path.join(dir, 'web')} --exit-on-stdin-close`,
+      `fake argv: serve --addr 127.0.0.1:0 --root ${path.join(dir, 'books')} --web ${path.join(dir, 'web')} --config ${path.join(dir, 'config.json')} --exit-on-stdin-close`,
     );
   });
 

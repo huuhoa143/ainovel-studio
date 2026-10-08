@@ -48,8 +48,8 @@ EXE="ainovel-cli"
 [[ "$GOOS_T" == "windows" ]] && EXE="ainovel-cli.exe"
 
 # ─── 1. Giao diện web ───────────────────────────────────────────────────
-# `npm ci` chứ không `npm install`: dựng đúng cây phụ thuộc đã khóa — cùng lý do
-# với .goreleaser.yml. `cd` trong subshell để không rò thư mục làm việc ra ngoài.
+# `npm ci` chứ không `npm install`: dựng đúng cây phụ thuộc đã khóa trong
+# package-lock.json, bản phát hành không tự nâng phiên bản. `cd` trong subshell để không rò thư mục làm việc ra ngoài.
 if (( SKIP_WEB == 0 )); then
   echo "▶ web: npm ci && npm run build"
   (cd "$REPO/web" && npm ci && npm run build)
@@ -68,8 +68,8 @@ rm -rf "$BIN_DIR"
 mkdir -p "$BIN_DIR"
 
 COMMIT="$(git -C "$REPO" rev-parse --short HEAD 2>/dev/null || echo unknown)"
-# Ngày của commit chứ không phải giờ build — như `{{.CommitDate}}` trong
-# .goreleaser.yml: hai lần build cùng một commit cho ra cùng chuỗi phiên bản.
+# Ngày của commit chứ không phải giờ build: hai lần build cùng một commit cho ra
+# cùng chuỗi phiên bản.
 DATE="$(git -C "$REPO" log -1 --format=%cI 2>/dev/null || date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 echo "▶ go build $GOOS_T/$GOARCH_T v$VERSION ($COMMIT)"

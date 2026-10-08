@@ -15,6 +15,8 @@ export interface SidecarOptions {
   binArgsPrefix?: string[];
   booksDir: string;
   webDir: string;
+  /** `<userData>/config.json`, tuyệt đối — Go đọc và ghi đúng một file này. */
+  configFile: string;
   /** cwd của tiến trình con (`<userData>`). */
   cwd: string;
   logFile: string;
@@ -30,9 +32,22 @@ export interface SidecarExit {
   signal: NodeJS.Signals | null;
 }
 
+export interface SidecarArgsInput {
+  booksDir: string;
+  webDir: string;
+  configFile: string;
+}
+
 /** `port` = 0 để hệ điều hành tự cấp cổng trống. */
-export function sidecarArgs(booksDir: string, webDir: string, port = 0): string[] {
-  return ['serve', '--addr', `127.0.0.1:${port}`, '--root', booksDir, '--web', webDir, '--exit-on-stdin-close'];
+export function sidecarArgs(input: SidecarArgsInput, port = 0): string[] {
+  return [
+    'serve',
+    '--addr', `127.0.0.1:${port}`,
+    '--root', input.booksDir,
+    '--web', input.webDir,
+    '--config', input.configFile,
+    '--exit-on-stdin-close',
+  ];
 }
 
 type State = 'idle' | 'starting' | 'ready' | 'stopping' | 'exited';
@@ -96,7 +111,7 @@ export class Sidecar extends EventEmitter {
     this._url = null;
     this.runLines = [];
     this.openLog();
-    const args = [...(this.opts.binArgsPrefix ?? []), ...sidecarArgs(this.opts.booksDir, this.opts.webDir, port)];
+    const args = [...(this.opts.binArgsPrefix ?? []), ...sidecarArgs(this.opts, port)];
     this.record('main', `khởi động: ${this.opts.bin} ${args.join(' ')}`);
 
     return new Promise<string>((resolve, reject) => {

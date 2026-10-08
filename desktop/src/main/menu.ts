@@ -1,8 +1,12 @@
 import { app, Menu, type MenuItemConstructorOptions } from 'electron';
 
+/** Mục "Nhập truyện…" — main.ts tắt nó trong lúc đang nhập. */
+export const IMPORT_MENU_ID = 'import-books';
+
 export interface MenuActions {
   checkForUpdates: () => void;
   openBooksDir: () => void;
+  importBooks: () => void;
   openLogsDir: () => void;
   /** Hiện "Công cụ nhà phát triển" — bản dev luôn bật, bản đóng gói chỉ khi AINOVEL_DEVTOOLS=1. */
   devTools: boolean;
@@ -36,6 +40,8 @@ export function buildMenu(actions: MenuActions): Menu {
     {
       label: 'Tệp',
       submenu: [
+        { id: IMPORT_MENU_ID, label: 'Nhập truyện từ thư mục…', click: () => actions.importBooks() },
+        { type: 'separator' },
         { label: 'Mở thư mục truyện', click: () => actions.openBooksDir() },
         { label: 'Mở thư mục log', click: () => actions.openLogsDir() },
       ],

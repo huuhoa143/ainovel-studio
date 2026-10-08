@@ -64,6 +64,8 @@ describe('resolveDataPaths', () => {
     expect(resolveDataPaths(u)).toEqual({
       userData: u,
       books: path.join(u, 'books'),
+      config: path.join(u, 'config.json'),
+      importStaging: path.join(u, '.import-staging'),
       logs: path.join(u, 'logs'),
       sidecarLog: path.join(u, 'logs', 'sidecar.log'),
       mainLog: path.join(u, 'logs', 'main.log'),

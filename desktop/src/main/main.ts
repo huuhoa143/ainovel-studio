@@ -1,12 +1,15 @@
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
-import { app, BrowserWindow, Menu, shell } from 'electron';
+import { app, BrowserWindow, dialog, Menu, shell } from 'electron';
 import { APP_ID } from './appId';
 import { errorPageUrl, loadingPageUrl, type ErrorAction } from './errorPage';
 import { armExitWatchdog } from './exitWatchdog';
 import { isAbortedLoad, Lifecycle } from './lifecycle';
+import { cleanImportStaging, importBooks, summarizeImport } from './importBooks';
+import { describeMigrationStep, migrateLegacyUserData, tightenConfigMode } from './legacyMigration';
 import { createLogger } from './logger';
-import { buildMenu } from './menu';
+import { buildMenu, IMPORT_MENU_ID } from './menu';
 import { resolveDataPaths, resolveSidecarPaths } from './paths';
 import { Sidecar } from './sidecar';
 import { startOnStablePort } from './stablePort';
@@ -31,6 +34,14 @@ function run() {
   // console, nên bản dev không mất gì).
   process.on('uncaughtException', (err) => log.error('uncaughtException:', err));
   process.on('unhandledRejection', (reason) => log.error('unhandledRejection:', reason));
+
+  // Lần nhập trước bị ngắt (crash, bị kill) có thể để lại bản chép dở trong staging.
+  try {
+    const stale = cleanImportStaging(data.importStaging);
+    if (stale.length > 0) log.info(`nhập truyện: dọn ${stale.length} bản chép dở của lần trước`);
+  } catch (err) {
+    log.warn(`nhập truyện: không dọn được ${data.importStaging}: ${(err as Error).message}`);
+  }
 
   // Dev: app.getAppPath() là `desktop/`, repo là thư mục cha.
   const bins = resolveSidecarPaths({
@@ -82,11 +93,30 @@ function run() {
     log,
     createSidecar: () => {
       fs.mkdirSync(data.books, { recursive: true });
+      // Trước khi sidecar chạy lần đầu: chép config/luật/văn phong của bản CLI cũ sang — một lần
+      // duy nhất trong đời app (tệp đánh dấu), các lần sau không làm gì. Lỗi chỉ ghi log — Go
+      // thiếu config thì mở màn nhập key.
+      const migration = migrateLegacyUserData({
+        userData: data.userData,
+        legacyDir: path.join(os.homedir(), '.ainovel'),
+        platform: process.platform,
+      });
+      for (const s of migration.steps) (s.result.kind === 'error' ? log.warn : log.info)(describeMigrationStep(s));
+      if (migration.markerError) {
+        log.warn(`chuyển dữ liệu bản cũ: không ghi được tệp đánh dấu — ${migration.markerError.message}`);
+      }
+      // Mỗi lần: config.json chứa API key không được để người khác đọc.
+      try {
+        if (tightenConfigMode(data.config, process.platform)) log.info(`cấu hình: siết quyền ${data.config} về 0600`);
+      } catch (err) {
+        log.warn(`cấu hình: không siết được quyền ${data.config}: ${(err as Error).message}`);
+      }
       log.info(`sidecar: khởi động ${bins.bin} (web ${bins.web}, books ${data.books})`);
       return new Sidecar({
         bin: bins.bin,
         booksDir: data.books,
         webDir: bins.web,
+        configFile: data.config,
         cwd: data.userData,
         logFile: data.sidecarLog,
       });
@@ -109,6 +139,90 @@ function run() {
     else openDir(data.logs);
   };
 
+  // Chỉ thêm thư mục mới vào books nên chạy được cả khi một truyện đang mở engine. Sidecar quét
+  // books mỗi lần gọi /api/workshop, nên tải lại trang là đủ để danh sách hiện truyện mới.
+  // Chép bất đồng bộ để cửa sổ không đơ; trong lúc chép: tắt mục menu, thanh tiến độ trên
+  // Dock/taskbar, hậu tố tiêu đề. Thoát app thì hủy (importAbort) — truyện đang chép bị bỏ, không
+  // để lại thư mục dở; sót gì trong staging thì lần mở sau cleanImportStaging dọn.
+  let importAbort: AbortController | null = null;
+  const IMPORTING_SUFFIX = ' — Đang nhập truyện…';
+
+  const setImporting = (on: boolean) => {
+    const item = Menu.getApplicationMenu()?.getMenuItemById(IMPORT_MENU_ID);
+    if (item) item.enabled = !on;
+    if (!win || win.isDestroyed()) return;
+    if (on) {
+      win.setProgressBar(0);
+      win.setTitle(win.webContents.getTitle() + IMPORTING_SUFFIX);
+      win.on('page-title-updated', keepImportingTitle);
+    } else {
+      win.setProgressBar(-1);
+      win.off('page-title-updated', keepImportingTitle);
+      win.setTitle(win.webContents.getTitle());
+    }
+  };
+
+  // Trang đổi document.title (chuyển truyện, tải lại) thì giữ hậu tố cho tới khi nhập xong.
+  function keepImportingTitle(event: Electron.Event, title: string) {
+    event.preventDefault();
+    if (win && !win.isDestroyed()) win.setTitle(title + IMPORTING_SUFFIX);
+  }
+
+  const importFromFolder = async () => {
+    if (importAbort || quitting()) return;
+    const parent = win && !win.isDestroyed() ? win : undefined;
+    const opts: Electron.OpenDialogOptions = {
+      title: 'Nhập truyện từ thư mục',
+      buttonLabel: 'Nhập',
+      message: 'Chọn một thư mục truyện, hoặc thư mục chứa nhiều truyện (vd. output/ của bản cũ)',
+      properties: ['openDirectory'],
+    };
+    const picked = parent ? await dialog.showOpenDialog(parent, opts) : await dialog.showOpenDialog(opts);
+    if (picked.canceled || picked.filePaths.length === 0 || importAbort || quitting()) return;
+    const source = picked.filePaths[0];
+    const abort = new AbortController();
+    importAbort = abort;
+    setImporting(true);
+    let message: string;
+    let imported = 0;
+    try {
+      const r = await importBooks(
+        { source, booksDir: data.books, stagingDir: data.importStaging },
+        {
+          signal: abort.signal,
+          onProgress: (done, total) => {
+            if (win && !win.isDestroyed()) win.setProgressBar(total > 0 ? done / total : 0);
+          },
+        },
+      );
+      imported = r.imported.length;
+      message = summarizeImport(r);
+      log.info(`nhập truyện từ ${source}: ${message}`);
+      if (r.cancelled) return; // app đang thoát — không hiện hộp thoại
+    } catch (err) {
+      message = `Không đọc được thư mục: ${(err as Error).message}`;
+      log.warn(`nhập truyện từ ${source}: ${message}`);
+    } finally {
+      importAbort = null;
+      setImporting(false);
+    }
+    if (quitting()) return;
+    const box: Electron.MessageBoxOptions = {
+      type: imported > 0 ? 'info' : 'warning',
+      message: imported > 0 ? 'Nhập truyện xong' : 'Không nhập được truyện nào',
+      detail: message,
+      buttons: ['OK'],
+    };
+    const owner = win && !win.isDestroyed() ? win : undefined;
+    if (owner) await dialog.showMessageBox(owner, box);
+    else await dialog.showMessageBox(box);
+    // Chỉ tải lại khi cửa sổ đang ở studio — đang trang lỗi/khởi động thì studio sẽ tự tải mới.
+    if (imported > 0 && win && !win.isDestroyed() && lifecycle.phase === 'running' && lifecycle.origin) {
+      const current = win.webContents.getURL();
+      if (current.startsWith(lifecycle.origin)) win.webContents.reload();
+    }
+  };
+
   app.on('second-instance', () => {
     if (!win || win.isDestroyed() || quitting()) return;
     if (win.isMinimized()) win.restore();
@@ -121,6 +235,7 @@ function run() {
 
   // Chặn quit tới khi sidecar dừng xong (để Go kịp nhả khóa truyện); lifecycle tự quit lại.
   app.on('before-quit', (event) => {
+    importAbort?.abort();
     if (!lifecycle.onBeforeQuit()) event.preventDefault();
   });
 
@@ -134,12 +249,15 @@ function run() {
     app.setAboutPanelOptions({
       applicationName: 'AINovel Studio',
       applicationVersion: app.getVersion(),
-      copyright: '© huuhoa143 · MIT',
+      copyright: '© voocel, huuhoa143 · Apache-2.0',
     });
     Menu.setApplicationMenu(
       buildMenu({
         checkForUpdates: () => checkForUpdates(true),
         openBooksDir: () => openDir(data.books),
+        importBooks: () => {
+          importFromFolder().catch((err: Error) => log.error('nhập truyện:', err));
+        },
         openLogsDir: () => openDir(data.logs),
         devTools: !app.isPackaged || process.env.AINOVEL_DEVTOOLS === '1',
       }),
