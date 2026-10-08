@@ -35,7 +35,7 @@ Electron là vỏ mỏng, không có renderer riêng. `BrowserWindow` tải
 <Resources>/
   bin/ainovel-cli[.exe]   ← Go, CGO_ENABLED=0, đúng arch của gói
   web/                    ← bản sao web/out
-  app-update.yml          ← hook forge ghi (mac); NSIS maker tự sinh (win)
+  app-update.yml          ← hook forge ghi cho cả mac và win (provider github, cùng một nguồn UPDATER)
 ```
 
 ### Hợp đồng sidecar (Go ↔ Electron) — KHÔNG ĐƯỢC LỆCH
@@ -104,9 +104,10 @@ key xong tạo/chạy truyện được ngay mà không khởi động lại sid
   -X main.commit=… -X main.date=…"` → `desktop/resources/bin/ainovel-cli[.exe]`, chép
   `web/out` → `desktop/resources/web/`. Xóa bin cũ trước khi build để không lẫn arch.
 - `forge.config.ts` — `extraResource: ['resources/bin', 'resources/web']`, maker ZIP (darwin),
-  maker NSIS (`@electron-addons/electron-forge-maker-nsis`, win32, updater url
-  `https://github.com/huuhoa143/ainovel-studio/releases/latest/download`), hook ghi
-  `app-update.yml` (copy mẫu lingoreup), `updaterCacheDirName: ainovel-studio-desktop-updater` (phải trùng `<npm name>-updater` vì NSIS chép bản cài vào đó làm gốc cho cập nhật vi sai).
+  maker NSIS (lớp con của `@electron-addons/electron-forge-maker-nsis`, tự gọi
+  `app-builder-lib` với appId `com.huuhoa143.ainovelstudio`, tùy chọn nsis ghim tường minh,
+  `publish: never` + cấu hình provider github; electron-builder tự sinh `latest.yml` và
+  `.blockmap`), hook ghi `app-update.yml` cho cả hai nền tảng, `updaterCacheDirName: ainovel-studio-desktop-updater` (phải trùng `<npm name>-updater` vì NSIS chép bản cài vào đó làm gốc cho cập nhật vi sai).
 - `release.sh X.Y.Z [--dry-run] [--resume]` (chạy trên Mac arm64) — rút gọn từ lingoreup
   `local-release.sh` + `release-with-x64.sh`: prereqs → bump `desktop/package.json` + commit + tag
   `vX.Y.Z` → với mỗi arch (arm64, x64): build-sidecar → `electron-forge package/make --arch` →
