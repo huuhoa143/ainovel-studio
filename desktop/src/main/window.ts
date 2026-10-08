@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import { BrowserWindow, screen, shell, type Event, type Rectangle } from 'electron';
 import { actionFor, type ErrorAction } from './errorPage';
+import { BASE_WEB_PREFERENCES } from './webPrefs';
 
 interface WindowState {
   x?: number;
@@ -74,11 +75,7 @@ export function createMainWindow(opts: MainWindowOptions): BrowserWindow {
     show: false,
     backgroundColor: '#0e0c09',
     title: 'AINovel Studio',
-    webPreferences: {
-      contextIsolation: true,
-      sandbox: true,
-      nodeIntegration: false,
-    },
+    webPreferences: { ...BASE_WEB_PREFERENCES },
   });
   if (state.maximized) win.maximize();
   win.once('ready-to-show', () => {
@@ -103,6 +100,8 @@ export function createMainWindow(opts: MainWindowOptions): BrowserWindow {
   win.on('closed', clearSaveTimer);
 
   const wc = win.webContents;
+  // Như spellcheck: false trong webPreferences — tắt luôn ở session cho chắc không tải từ điển.
+  wc.session.setSpellCheckerEnabled(false);
   // Chỉ ở lại origin của sidecar. Liên kết http(s) ra ngoài mở bằng trình duyệt; nút trên
   // trang cục bộ đi qua scheme `ainovel-action:`; còn lại chặn. Chuyển hướng (3xx) đi cùng luật,
   // trừ việc nó không bao giờ là một cú bấm nút.

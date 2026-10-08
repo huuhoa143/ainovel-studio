@@ -71,6 +71,8 @@ describe('resolveDataPaths', () => {
       mainLog: path.join(u, 'logs', 'main.log'),
       windowState: path.join(u, 'window-state.json'),
       sidecarPort: path.join(u, 'sidecar-port'),
+      legalConsent: path.join(u, 'legal-consent.json'),
+      legalView: path.join(u, 'legal-view'),
     });
   });
 });

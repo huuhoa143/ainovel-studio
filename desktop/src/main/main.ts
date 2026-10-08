@@ -3,13 +3,16 @@ import os from 'node:os';
 import path from 'node:path';
 import { app, BrowserWindow, dialog, Menu, shell } from 'electron';
 import { APP_ID } from './appId';
+import { askConsent } from './consentDialog';
+import { DocViewer } from './docViewer';
 import { errorPageUrl, loadingPageUrl, type ErrorAction } from './errorPage';
 import { armExitWatchdog } from './exitWatchdog';
 import { isAbortedLoad, Lifecycle } from './lifecycle';
 import { cleanImportStaging, importBooks, summarizeImport } from './importBooks';
 import { describeMigrationStep, migrateLegacyUserData, tightenConfigMode } from './legacyMigration';
+import { needsConsent, readConsent, readLegalVersions, resolveLegalPaths, writeConsent } from './legal';
 import { createLogger } from './logger';
-import { buildMenu, IMPORT_MENU_ID } from './menu';
+import { buildMenu, IMPORT_MENU_ID, REPO_URL } from './menu';
 import { resolveDataPaths, resolveSidecarPaths } from './paths';
 import { Sidecar } from './sidecar';
 import { startOnStablePort } from './stablePort';
@@ -50,6 +53,12 @@ function run() {
     repoRoot: path.dirname(app.getAppPath()),
     platform: process.platform,
     env: process.env,
+  });
+
+  const legalPaths = resolveLegalPaths({
+    isPackaged: app.isPackaged,
+    resourcesPath: process.resourcesPath,
+    repoRoot: path.dirname(app.getAppPath()),
   });
 
   let win: BrowserWindow | null = null;
@@ -123,6 +132,7 @@ function run() {
     },
     startSidecar: (sc, signal) => startOnStablePort(sc, data.sidecarPort, signal),
     showLoading: () => loadLocal(loadingPageUrl()),
+    studioAllowed: () => consentGiven,
     showStudio: (url) => ensureWindow().loadURL(url),
     showError: (kind, detail, lines) =>
       loadLocal(errorPageUrl(kind, detail, lines, { platform: process.platform, logsDir: data.logs })),
@@ -133,6 +143,70 @@ function run() {
   });
 
   const quitting = () => lifecycle.phase === 'quitting' || lifecycle.phase === 'exiting';
+
+  const docs = new DocViewer({
+    paths: legalPaths,
+    cacheDir: data.legalView,
+    getParent: () => win,
+    log,
+  });
+
+  // Đồng ý điều khoản: sidecar khởi động song song, nhưng lifecycle chỉ tải studio khi
+  // consentGiven xong — trước đó cửa sổ đứng ở trang "Đang khởi động…" (không có gì để bấm), hộp
+  // thoại gắn vào cửa sổ. Chọn Thoát đi đường quit bình thường (lifecycle dừng sidecar).
+  let allowStudio!: () => void;
+  const consentGiven = new Promise<void>((resolve) => (allowStudio = resolve));
+
+  const runConsent = async () => {
+    const current = readLegalVersions(legalPaths);
+    if (!needsConsent(readConsent(data.legalConsent), current)) {
+      allowStudio();
+      return;
+    }
+    log.info(`điều khoản: hỏi đồng ý (quyền riêng tư v${current.privacy}, miễn trừ v${current.disclaimer})`);
+    // Hộp thoại phải gắn vào cửa sổ ĐANG hiện (sheet trên macOS) — đợi trang khởi động lên.
+    const w = ensureWindow();
+    if (!w.isVisible()) await new Promise<void>((resolve) => w.once('show', () => resolve()));
+    const answer = await askConsent({ window: w, openDoc: (id) => docs.open(id), quitting });
+    if (answer === 'quit') {
+      if (!quitting()) {
+        log.info('điều khoản: người dùng chọn Thoát');
+        app.quit();
+      }
+      return;
+    }
+    try {
+      writeConsent(data.legalConsent, current, app.getVersion());
+    } catch (err) {
+      // Không ghi được thì lần sau hỏi lại — vẫn cho dùng lần này.
+      log.warn(`điều khoản: không ghi được ${data.legalConsent}: ${(err as Error).message}`);
+    }
+    log.info('điều khoản: người dùng đã đồng ý');
+    allowStudio();
+  };
+
+  const showAbout = () => {
+    const box: Electron.MessageBoxOptions = {
+      type: 'info',
+      title: 'Giới thiệu AINovel Studio',
+      message: `AINovel Studio ${app.getVersion()}`,
+      detail: [
+        'Giấy phép Apache-2.0 — © voocel, huuhoa143.',
+        'Bản fork tiếng Việt của voocel/ainovel-cli (github.com/voocel/ainovel-cli); engine, kiến trúc và thiết kế gốc thuộc về dự án upstream.',
+        '',
+        REPO_URL,
+      ].join('\n'),
+      buttons: ['Đóng', 'Mã nguồn trên GitHub', 'Giấy phép'],
+      defaultId: 0,
+      cancelId: 0,
+      noLink: true,
+    };
+    const owner = win && !win.isDestroyed() ? win : undefined;
+    void (owner ? dialog.showMessageBox(owner, box) : dialog.showMessageBox(box)).then(({ response }) => {
+      if (response === 1) void shell.openExternal(REPO_URL);
+      else if (response === 2) docs.open('licenses');
+    });
+  };
 
   const onAction = (a: ErrorAction) => {
     if (a === 'retry') void lifecycle.start();
@@ -250,6 +324,8 @@ function run() {
       applicationName: 'AINovel Studio',
       applicationVersion: app.getVersion(),
       copyright: '© voocel, huuhoa143 · Apache-2.0',
+      // Credits hiện trong bảng About chuẩn của macOS (Windows/Linux dùng showAbout).
+      credits: `Giấy phép Apache-2.0. Bản fork tiếng Việt của voocel/ainovel-cli — engine và thiết kế gốc thuộc về dự án upstream.\n${REPO_URL}`,
     });
     Menu.setApplicationMenu(
       buildMenu({
@@ -259,6 +335,9 @@ function run() {
           importFromFolder().catch((err: Error) => log.error('nhập truyện:', err));
         },
         openLogsDir: () => openDir(data.logs),
+        openLegalDoc: (id) => docs.open(id),
+        openExternal: (url) => void shell.openExternal(url),
+        showAbout,
         devTools: !app.isPackaged || process.env.AINOVEL_DEVTOOLS === '1',
       }),
     );
@@ -271,6 +350,11 @@ function run() {
     });
     // Cửa sổ hiện ngay với trang "Đang khởi động…" (lifecycle.start nạp nó), không đợi READY.
     void lifecycle.start();
+    runConsent().catch((err: Error) => {
+      // Hộp thoại hỏng thì đừng khóa người dùng ngoài app mãi: ghi log và cho vào.
+      log.error('điều khoản:', err);
+      allowStudio();
+    });
     checkForUpdates(false);
   });
 }

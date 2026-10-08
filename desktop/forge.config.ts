@@ -9,6 +9,7 @@ import { FusesPlugin } from '@electron-forge/plugin-fuses';
 import { FuseV1Options, FuseVersion } from '@electron/fuses';
 import { build as electronBuilder, type Configuration } from 'app-builder-lib';
 import { APP_ID } from './src/main/appId';
+import { checkLegalDir } from './src/main/legal';
 import pkg from './package.json';
 
 // Một nguồn duy nhất cho kênh cập nhật: `app-update.yml` trong gói (mọi nền tảng, hook
@@ -67,6 +68,17 @@ async function checkSidecarBin(platform: string, arch: string): Promise<void> {
     if (!ok) throw new Error(`resources/bin/${want} không phải nhị phân ${platform}/${arch}. ${hint}`);
   } finally {
     await fh.close();
+  }
+}
+
+// Tài liệu pháp lý (LICENSE, NOTICE, PRIVACY, DISCLAIMER, THIRD_PARTY_NOTICES,
+// LICENSES.chromium.html — danh sách ở legal.ts) là thứ app hiện trong menu Trợ giúp và hộp thoại
+// đồng ý — gói thiếu chúng là gói vi phạm giấy phép.
+function checkLegalResources(): void {
+  const dir = path.resolve(__dirname, 'resources', 'legal');
+  const problems = checkLegalDir(dir);
+  if (problems.length > 0) {
+    throw new Error(`resources/legal chưa đủ (${problems.join('; ')}). Chạy scripts/build-sidecar.sh trước khi đóng gói.`);
   }
 }
 
@@ -136,14 +148,16 @@ const config: ForgeConfig = {
     appBundleId: APP_ID,
     icon: 'build/icon',
     // Sidecar Go và web tĩnh nằm NGOÀI asar để spawn() được và để Go đọc thẳng từ đĩa.
-    // Chúng rơi vào <Resources>/bin và <Resources>/web (paths.ts đọc qua process.resourcesPath).
-    // scripts/build-sidecar.sh điền hai thư mục này trước khi package.
-    extraResource: ['resources/bin', 'resources/web'],
+    // Chúng rơi vào <Resources>/bin và <Resources>/web (paths.ts đọc qua process.resourcesPath);
+    // tài liệu pháp lý vào <Resources>/legal (legal.ts). scripts/build-sidecar.sh điền cả ba
+    // thư mục trước khi package.
+    extraResource: ['resources/bin', 'resources/web', 'resources/legal'],
   },
   rebuildConfig: {},
   hooks: {
     prePackage: async (_forgeConfig, platform, arch) => {
       await checkSidecarBin(platform, arch);
+      checkLegalResources();
     },
     // packageAfterCopy chạy TRƯỚC khi chép extraResource, nhưng thư mục Resources đã có,
     // nên ghi app-update.yml ở đây được. Cho cả macOS (<App>.app/Contents/Resources) lẫn

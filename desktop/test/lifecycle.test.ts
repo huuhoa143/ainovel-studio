@@ -136,6 +136,58 @@ describe('Lifecycle — khởi động', () => {
   });
 });
 
+function gate() {
+  let open!: () => void;
+  const promise = new Promise<void>((r) => (open = r));
+  return { promise, open };
+}
+
+describe('Lifecycle — chờ đồng ý điều khoản', () => {
+  it('sidecar khởi động song song, studio chỉ tải sau khi được phép', async () => {
+    const g = gate();
+    const t = setup({ studioAllowed: () => g.promise });
+    const p = t.lc.start();
+    await tick();
+    t.last().ready();
+    await tick();
+    expect(t.lc.phase).toBe('running');
+    expect(t.calls).toEqual(['loading']);
+    g.open();
+    await tick();
+    expect(t.calls).toEqual(['loading', 'studio http://127.0.0.1:48123/']);
+    t.studio().resolve();
+    await p;
+  });
+
+  it('sidecar chết trong lúc chờ: trang lỗi, đồng ý sau đó không tải studio', async () => {
+    const g = gate();
+    const t = setup({ studioAllowed: () => g.promise });
+    const p = t.lc.start();
+    await tick();
+    t.last().ready();
+    await tick();
+    t.last().crash();
+    g.open();
+    await p;
+    expect(t.lc.phase).toBe('failed');
+    expect(t.calls.some((c) => c.startsWith('studio'))).toBe(false);
+    expect(t.errors()).toHaveLength(1);
+  });
+
+  it('thoát trong lúc chờ: không tải studio', async () => {
+    const g = gate();
+    const t = setup({ studioAllowed: () => g.promise });
+    const p = t.lc.start();
+    await tick();
+    t.last().ready();
+    await tick();
+    expect(t.lc.onBeforeQuit()).toBe(false);
+    g.open();
+    await p;
+    expect(t.calls.some((c) => c.startsWith('studio'))).toBe(false);
+  });
+});
+
 describe('Lifecycle — thoát', () => {
   it('thoát giữa lúc khởi động: ẩn cửa sổ, không trang lỗi, không cửa sổ mới, quit sau khi sidecar dừng', async () => {
     const t = setup();

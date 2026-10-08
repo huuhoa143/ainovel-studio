@@ -41,7 +41,7 @@ const serif = Noto_Serif({
 });
 
 export const metadata: Metadata = {
-  title: 'ainovel studio',
+  title: 'AINovel Studio',
   description: 'Studio viết tiểu thuyết bằng AI: quản lý truyện, theo dõi tiến độ, đọc và góp ý.',
 };
 

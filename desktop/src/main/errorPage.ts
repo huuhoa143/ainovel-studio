@@ -3,6 +3,8 @@
 // trang lỗi là liên kết tới scheme riêng `ainovel-action:`; window.ts chặn `will-navigate` tới
 // scheme này và gọi hành động tương ứng — chỉ khi trang hiện tại là trang cục bộ (actionFor).
 
+import { escapeHtml } from './markdown';
+
 export const ACTION_SCHEME = 'ainovel-action:';
 export type ErrorAction = 'retry' | 'open-logs';
 
@@ -47,10 +49,6 @@ export function isLocalPage(url: string): boolean {
  */
 export function actionFor(currentUrl: string, targetUrl: string): ErrorAction | null {
   return isLocalPage(currentUrl) ? parseAction(targetUrl) : null;
-}
-
-function escapeHtml(s: string): string {
-  return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 }
 
 function page(title: string, body: string, extraCss = ''): string {

@@ -56,6 +56,10 @@ export interface DataPaths {
   windowState: string;
   /** Cổng tốt gần nhất của sidecar — giữ origin (và localStorage của web) ổn định. */
   sidecarPort: string;
+  /** Bản ghi người dùng đã đồng ý điều khoản (phiên bản PRIVACY/DISCLAIMER, lúc nào). */
+  legalConsent: string;
+  /** Trang tài liệu pháp lý đã render, cửa sổ xem tài liệu nạp từ đây. */
+  legalView: string;
 }
 
 export function resolveDataPaths(userData: string): DataPaths {
@@ -70,5 +74,7 @@ export function resolveDataPaths(userData: string): DataPaths {
     mainLog: path.join(logs, 'main.log'),
     windowState: path.join(userData, 'window-state.json'),
     sidecarPort: path.join(userData, 'sidecar-port'),
+    legalConsent: path.join(userData, 'legal-consent.json'),
+    legalView: path.join(userData, 'legal-view'),
   };
 }

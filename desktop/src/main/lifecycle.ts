@@ -29,6 +29,11 @@ export interface LifecycleDeps<S extends SidecarHandle> {
   /** Khởi động tới READY, trả về URL gốc. `signal` hủy khi lượt này bị thay thế. */
   startSidecar(sidecar: S, signal: AbortSignal): Promise<string>;
   showLoading(): void;
+  /**
+   * Chờ được phép hiện studio (người dùng đồng ý điều khoản lần đầu). Sidecar vẫn khởi động
+   * song song; chỉ bước tải giao diện phải chờ. Không có = không chờ.
+   */
+  studioAllowed?(): Promise<void>;
   /** Tải studio; reject khi điều hướng hỏng (gồm cả ERR_ABORTED khi bị trang khác chen ngang). */
   showStudio(url: string): Promise<void>;
   showError(kind: ErrorKind, detail: string, logLines: string[]): void;
@@ -92,6 +97,13 @@ export class Lifecycle<S extends SidecarHandle> {
     } catch (err) {
       if (current()) this.fail('start-failed', (err as Error).message);
       return;
+    }
+
+    // Trong lúc chờ, sidecar có thể chết (→ failed) hoặc app bắt đầu thoát (lượt mới) — khi đó
+    // đừng tải studio của lượt cũ.
+    if (this.deps.studioAllowed) {
+      await this.deps.studioAllowed();
+      if (!current() || this._phase !== 'running') return;
     }
 
     try {
