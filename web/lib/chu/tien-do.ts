@@ -30,6 +30,9 @@ function thuong(s: string): string {
 }
 
 export const TD = {
+  /** Lối vào cùng dựng giai đoạn của cuốn đang mở — cạnh ô góp ý. */
+  banHuong: 'Bàn hướng tiếp theo với AI',
+  banHuongGiai: 'Tạm dừng việc viết để cùng AI bàn chặng tiếp theo. Truyện viết tiếp khi bạn áp dụng hoặc thôi bàn.',
   xemLaiChuong: (n: number) => `Xem lại chương ${n}`,
   theDangLam: 'Việc đang làm',
   choBanDuyet: 'Chờ bạn duyệt',

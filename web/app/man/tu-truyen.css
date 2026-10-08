@@ -730,7 +730,6 @@
 
 /* ══ trống / lỗi / đang tải ═════════════════════════════════════════════════ */
 
-.trangtrong.ttTrong,
 .trangtrong.ttLoi,
 .trangtrong.ttTai {
   display: grid;
@@ -780,15 +779,6 @@
   background: color-mix(in oklab, var(--red) 9%, transparent);
   color: var(--red);
   font: 400 12px/1.6 var(--mono);
-}
-.trangtrong .ttHop .goc {
-  width: 100%;
-  margin: 0;
-}
-.trangtrong .ttHop .lenh {
-  background: var(--panel-2);
-  border-color: var(--line);
-  color: var(--ink);
 }
 /* Nút thử lại dùng `.nutChinh` của he.css; gỡ lớp nút cũ của globals.css. */
 .trangtrong .ttHop .nutChinh {
@@ -1305,6 +1295,12 @@
   max-width: none;
   margin: 14px 24px 0;
   border-radius: 10px;
+}
+/* Lối thoát của cuộc bàn nằm NGAY trên câu nói truyện đang tạm dừng: đọc câu đó là thấy cách gỡ. */
+#cung-dung .cdTamDung .nutPhu {
+  flex: none;
+  margin-left: auto;
+  align-self: center;
 }
 #cung-dung .cdList {
   flex: 1;

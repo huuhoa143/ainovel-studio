@@ -260,7 +260,6 @@ function veMan(s: Snapshot, van?: string[]) {
       <BuongLai
         snapshot={s}
         tacPham="b"
-        choGhi
         vuaChot={new Set<number>()}
         chuongChon={undefined}
         onChonChuong={() => {}}
@@ -281,7 +280,7 @@ function veMan(s: Snapshot, van?: string[]) {
         agents={s.agents}
         dungVi={viSaoDung(s)}
       >
-        <DieuKhien snapshot={s} tacPham="b" choGhi dangChay={dangChay} onDoi={() => {}} />
+        <DieuKhien snapshot={s} tacPham="b" dangChay={dangChay} onDoi={() => {}} />
       </Transport>
     </div>,
   );

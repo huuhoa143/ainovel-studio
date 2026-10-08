@@ -18,7 +18,6 @@ function ve(p: Partial<Snapshot> = {}, q: Partial<Parameters<typeof KiemDinh>[0]
     <KiemDinh
       snapshot={snap(p)}
       tacPham="b"
-      choGhi
       dangChay={false}
       chuongChon={undefined}
       onChonChuong={() => {}}
@@ -105,18 +104,6 @@ test('dải ở Kiểm định nhận `tacPham`, nên hai nút BẤM ĐƯỢC', 
   expect(screen.getByRole('button', { name: CHU.traChuongVeVietLai(8) })).toBeDefined();
 });
 
-test('dải ở Kiểm định nhận `choGhi`, nên chế độ chỉ đọc khóa được hai nút', () => {
-  // Nửa còn lại của sợi dây quyền ghi. Bài trên xanh cả khi `choGhi` bị nhét cứng thành `true`,
-  // và lúc đó studio ngoài loopback vẽ hai nút bấm được gửi vào hư không.
-  const { container } = ve({ advance: { ...CHO } }, { choGhi: false });
-
-  expect(container.querySelector('.cuanghiemthu')).not.toBeNull();
-  for (const n of screen.getAllByRole('button', { name: /chương|Cho đi tiếp/ })) {
-    expect((n as HTMLButtonElement).disabled).toBe(true);
-  }
-  expect(container.textContent).toContain(GIAI_THICH.nghiemThuChoDay);
-});
-
 test('dải ở Kiểm định: nút trả về mở ô góp ý ngay dưới dải, nhãn gửi theo máy chạy hay nghỉ', () => {
   // `dangChay` quyết định NHÃN của nút gửi, và hai nhãn đó là hai hệ quả khác nhau về tiền:
   // tiêm vào lượt đang chạy, hay đánh thức một lượt MỚI. Trang này không có ô góp ý ở đáy như
@@ -126,7 +113,6 @@ test('dải ở Kiểm định: nút trả về mở ô góp ý ngay dưới d�
       <KiemDinh
         snapshot={snap({ advance: { ...CHO } })}
         tacPham="b"
-        choGhi
         dangChay={b}
         chuongChon={undefined}
         onChonChuong={() => {}}

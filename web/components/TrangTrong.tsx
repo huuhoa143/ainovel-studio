@@ -6,34 +6,6 @@ import { CHU, GIAI_THICH } from '@/lib/nhan';
 import { BieuTuong } from './BieuTuong';
 
 /**
- * Tủ chưa có truyện nào, ở chế độ chỉ xem.
- *
- * Bản ghi được thì không bao giờ tới đây — `Trang` dẫn thẳng vào Viết truyện mới. Còn lại là
- * ca studio không tạo được truyện, nên màn phải làm được ba việc: nói rõ đã tìm ở đâu, vì sao
- * trống, và cho đúng một lệnh để thoát khỏi trạng thái này.
- */
-export function XuongTrong({ root }: { root: string | undefined }) {
-  return (
-    <main className="trangtrong ttTrong">
-      <div className="ttHop the">
-        <span className="ttDau" aria-hidden="true">
-          <BieuTuong ten="tu" co={20} />
-        </span>
-        <h1>{GIAI_THICH.xuongTrongTieuDe}</h1>
-        <p>{GIAI_THICH.xuongTrongThan}</p>
-        {root ? (
-          <dl className="goc">
-            <dt>{GIAI_THICH.xuongTrongGoc}</dt>
-            <dd>{root}</dd>
-          </dl>
-        ) : null}
-        <code className="lenh">{GIAI_THICH.xuongTrongLenh}</code>
-      </div>
-    </main>
-  );
-}
-
-/**
  * Không đọc được store.
  *
  * Câu lỗi lấy từ server (`writeErr` trả `{"error": "..."}`) chứ không phải câu chung của giao

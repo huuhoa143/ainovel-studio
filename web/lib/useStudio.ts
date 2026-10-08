@@ -51,7 +51,7 @@ const NHIP_CHUYEN_TIEP_MS = 1000;
  * còn cách F5.
  *
  * Và ngay cả khi có engine mở, dòng sự kiện chỉ chảy khi CÓ SỰ KIỆN. Một engine đang nghỉ
- * không phát gì, nên một cuốn bị đổi từ CLI hay từ một tab khác vẫn không thấy.
+ * không phát gì, nên một cuốn bị đổi từ một tab khác vẫn không thấy.
  *
  * # Vì sao 8 giây, và vì sao chỉ khi tab đang hiện
  *
@@ -607,8 +607,8 @@ export function useStudio(): Studio {
   /**
    * Hai nguồn kích hoạt, và chúng bắt hai ca KHÁC nhau — bỏ cái nào cũng còn lỗ:
    *
-   *   nhịp        — thay đổi xảy ra TRONG LÚC đang nhìn (một tab khác tạo cuốn, CLI chạy
-   *                 song song). Không có nhịp thì bề mặt đứng im trước mắt người dùng.
+   *   nhịp        — thay đổi xảy ra TRONG LÚC đang nhìn (một tab khác tạo cuốn, một cuốn
+   *                 khác đang chạy). Không có nhịp thì bề mặt đứng im trước mắt người dùng.
    *   quay lại    — thay đổi xảy ra trong lúc tab bị ẩn. Nhịp không chạy khi ẩn, nên nếu
    *                 chỉ có nhịp thì lúc quay lại vẫn phải đợi hết một chu kỳ mới thấy — và
    *                 đó đúng là khoảnh khắc người ta bấm F5.

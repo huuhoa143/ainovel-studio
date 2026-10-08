@@ -4,7 +4,7 @@ import { beforeEach, expect, test, vi } from 'vitest';
 import { LoiApi } from '@/lib/api';
 import { CHU, GIAI_THICH } from '@/lib/nhan';
 
-import type { Capabilities, TienDo } from '@/lib/types';
+import type { TienDo } from '@/lib/types';
 
 import { CuaNghiemThu } from './CuaNghiemThu';
 import { OCanThiep } from './OCanThiep';
@@ -35,7 +35,6 @@ function cho(p: Partial<Parameters<typeof CuaNghiemThu>[0]> = {}) {
       advance={{ mode: 'review', hold: true, permit_chapter: 8, hold_reason: LY_DO }}
       runtime=""
       tacPham="tran-yeu-ky"
-      choGhi
       onDoi={() => {}}
       {...p}
     />,
@@ -54,11 +53,9 @@ function choVaGopY(p: { onDoi?: () => void; dangChay?: boolean; advance?: TienDo
         advance={p.advance ?? { mode: 'review', hold: true, permit_chapter: 8, hold_reason: LY_DO }}
         runtime=""
         tacPham="tran-yeu-ky"
-        choGhi
         onDoi={() => {}}
       />
       <OCanThiep
-        capabilities={{ steer: true } as Capabilities}
         tacPham="tran-yeu-ky"
         dangChay={p.dangChay ?? false}
         onDoi={p.onDoi}

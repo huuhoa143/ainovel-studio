@@ -5,13 +5,6 @@ const LAY_CAU_HINH = vi.fn<() => Promise<{ needs_setup: boolean }>>();
 
 vi.mock('./api', () => ({
   LA_MOCK: false,
-  LoiApi: class extends Error {
-    status: number;
-    constructor(m: string, s: number) {
-      super(m);
-      this.status = s;
-    }
-  },
   layCauHinh: () => LAY_CAU_HINH(),
 }));
 

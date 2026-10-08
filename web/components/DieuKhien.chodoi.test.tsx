@@ -32,7 +32,7 @@ afterEach(() => {
 });
 
 const ve = (p: Partial<Snapshot>, dangChay = false) => (
-  <DieuKhien snapshot={snap(p)} tacPham="tran-yeu-ky" choGhi dangChay={dangChay} onDoi={() => {}} />
+  <DieuKhien snapshot={snap(p)} tacPham="tran-yeu-ky" dangChay={dangChay} onDoi={() => {}} />
 );
 const DUNG_DO = { runtime: 'paused', advance: { mode: 'auto', hold: false } } as Partial<Snapshot>;
 

@@ -63,7 +63,6 @@ import { OCanThiep } from './OCanThiep';
 export function KiemDinh({
   snapshot,
   tacPham,
-  choGhi,
   dangChay,
   chuongChon,
   onChonChuong,
@@ -79,8 +78,6 @@ export function KiemDinh({
    * nên hỏng ở đây hỏng IM LẶNG, trên đúng bề mặt tồn tại để quyết định.
    */
   tacPham: string | undefined;
-  /** undefined = chưa biết (đang hỏi `/api/config`) — xem `useMay`. */
-  choGhi: boolean | undefined;
   /** Engine có đang viết dở không — quyết định NHÃN nút gửi của ô góp ý dưới dải. */
   dangChay: boolean;
   chuongChon: number | undefined;
@@ -154,7 +151,6 @@ export function KiemDinh({
         runtime={snapshot.runtime}
         stop={snapshot.stop}
         tacPham={tacPham}
-        choGhi={choGhi}
         soChuongXong={snapshot.book.completed_chapters}
         onDoi={onDoi}
       />
@@ -164,7 +160,6 @@ export function KiemDinh({
       {trangThaiCua(snapshot.advance, snapshot.runtime, snapshot.stop).dangCho ? (
         <div className="kdGopY">
           <OCanThiep
-            capabilities={snapshot.capabilities}
             tacPham={tacPham}
             dangChay={dangChay}
             onDoi={onDoi}

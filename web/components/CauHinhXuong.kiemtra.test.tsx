@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { beforeEach, expect, test, vi } from 'vitest';
 
 import { LoiApi } from '@/lib/api';
+import { CH } from '@/lib/chu/cau-hinh';
 import type { CauHinhDoc } from '@/lib/types';
 
 /**
@@ -222,8 +223,27 @@ test('mẫu sẵn điền tên + địa chỉ; tên mới lưu được, kèm gi
       base_url: 'https://openrouter.ai/api/v1',
       api_key: 'sk-moi',
       models: [{ name: 'a/m1' }, { name: 'a/m2' }],
+      keyless: false,
     },
   });
+});
+
+test('tích "không cần khóa": ô khóa khóa lại, lưu không cần khóa và gửi keyless', async () => {
+  // Máy chủ tự dựng (vd. Ollama trong mạng nhà) không có khóa nào để dán. Khóa đã gõ trước
+  // khi tích không được đi theo — người dùng vừa nói nó không dùng tới.
+  const form = moThem();
+  fireEvent.click(within(form).getByRole('button', { name: 'OpenRouter' }));
+  const o = form.querySelector<HTMLInputElement>('input[type="password"]')!;
+  fireEvent.change(o, { target: { value: 'sk-go-nham' } });
+  fireEvent.click(within(form).getByRole('checkbox', { name: new RegExp(CH.khaiKhongKhoa) }));
+  expect(o.disabled).toBe(true);
+  fireEvent.change(within(form).getByPlaceholderText(/Gõ tên rồi nhấn Enter/), { target: { value: 'llama3' } });
+  fireEvent.keyDown(within(form).getByPlaceholderText(/Gõ tên rồi nhấn Enter/), { key: 'Enter' });
+  fireEvent.click(within(form).getByRole('button', { name: 'Lưu' }));
+  await waitFor(() => expect(LUU).toHaveBeenCalled());
+  const than = LUU.mock.calls[0]![0] as { provider_config: Record<string, unknown> };
+  expect(than.provider_config.keyless).toBe(true);
+  expect(than.provider_config).not.toHaveProperty('api_key');
 });
 
 test('tên có dấu cách bị chặn ngay trên biểu mẫu', () => {

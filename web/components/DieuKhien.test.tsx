@@ -49,7 +49,6 @@ function ve(p: Partial<Snapshot> = {}, dangChay = false) {
     <DieuKhien
       snapshot={snap(p)}
       tacPham="tran-yeu-ky"
-      choGhi
       dangChay={dangChay}
       onDoi={ON_DOI}
     />,

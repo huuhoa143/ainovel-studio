@@ -18,8 +18,6 @@ export interface Capabilities {
   per_chapter_cost: boolean;
   /** false → truyện phẳng, không có tập/cung. */
   layered_outline: boolean;
-  /** false → engine chưa hợp tác nhận can thiệp qua web; ô nhập phải vô hiệu. */
-  steer: boolean;
 
   /*
    * Ba cờ dưới đây phục vụ ba bề mặt Văn phong / Chi phí / Cài đặt.
@@ -369,6 +367,27 @@ export interface Snapshot {
   warnings?: string[];
   /** Điểm bắt đầu cho SSE (?after=) để không bỏ sót và không nhận trùng. */
   queue_seq: number;
+  /** Lượt nhập truyện đang DỪNG giữa chừng; null/vắng = không có hoặc đã xong. */
+  import?: NhapDo | null;
+}
+
+/**
+ * Lượt nhập truyện dừng ở đâu. Engine giữ khóa viết tới khi lượt nhập xong, nên mỗi pha có
+ * đúng một lối đi tiếp — xem `NhapTruyen` trong components/NhapXuat.tsx.
+ *
+ *   awaiting_confirm → chờ người dùng chấp nhận cách chia chương
+ *   story_uncertain  → chưa rõ truyện gốc đã kết hay còn viết tiếp
+ *   interrupted      → bị ngắt giữa chừng (vd. app tắt). Kèm `error` = thư mục nhập hỏng, không
+ *                      tiếp tục được — chỉ còn cách bỏ lượt nhập.
+ */
+export interface NhapDo {
+  phase: 'awaiting_confirm' | 'story_uncertain' | 'interrupted';
+  /** Số chương của cách chia hiện tại; 0 = chưa chia. */
+  chapters: number;
+  /** Số chương đã phân tích, tính từ chương 1. */
+  analyzed: number;
+  /** Thư mục nhập hỏng — tiếp tục sẽ thất bại. */
+  error?: string;
 }
 
 /** Toàn văn một chương — GET /api/books/{book}/chapters/{n}. */
@@ -382,20 +401,13 @@ export interface ChapterDetail {
 }
 
 /**
- * Bề mặt có tồn tại ở bản engine đang chạy hay không.
+ * Store đã có dữ liệu cho một bề mặt chưa — rail dùng để gắn nhãn báo trước.
  *
- * Ba giá trị này là ba câu trả lời KHÁC NHAU cho rail, và trộn chúng lại là
- * đúng lỗi mà `MucChuaDung` tồn tại để tránh:
- *
- *   'thieu-endpoint' → bản engine này không có route đó (404). Rail phải vẽ mục
- *                      dưới dạng "chưa dựng": bấm vào sẽ không có gì.
- *   'co-nguon'       → route có và trả về dữ liệu. Rail vẽ nút thật.
- *   'co-route'       → route có nhưng chưa đọc được / chưa có dữ liệu. Rail vẫn
- *                      vẽ nút thật, vì bề mặt đã dựng và nó có câu để nói về
- *                      chuyện store rỗng. Ẩn nút ở đây sẽ biến "tác phẩm mới"
- *                      thành "studio thiếu bề mặt" — hai kết luận khác nhau.
+ *   'co-nguon' → endpoint trả về dữ liệu. Rail vẽ nút thường.
+ *   'co-route' → chưa đọc được / chưa có dữ liệu. Rail vẫn vẽ nút, vì bề mặt có câu để
+ *                nói về chuyện store rỗng; nó chỉ thêm nhãn báo trước.
  */
-export type TinhTrangNguon = 'thieu-endpoint' | 'co-route' | 'co-nguon';
+export type TinhTrangNguon = 'co-route' | 'co-nguon';
 
 /** Đếm hồ sơ tác phẩm cho rail. null = endpoint trả null, tức store chưa có. */
 export interface Profile {
@@ -706,8 +718,8 @@ export interface SettingsDoc {
    */
   state: 'ready' | 'no_file';
   /**
-   * Luôn `false` ở bản chỉ-đọc. ĐỌC TỪ ĐÂY, đừng hard-code phía web: ngày engine
-   * nhận lệnh ghi, server đổi một chỗ và giao diện mở ô nhập theo.
+   * Hiện luôn `false`: bề mặt này là bản ghi tác phẩm đã khởi động với cấu hình gì, tức quá
+   * khứ (`internal/serve/settings.go`). ĐỌC TỪ ĐÂY, đừng hard-code phía web.
    */
   writable: boolean;
   started_at: string;
@@ -768,8 +780,13 @@ export interface NhaCungCap {
   base_url?: string;
   api_key_set: boolean;
   api_key_masked?: string;
-  /** Gateway chạy được không cần khóa (ollama/bedrock, hoặc địa chỉ trên máy/LAN). */
+  /**
+   * KẾT LUẬN của server: chạy được không cần khóa — người dùng tự khai (`keyless`), hoặc
+   * ollama/bedrock, hoặc địa chỉ trên máy/LAN. Mọi chỗ hỏi "có cần khóa không" đọc trường này.
+   */
   api_key_optional?: boolean;
+  /** Lời khai ĐÃ LƯU của người dùng: nhà cung cấp này không cần khóa (máy chủ tự dựng). */
+  keyless?: boolean;
   /**
    * Một mục model mang NHIỀU HƠN cái tên, và mọi chỗ ghi lại nó phải giữ đủ.
    *
@@ -806,9 +823,14 @@ export interface MauNhaCungCap {
   base_url?: string;
 }
 
-/** GET /api/config — cấu hình đang CÓ HIỆU LỰC (đã trộn global + project). */
+/** GET /api/config — cấu hình đang CÓ HIỆU LỰC, đọc từ đúng một tệp của app. */
 export interface CauHinhDoc {
   needs_setup: boolean;
+  /**
+   * Tệp có mà không đọc được (JSON hỏng). Khi có trường này, `needs_setup` là true và mọi trường
+   * khác rỗng; lượt PUT hợp lệ kế tiếp ghi lại tệp từ đầu. Chuỗi lỗi nêu đường dẫn tệp.
+   */
+  config_error?: string;
   /** Tệp mà mọi lượt ghi sẽ vào. Hiện ra để người dùng biết mình đang sửa cái gì. */
   path: string;
   provider: string;
@@ -824,11 +846,6 @@ export interface CauHinhDoc {
    */
   styles: string[];
   role_names: string[];
-  /**
-   * Tệp cấu hình TOÀN CỤC đang được trộn dưới `path`, "" khi chỉ có một tệp. Giá trị chỉ có
-   * ở tệp này không xóa được từ studio — server từ chối với 409 thay vì báo "đã lưu" suông.
-   */
-  base_path?: string;
   /** Ghi đè model theo vai đang có hiệu lực. `PUT /api/config` ghi được nó từ bản ba màn. */
   roles?: Record<string, MucVai> | null;
   providers: NhaCungCap[];

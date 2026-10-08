@@ -1771,17 +1771,6 @@ export const GIAI_THICH = {
     `Đã đổi giữa chừng: lúc đầu dùng ${cu}, giờ đang dùng ${moi}.`,
 
   kenhVaiThuaHuong: 'Vai chưa chọn riêng sẽ dùng model mặc định, và đổi theo khi bạn đổi mặc định.',
-  /** capabilities.steer === false */
-  /**
-   * Hai câu này nói về ca đường ghi BỊ TẮT, và lý do đã đổi.
-   *
-   * Câu cũ nói "engine sở hữu quyền ghi, studio ghi vào là hai process cùng sửa một tệp".
-   * Tiền đề đó hết hiệu lực: engine chạy trong process studio. Giờ ô chỉ vô hiệu khi
-   * studio lắng nghe ngoài loopback — lúc đó nhóm route ghi cố ý không được mắc, vì một
-   * bề mặt giữ khóa API và khởi động được engine không được phơi ra mạng.
-   */
-  canThiepTat: 'Studio đang mở ra ngoài máy này nên các thao tác ghi bị tắt để bảo vệ khóa API. Chạy lại với --addr 127.0.0.1:8420 để dùng đầy đủ.',
-  canThiepChoDay: 'Đang ở chế độ chỉ xem nên không gửi góp ý được',
   canThiepArbiterXuLy: 'Điều phối sẽ xem góp ý ảnh hưởng tới đâu, rồi đưa các chương liên quan vào danh sách cần viết lại.',
   daTiemVaoLuot: 'Đã gửi góp ý. Điều phối đang xem xét, chương liên quan có thể được viết lại.',
   daDanhThuc: 'Đã gửi góp ý và bắt đầu viết tiếp.',
@@ -1862,7 +1851,7 @@ export const GIAI_THICH = {
   batDauRoiKhongPhaiLamGi: 'Sau khi bấm, bạn không cần làm gì thêm: AI tự viết tiếp từng chương. Muốn đổi hướng, chỉ cần gửi góp ý.',
   arbiterDangDocLau: 'Thường mất 10–30 giây. Xong là tự chuyển sang trang Tiến độ để bạn theo dõi.',
   xongCoTheXuat: 'Truyện đã viết đủ số chương dự kiến. Bạn có thể đọc lại hoặc xuất thành tệp.',
-  cungDungGiaiDoanTamDung: 'Mở bàn ý tưởng sẽ tạm dừng việc viết, để AI không viết tiếp trong lúc hai bên đang bàn.',
+  cungDungGiaiDoanTamDung: 'Gửi câu đầu tiên sẽ tạm dừng việc viết truyện này, để AI không viết tiếp trong lúc hai bên đang bàn. Truyện viết tiếp khi bạn áp dụng hoặc thôi bàn.',
   /* vòng đời sáng tác */
   vongDoiCanMoMay: 'Cần mở phiên trước. Mở phiên chưa tốn chi phí gì.',
   dangThuDon: 'Đã nhận lệnh. AI đang viết nốt bước hiện tại và lưu lại — bấm thêm cũng không nhanh hơn.',
@@ -1875,14 +1864,8 @@ export const GIAI_THICH = {
    * — một câu chưa ai nói. Và nó không được lấp bằng một lý do do giao diện nghĩ ra: cửa
    * này tồn tại để người dùng quyết định dựa trên câu của Editor, nên một câu bịa ở đây
    * làm hỏng đúng việc nó phục vụ.
-   *
-   * `nghiemThuChoDay` chép khuôn của `canThiepChoDay`, và câu giải thích dài thì DÙNG LẠI
-   * thẳng `canThiepTat`: cùng một chế độ chỉ-đọc, cùng một cách chữa (`--addr 127.0.0.1`).
-   * Hai bản của cùng một lời giải thích thì có ngày lệch, và lúc đó không có cách nào
-   * biết bản nào đúng.
    */
   nghiemThuChuaCoKetLuan: 'Biên tập viên chưa chấm chương này — họ chấm định kỳ, không chấm từng chương. Bạn vẫn đọc được chương trước khi quyết định.',
-  nghiemThuChoDay: 'Đang ở chế độ chỉ xem nên không duyệt được',
   nghiemThuNenTruyen: 'Kiến trúc sư đã dựng nhân vật, thế giới và dàn ý. Xem qua ở Tổng quan truyện bên phải hoặc mục Thế giới truyện; muốn đổi gì thì góp ý trước khi chương 1 được viết.',
   gopYChoDanYGiai: 'Góp ý được gửi tới Điều phối: họ xem cần sửa nhân vật hay dàn ý chỗ nào, rồi mới cho viết chương 1.',
   choDuyetNenGoiY: 'Đọc qua nhân vật và dàn ý, rồi duyệt ở dải phía trên để AI viết chương 1.',
@@ -1927,17 +1910,6 @@ export const GIAI_THICH = {
   buocDangChay: 'Bước đang làm.',
 
   nguongNen: 'vạch đỏ ở mức 85% là lúc AI tóm gọn bộ nhớ',
-
-  /** không có tác phẩm nào */
-  xuongTrongTieuDe: 'Chưa có truyện nào',
-  /**
-   * Câu cũ: "Studio chỉ đọc store — tác phẩm được tạo bằng engine", kèm một lệnh CLI.
-   * Cả hai giờ sai: studio TẠO được tác phẩm. Câu này chỉ còn dùng ở chế độ chỉ đọc
-   * (studio chạy ngoài loopback), nên nó nói đúng ca đó.
-   */
-  xuongTrongThan: 'Studio đang ở chế độ chỉ xem nên không tạo truyện được. Chạy lại với --addr 127.0.0.1:8420 để tạo truyện ngay trên web.',
-  xuongTrongLenh: 'ainovel-cli run --root <thư mục gốc>',
-  xuongTrongGoc: 'thư mục truyện',
 
   khongTaiDuoc: 'Không mở được truyện',
   /** Bản trước nói "engine và studio là hai tiến trình rời nhau" — hết đúng từ đợt 1. */
@@ -2297,24 +2269,6 @@ export const GIAI_THICH = {
    */
   caiDatKhongCoKhoa: 'Khóa API không được lưu cùng truyện. Bạn đặt khóa ở Model & khóa API, và nó không bao giờ hiện lại sau khi lưu.',
 
-  /* ── ba mục rail khi bản engine đang chạy KHÔNG có endpoint ─────────── */
-
-  /**
-   * Ba câu này thay ba câu `chuaDung*` cũ, và chúng nói một điều KHÁC.
-   *
-   * Câu cũ đúng vào lúc nó được viết: bề mặt chưa dựng vì API chưa có endpoint.
-   * Giờ cả ba bề mặt đã dựng và cả ba endpoint đã có, nên chỗ tắc duy nhất còn lại
-   * là BẢN ENGINE ĐANG CHẠY cũ hơn bản web — route trả 404. Giữ câu cũ ở đây sẽ
-   * dạy người vận hành đi chờ tầng web, tức đúng lớp sai mà `MucChuaDung` tồn tại
-   * để tránh, chỉ là lệch sang hướng khác.
-   *
-   * Nên mỗi câu nói cùng ba việc: bề mặt ĐÃ dựng, chỗ tắc nằm ở binary engine, và
-   * việc phải làm là cập nhật engine — không phải chờ ai làm giao diện.
-   */
-  thieuEndpointVanPhong: 'Bản đang chạy chưa hỗ trợ mục này. Hãy cập nhật ainovel-cli để xem.',
-  thieuEndpointChiPhi: 'Bản đang chạy chưa hỗ trợ mục này. Hãy cập nhật ainovel-cli để xem. Tổng chi phí vẫn có ở thanh dưới.',
-  thieuEndpointPhienChay: 'Bản đang chạy chưa hỗ trợ mục này. Hãy cập nhật ainovel-cli để xem.',
-
   /**
    * Chú giải cho mục VẪN BẤM ĐƯỢC mà biết trước là rỗng.
    *
@@ -2366,9 +2320,7 @@ export const DH = {
   /** `nhanSoan` lấy từ `trangThaiDong` — "đang viết" khi máy chạy, "viết dở" khi không. */
   dangDocChuong: (xong: number, soan: number, nhanSoan: string) =>
     `${xong} chương đã xong · ${soan} chương ${nhanSoan}`,
-  chuaCo: 'chưa có',
   chuaCoSoLieu: 'chưa có số liệu',
-  chuaHoTro: 'Phiên bản hệ thống đang chạy chưa hỗ trợ mục này.',
   mo: 'Mở',
   doc: 'Đọc',
   moTruyen: (ten: string) => `Mở ${ten}`,

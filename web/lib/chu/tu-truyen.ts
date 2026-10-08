@@ -112,6 +112,8 @@ export const TU_TRUYEN = {
   chuaCoTenThuMuc: 'cần đặt tên thư mục',
   chuaRoY: 'Ý còn mơ hồ?',
   banTruoc: 'Bàn ý tưởng với AI trước',
+  /** Chỉ hiện khi tủ chưa có truyện nào. Menu do app desktop dựng — tên phải khớp nguyên văn. */
+  coTruyenCu: 'Đã có truyện viết từ trước? Mở menu Tệp → Nhập truyện từ thư mục… để đưa vào tủ.',
   buocLau: ['10–30 giây', '1–4 phút', 'liên tục'],
   /** Tạo hỏng vì khóa API — nút mở thẳng màn Model & khóa API. */
   suaKhoaApi: 'Sửa khóa API',
@@ -123,11 +125,20 @@ export const TU_TRUYEN = {
   cdChaoThan:
     'Điều phối sẽ hỏi lại vài câu về nhân vật, bối cảnh và giọng văn, rồi gom tất cả thành một bản yêu cầu ở cột bên. Khi thấy ổn, bạn chốt và AI bắt đầu viết.',
   cdNhap: 'Viết tin nhắn',
+  /* Cùng dựng giai đoạn — bàn chặng tiếp của truyện đang mở, không phải truyện mới. */
+  cdGdChaoDe: 'Chặng tiếp theo nên đi thế nào?',
+  cdGdChaoThan: 'Kể điều bạn muốn đổi hoặc thêm cho phần sắp viết — nhịp, nhân vật, tình tiết. AI hỏi lại cho rõ rồi đưa ra một bản hướng đi để bạn áp dụng.',
+  cdGdGoiYNhap: 'Ví dụ: cho nhân vật chính gặp lại người cũ ở chặng này…',
   cdGoiYGui: 'Enter để gửi · Shift+Enter xuống dòng',
   cdDangNghi: 'Điều phối đang nghĩ',
   cdBanNhapTrong: 'Bản yêu cầu sẽ hiện ở đây sau lượt trả lời đầu tiên, và được cập nhật sau mỗi lượt.',
   cdSanSang: 'Đủ rõ để viết',
   cdChuaSanSang: 'Còn vài điều cần hỏi',
   cdChuaSanSangPhu: 'Trả lời thêm vài câu để AI chốt được bản này.',
+  /* Cùng dựng giai đoạn — truyện đang mở bị tạm dừng trong lúc bàn. */
+  cdHuyBan: 'Thôi bàn, trở lại viết',
+  cdDangHuy: 'Đang trở lại…',
+  cdApDung: 'Áp dụng cho truyện và viết tiếp',
+  cdDangApDung: 'Đang áp dụng…',
   cdSoLuot: (n: number) => `${n} lượt trao đổi`,
 };

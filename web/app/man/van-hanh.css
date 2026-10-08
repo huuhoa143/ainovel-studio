@@ -684,6 +684,36 @@
   padding: 4px 4px 14px 24px;
   max-width: 640px;
 }
+/* Lượt nhập dở: một khung amber nhạt — việc đang chặn cả cuốn, nhưng không phải lỗi. */
+.vhNhapDo .vhNhapDoDau {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in oklab, var(--amber) 35%, transparent);
+  background: color-mix(in oklab, var(--amber) 9%, transparent);
+  font: 400 12.5px/1.6 var(--ui);
+  color: var(--ink-2);
+}
+.vhNhapDo .vhNhapDoDau strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+.vhChonKet {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  font: 400 13px/1.5 var(--ui);
+  color: var(--ink);
+}
+.vhChonKet label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
+}
+.vhChonKet input {
+  accent-color: var(--gold-fill);
+}
 .vhGapLon .oNhap input,
 .vhGapLon .oNhap select {
   border-radius: 8px;

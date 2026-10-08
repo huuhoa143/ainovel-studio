@@ -74,7 +74,6 @@ import { ViecTiepTheo } from './ViecTiepTheo';
 export function BuongLai({
   snapshot,
   tacPham,
-  choGhi,
   chuongChon,
   onChonChuong,
   onChonKhu,
@@ -88,8 +87,6 @@ export function BuongLai({
 }: {
   snapshot: Snapshot;
   tacPham: string | undefined;
-  /** undefined = chưa biết (đang hỏi `/api/config`) — xem `useMay`. Dải quyết định đọc nó. */
-  choGhi: boolean | undefined;
   chuongChon: number | undefined;
   onChonChuong: (n: number) => void;
   onChonKhu: (k: Khu) => void;
@@ -189,7 +186,6 @@ export function BuongLai({
             runtime={snapshot.runtime}
             stop={snapshot.stop}
             tacPham={tacPham}
-            choGhi={choGhi}
             soChuongXong={snapshot.book.completed_chapters}
             onDoi={onDoi}
           />
@@ -333,12 +329,24 @@ export function BuongLai({
       <div className="blcanthiep">
         <h2 className="td-an">{DH.gopY}</h2>
         <OCanThiep
-          capabilities={snapshot.capabilities}
           tacPham={tacPham}
           dangChay={dangChay}
           daXong={snapshot.book.phase === 'complete'}
           onDoi={onDoi}
         />
+        {/* Góp ý là một câu; bàn hướng là một cuộc trò chuyện nhiều lượt về chặng tiếp — và nó
+            TẠM DỪNG truyện trong lúc bàn, nên chú giải nói ra điều đó trước khi bấm. Truyện đã
+            kết thì không còn chặng nào để bàn (server từ chối), nên không mời. */}
+        {snapshot.book.phase !== 'complete' ? (
+          <button
+            type="button"
+            className="nutPhu blBanHuong"
+            title={TD.banHuongGiai}
+            onClick={() => onChonKhu('ban-huong')}
+          >
+            {TD.banHuong}
+          </button>
+        ) : null}
       </div>
     </main>
   );

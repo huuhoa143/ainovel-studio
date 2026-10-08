@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { beforeEach, expect, test, vi } from 'vitest';
 
 import { LoiApi } from '@/lib/api';
+import { CH } from '@/lib/chu/cau-hinh';
 import type { CauHinhDoc } from '@/lib/types';
 
 /**
@@ -88,6 +89,7 @@ test('sửa Địa chỉ gốc KHÔNG làm rơi context_window, json_schema, kh�
     name: '9Router',
     base_url: 'https://9router.example/v2',
     models: [{ name: 'cx/gpt-5.6-luna', context_window: 272000, json_schema: true }],
+    keyless: false,
   });
 });
 
@@ -137,6 +139,7 @@ test('kiểm kết nối bằng BẢN NHÁP trước khi lưu, rồi tích chọ
     name: '9Router',
     base_url: 'https://9router.example/v1',
     api_key: 'sk-moi',
+    keyless: false,
     tools: true,
     model: 'cx/gpt-5.6-luna',
   });
@@ -180,4 +183,30 @@ test('ghi hỏng thì nói ra lý do ngay cạnh nút vừa bấm, biểu mẫu 
   fireEvent.click(form.getByRole('button', { name: 'Lưu' }));
   await waitFor(() => expect(form.getByRole('alert').textContent).toMatch(/không có tác dụng/));
   expect(document.querySelector('li.nccMuc form'), 'lỗi mà biểu mẫu đóng mất').not.toBeNull();
+});
+
+test('nhà cung cấp TỰ KHAI không cần khóa: nhãn "Không cần khóa", Kiểm tra bấm được, ô tích còn nguyên khi sửa', async () => {
+  // Khóa cũ còn lưu cũng không đổi nhãn: người dùng đã nói khóa không dùng tới.
+  DU_HIEN = {
+    ...GIU,
+    providers: [{ ...GIU.providers[0]!, name: 'ollama', keyless: true, api_key_optional: true, api_key_set: true }],
+    provider: 'ollama',
+  };
+  render(<CauHinhXuong />);
+  await waitFor(() => expect(document.querySelector('li.nccMuc')).not.toBeNull());
+  const li = document.querySelector<HTMLElement>('li.nccMuc')!;
+  expect(within(li).getByText(CH.khongCanKhoa)).toBeDefined();
+  expect(within(li).queryByText(CH.chuaCoKhoa)).toBeNull();
+  expect((within(li).getByRole('button', { name: 'Kiểm tra' }) as HTMLButtonElement).disabled).toBe(false);
+
+  fireEvent.click(within(li).getByRole('button', { name: 'Sửa' }));
+  const form = within(li.querySelector('form')!);
+  const tich = form.getByRole('checkbox', { name: new RegExp(CH.khaiKhongKhoa) }) as HTMLInputElement;
+  expect(tich.checked).toBe(true);
+
+  // Bỏ tích phải GỠ được lời khai — nên `false` cũng được gửi đi.
+  fireEvent.click(tich);
+  fireEvent.click(form.getByRole('button', { name: 'Lưu' }));
+  await waitFor(() => expect(LUU).toHaveBeenCalledTimes(1));
+  expect(thanCuoi()?.provider_config?.keyless).toBe(false);
 });

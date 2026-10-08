@@ -1,11 +1,10 @@
 /**
  * Tầng gọi API. Một chỗ duy nhất biết địa chỉ và biết chế độ mock.
  *
- * Hai cách chạy:
+ * Ba cách chạy:
  *
- *   1. Sau `npm run build`, thư mục `out/` được engine phục vụ:
- *        ainovel-cli serve --root <gốc> --web web/out
- *      Cùng gốc (origin) nên `/api/...` chạy trực tiếp, không cần CORS.
+ *   1. Trong app: sidecar Go phục vụ thư mục `out/` (sau `npm run build`) và `/api` trên
+ *      cùng gốc (origin), nên `/api/...` chạy trực tiếp, không cần CORS.
  *
  *   2. `npm run dev` proxy `/api` sang engine qua rewrites trong
  *      next.config.mjs — cũng thành cùng gốc, vì server Go không gửi header
@@ -181,31 +180,15 @@ export async function layHoSo(book: string): Promise<Profile> {
 }
 
 /**
- * Hỏi thăm một endpoint để rail biết vẽ nút hay vẽ nhãn "chưa dựng".
+ * Hỏi thăm một endpoint để rail biết có gắn nhãn "chưa có số liệu" hay không.
  *
  * # Vì sao hỏi thăm chứ không đọc `capabilities`
  *
- * Ba cờ trong `capabilities` trả lời "store CÓ dữ liệu không", không trả lời
- * "engine này CÓ endpoint không". Hai câu đó khác nhau ở đúng ca hay gặp nhất:
- * tác phẩm mới chưa có meta/usage.json thì cờ là false trong khi bề mặt Chi phí
- * đã dựng và có câu tử tế để nói về chuyện đó. Gate rail theo cờ sẽ ẩn bề mặt
- * đúng lúc nó cần lên tiếng.
+ * Rail cần câu trả lời trước khi snapshot của cuốn về, và mỗi bề mặt có luật "có dữ liệu"
+ * riêng (`coVanPhong`, …) — hỏi thẳng endpoint là dùng đúng luật đó.
  *
- * # Vì sao 404 là "thiếu endpoint"
- *
- * Ba endpoint hồ sơ sẵn có (`/outline`, `/cast`, `/world`) LUÔN trả 200 kèm
- * `null` khi tệp không tồn tại — xem handleCast/handleWorld trong
- * internal/serve/serve.go, chúng bỏ qua lỗi đọc và ghi thẳng nil vào JSON. Ba
- * endpoint mới theo cùng quy ước đó, nên 404 chỉ còn một nghĩa: bản engine đang
- * chạy không có route này.
- *
- * Nếu quy ước đó đổi (endpoint 404 khi thiếu tệp) thì hàm này sẽ báo "chưa dựng"
- * cho một bề mặt đã dựng — hướng sai an toàn hơn hướng ngược lại, nhưng vẫn sai,
- * nên nó được ghi ra đây thay vì để người sau tự tìm.
- *
- * Lỗi KHÁC 404 (500, store đọc lỗi, mạng đứt) không kết luận gì về endpoint, nên
- * rail vẫn vẽ nút và bề mặt tự hiện câu lỗi của server. Nuốt nó thành "chưa
- * dựng" là biến một lỗi tầng đọc thành một sự thật về engine.
+ * Lỗi (500, store đọc lỗi, mạng đứt) không kết luận gì, nên rail vẫn vẽ nút và bề mặt tự
+ * hiện câu lỗi của server.
  */
 async function hoiTham<T>(
   duong: string,
@@ -214,8 +197,7 @@ async function hoiTham<T>(
   try {
     const d = await doc<T>(duong);
     return coDuLieu(d) ? 'co-nguon' : 'co-route';
-  } catch (e) {
-    if (e instanceof LoiApi && e.status === 404) return 'thieu-endpoint';
+  } catch {
     return 'co-route';
   }
 }
@@ -269,10 +251,6 @@ const coCaiDat = (d: SettingsDoc): boolean =>
  *   tran-yeu-ky       → có dữ liệu
  *   mot-dem-khong-ten → endpoint có, tệp có mà rỗng
  *   bien-ky           → endpoint có, store chưa ghi tệp nào
- *
- * Không có tác phẩm mẫu nào cho ca "endpoint thiếu": ca đó dựng được bằng chính
- * bản thật (bản engine chưa có route sẽ trả 404), nên bịa thêm một tác phẩm giả
- * cho nó là dựng một ca đã có thật.
  */
 function nguonMock(book: string): Pick<Profile, 'vanPhong' | 'chiPhi' | 'caiDat'> {
   const tt: TinhTrangNguon = book === 'tran-yeu-ky' ? 'co-nguon' : 'co-route';
@@ -538,12 +516,15 @@ async function ghi<T>(
   duong: string,
   method: 'GET' | 'POST' | 'PUT' | 'DELETE',
   than?: unknown,
+  /** Lệnh vẫn phải tới server khi trang đang đóng — xem `huyCungDungGiaiDoan`. */
+  giuKhiDong = false,
 ): Promise<T> {
   const res = await fetch(`${GOC}${duong}`, {
     method,
     headers: HEADER_RAO,
     body: method === 'GET' ? undefined : than === undefined ? '{}' : JSON.stringify(than),
     cache: 'no-store',
+    ...(giuKhiDong ? { keepalive: true } : {}),
   });
   if (!res.ok) {
     let thongDiep = `HTTP ${res.status}`;
@@ -569,7 +550,7 @@ export function layCauHinh(): Promise<CauHinhDoc> {
   if (LA_MOCK) {
     return Promise.resolve({
       needs_setup: false,
-      path: '~/.ainovel/config.json',
+      path: '~/Library/Application Support/AINovel Studio/config.json',
       provider: 'openrouter',
       model: 'gemini-2.5-pro',
       reasoning_effort: 'medium',
@@ -606,6 +587,8 @@ export interface SuaCauHinh {
     base_url?: string;
     /** Vắng = giữ khóa cũ. Chuỗi rỗng = xóa khóa. Hai nghĩa khác nhau. */
     api_key?: string;
+    /** Người dùng khai nhà cung cấp không cần khóa. Vắng = giữ như cũ. */
+    keyless?: boolean;
     models?: { name: string; context_window?: number }[];
   };
   remove_provider?: string;
@@ -770,6 +753,8 @@ export function thuKetNoi(nhap: {
   type?: string;
   base_url?: string;
   api_key?: string;
+  /** Thử như nhà cung cấp không cần khóa. Vắng = theo giá trị đã lưu. */
+  keyless?: boolean;
   /** Model để thử gọi công cụ; vắng thì server thử `auto` nếu có. */
   model?: string;
   tools?: boolean;
@@ -847,6 +832,17 @@ export function chotCungDung(book: string, apply: string): Promise<{ applied: bo
   });
 }
 
+/**
+ * Bỏ cùng dựng giai đoạn: trả cuốn về trạng thái trước khi bàn. Lặp lại vô hại (server trả 200
+ * cả khi không có phiên nào), nên gọi được ở mọi lối thoát mà không phải biết phiên còn không.
+ *
+ * `keepalive`: một lối thoát là đóng/tải lại trang, và lệnh gửi lúc đó phải tới được server —
+ * nếu không cuốn nằm tạm dừng chờ một cuộc bàn không còn ai giữ lịch sử.
+ */
+export function huyCungDungGiaiDoan(book: string): Promise<unknown> {
+  return ghi(`/api/books/${encodeURIComponent(book)}/stage-cocreate/cancel`, 'POST', {}, true);
+}
+
 /* ── luồng tệp ─────────────────────────────────────────────────────────── */
 
 /**
@@ -888,6 +884,33 @@ export function nhapTruyen(
   if (tuyChon.guide) f.append('guide', tuyChon.guide);
   if (tuyChon.continueAfter) f.append('continue', 'true');
   return taiLen<KetQuaLuongTep>(`/api/books/${encodeURIComponent(book)}/import`, f);
+}
+
+/**
+ * Tiếp tục một lượt nhập đang dừng — cùng route, KHÔNG có tệp. Engine dừng nhập ở ba chỗ (chờ
+ * duyệt cách chia chương, chưa rõ truyện gốc đã kết chưa, bị ngắt) và giữ khóa viết cho tới khi
+ * lượt nhập xong, nên thiếu đường này là cuốn đứng mãi.
+ *
+ * `accept`: chấp nhận cách chia chương đang đề xuất. `story`: trả lời truyện gốc đã kết
+ * (`closed`) hay còn viết tiếp (`open`).
+ */
+export function tiepTucNhap(
+  book: string,
+  tuyChon: { accept?: boolean; story?: 'open' | 'closed'; guide?: string } = {},
+): Promise<KetQuaLuongTep> {
+  const f = new FormData();
+  if (tuyChon.accept) f.append('accept', 'true');
+  if (tuyChon.story) f.append('story', tuyChon.story);
+  if (tuyChon.guide) f.append('guide', tuyChon.guide);
+  return taiLen<KetQuaLuongTep>(`/api/books/${encodeURIComponent(book)}/import`, f);
+}
+
+/**
+ * Bỏ lượt nhập dở (hoặc hỏng) — cuốn sách giữ nguyên, chỉ phần nhập dang dở bị bỏ. Lặp lại vô
+ * hại; 409 khi một bước nhập đang chạy (câu lỗi của server hiện nguyên văn).
+ */
+export function boNhapDo(book: string): Promise<{ discarded: boolean }> {
+  return ghi(`/api/books/${encodeURIComponent(book)}/import/discard`, 'POST');
 }
 
 export function chayMoPhong(book: string, tep: File[]): Promise<KetQuaLuongTep> {

@@ -78,5 +78,28 @@ export const CHU_VH = {
   dinhDangEpub: 'Sách điện tử có mục lục, đọc trên máy đọc sách.',
   nhapVaHoc: 'Đưa truyện hoặc văn mẫu vào',
   nhapVaHocPhu: 'Hai việc này dùng riêng một lần, nên được thu gọn.',
+
+  /* lượt nhập dừng giữa chừng — nhãn nút phải khớp NGUYÊN VĂN câu engine nhắc tới */
+  nhapDoTieuDe: 'Lượt nhập trước chưa xong',
+  nhapDoChanViet: 'Trong lúc lượt nhập còn dở thì chưa viết tiếp được truyện này.',
+  nhapDoChoChia:
+    'AI đã chia truyện thành các chương (xem nhật ký bên dưới nếu vừa nhập). Nếu cách chia ổn, bấm «Chấp nhận cách chia chương». Muốn chia khác, ghi vào ô «Gợi ý cách chia chương» rồi bấm «Tiếp tục nhập».',
+  nhapDoChuaRoKet:
+    'AI chưa chắc truyện gốc đã kết thúc hay còn đang ra tiếp. Câu trả lời quyết định AI viết tiếp thế nào — chọn một rồi bấm «Tiếp tục nhập».',
+  nhapDoBiNgat: 'Lượt nhập bị ngắt giữa chừng, ví dụ vì app bị tắt. Bấm «Tiếp tục nhập» để làm nốt phần còn lại.',
+  nhapDoHong: 'Không đọc được phần đang nhập dở, nên không làm tiếp được. Bỏ lượt nhập này rồi nhập lại từ đầu — truyện của bạn vẫn giữ nguyên.',
+  nhapDoTienDo: (chia: number, doc: number) =>
+    doc > 0 ? `Đã chia ${chia} chương, AI đã đọc xong ${doc}/${chia}.` : `Đã chia ${chia} chương.`,
+  chapNhanChia: 'Chấp nhận cách chia chương',
+  tiepTucNhap: 'Tiếp tục nhập',
+  truyenDaKet: 'Truyện gốc đã kết',
+  truyenConViet: 'Truyện gốc còn viết tiếp',
+  boNhapDo: 'Bỏ lượt nhập dở',
+  boNhapDoHoi: 'Bỏ lượt nhập dở?',
+  boNhapDoThan:
+    'Phần truyện đang nhập dở sẽ bị bỏ. Truyện của bạn và các chương đã có vẫn giữ nguyên. Muốn nhập lại thì chọn tệp từ đầu.',
+  boNhapDoLam: 'Bỏ lượt nhập',
+  dangBo: 'Đang bỏ…',
+  daBoNhapDo: 'Đã bỏ lượt nhập dở. Truyện vẫn giữ nguyên.',
   denNgan: 'đến',
 } as const;

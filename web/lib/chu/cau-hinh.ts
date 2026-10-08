@@ -33,6 +33,12 @@ export const CH = {
     'Thêm một nhà cung cấp và nhập khóa API. Kiểm tra kết nối, chọn model, rồi bạn có thể bắt đầu viết.',
   /** Lần đầu: khóa API là gì, lấy ở đâu, dán vào đâu — cho người chưa từng dùng. */
   goiYKhoaLanDau: `Khóa API là một mật khẩu riêng do nhà cung cấp model (OpenRouter, OpenAI, Google…) cấp cho tài khoản của bạn. Ở bước 1 (${BUOC_1}) bên dưới, bấm tên nhà cung cấp bạn dùng. Rồi đăng nhập trang của họ, vào mục API keys, tạo một khóa, sao chép và dán vào ô ${KHOA_API} ở bước 2 (${BUOC_2}).`,
+  /**
+   * Tệp thiết lập hỏng (`config_error`): server coi như chưa cài, lượt lưu hợp lệ kế tiếp ghi
+   * lại tệp TỪ ĐẦU. Nói trước điều đó — thứ còn trong tệp cũ sẽ không được giữ.
+   */
+  tepHong: 'Không đọc được tệp thiết lập, nên app coi như chưa cài đặt. Thêm lại nhà cung cấp và khóa API bên dưới; khi bạn lưu, tệp sẽ được ghi mới và thiết lập cũ trong đó không được giữ lại.',
+  tepHongChiTiet: (loi: string) => `Chi tiết: ${loi}`,
   dangTai: 'Đang tải thiết lập…',
   taiLai: 'Tải lại',
 
@@ -82,10 +88,9 @@ export const CH = {
   phienDaApDung: (ten: string, gio: string) => `Truyện ${ten} đang dùng thiết lập mới từ ${gio}.`,
   kieuVanCanMoLai: 'Kiểu văn chỉ đổi khi bạn mở lại phiên.',
 
-  /* ── hai tệp ── */
-  haiTep: (dich: string, goc: string) =>
-    `Thiết lập được ghép từ hai tệp: ${dich} (tệp đang sửa) và ${goc} (dùng chung cho máy). Giá trị chỉ có ở tệp dùng chung thì không xóa được từ đây.`,
-  tepDangSua: (p: string) => `Đang sửa ${p}`,
+  /* ── tệp cấu hình ── */
+  /** Dòng nhỏ cuối trang: tệp nằm trong thư mục dữ liệu của app, người dùng không phải tìm nó. */
+  tepDangSua: (p: string) => `Thiết lập được lưu ở ${p}`,
 
   /* ── nhà cung cấp ── */
   nhaCungCap: 'Nhà cung cấp',
@@ -136,6 +141,8 @@ export const CH = {
   khoaApi: KHOA_API,
   giuKhoaCu: 'Để trống để giữ khóa cũ',
   khoaCucBo: 'Gateway trên máy bạn có thể không cần khóa.',
+  khaiKhongKhoa: 'Nhà cung cấp này không cần khóa API',
+  khaiKhongKhoaGoiY: 'Chỉ tích khi bạn tự chạy máy chủ AI trên máy mình hoặc trong mạng nội bộ. Dịch vụ trên mạng luôn cần khóa.',
   kiemKetNoi: 'Kiểm tra kết nối',
   timTrongDs: 'Lọc model…',
   daChon: (n: number) => `Đã chọn ${n} model`,

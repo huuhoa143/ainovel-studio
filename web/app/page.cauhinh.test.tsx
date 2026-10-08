@@ -74,7 +74,7 @@ vi.mock('@/lib/useStudio', () => ({
 
 // `canCaiDat: true` — đúng ca mà `page.tsx` chặn toàn bộ studio.
 vi.mock('@/lib/useMay', () => ({
-  useMay: () => ({ choGhi: true, canCaiDat: true, daHoi: true, hoiLai: HOI_LAI }),
+  useMay: () => ({ canCaiDat: true, daHoi: true, hoiLai: HOI_LAI }),
 }));
 
 Element.prototype.scrollIntoView = function () {

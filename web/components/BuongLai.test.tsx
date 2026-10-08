@@ -1,8 +1,8 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { expect, test } from 'vitest';
+import { expect, test, vi } from 'vitest';
 
 import { TD } from '@/lib/chu/tien-do';
-import { CHU, GIAI_THICH } from '@/lib/nhan';
+import { CHU } from '@/lib/nhan';
 import type { Snapshot } from '@/lib/types';
 import { BO_DEM_RONG, moLuot, themChu, type BoDemVan } from '@/lib/vanSong';
 
@@ -27,7 +27,6 @@ function ve(
     <BuongLai
       snapshot={snap({ agents: [], idle_agents: [], ...p })}
       tacPham="b"
-      choGhi
       vuaChot={new Set<number>()}
       chuongChon={undefined}
       onChonChuong={() => {}}
@@ -106,16 +105,6 @@ test('cửa KHÔNG chờ → buồng lái không có dải quyết định nào'
   // hai bài trên xanh, và hệ quả là một khối amber thường trực trên đầu bề mặt đông nhất.
   const { container } = ve(true);
   expect(container.querySelector('.cuanghiemthu')).toBeNull();
-});
-
-test('dải ở buồng lái nhận `choGhi`, nên chế độ chỉ đọc khóa được hai nút', () => {
-  const { container } = ve(true, { advance: { ...CHO } }, BO_DEM_RONG, { choGhi: false });
-  const dai = container.querySelector('.cuanghiemthu')!;
-
-  for (const n of dai.querySelectorAll('button')) {
-    expect(n.disabled).toBe(true);
-  }
-  expect(dai.textContent).toContain(GIAI_THICH.nghiemThuChoDay);
 });
 
 test('dải ở buồng lái: nút trả về đưa con trỏ vào ô góp ý, nhãn gửi theo máy đang chạy hay nghỉ', () => {
@@ -388,4 +377,18 @@ test('nghỉ với bộ đệm chỉ có lượt RỖNG (mở lượt rồi lỗ
   // bấm Tạm dừng thì hiện một khung có tiêu đề mà không có gì bên trong.
   const { container } = ve(false, {}, moLuot(moLuot(BO_DEM_RONG)));
   expect(container.querySelector('.tdVan')).toBeNull();
+});
+
+test('cạnh ô góp ý có lối vào "Bàn hướng tiếp theo", chú giải nói rõ nó tạm dừng truyện', () => {
+  const onChonKhu = vi.fn();
+  ve(false, {}, BO_DEM_RONG, { onChonKhu });
+  const nut = screen.getByRole('button', { name: TD.banHuong });
+  expect(nut.getAttribute('title')).toBe(TD.banHuongGiai);
+  fireEvent.click(nut);
+  expect(onChonKhu).toHaveBeenCalledWith('ban-huong');
+});
+
+test('truyện đã kết thì không mời bàn hướng — không còn chặng nào để bàn', () => {
+  ve(false, { book: { ...snap({}).book, phase: 'complete' } });
+  expect(screen.queryByRole('button', { name: TD.banHuong })).toBeNull();
 });

@@ -102,7 +102,6 @@ test('chương đang viết chưa có nhận xét thì nói vì sao', () => {
         book: { ...snap({}).book, completed_chapters: 3, total_chapters: 30 },
       })}
       tacPham="b"
-      choGhi
       dangChay
       chuongChon={4}
       onChonChuong={() => {}}
@@ -124,7 +123,6 @@ test('truyện ĐÃ có nhận xét ở chương khác thì chương đang viế
         ],
       })}
       tacPham="b"
-      choGhi
       dangChay
       chuongChon={4}
       onChonChuong={() => {}}
@@ -142,7 +140,6 @@ test('truyện ngắn đã xong mà chưa tới lượt chấm thì nói thẳng
         chapters: [{ chapter: 3, stage: 'done' }],
       })}
       tacPham="b"
-      choGhi
       dangChay={false}
       chuongChon={3}
       onChonChuong={() => {}}
@@ -157,7 +154,6 @@ test('snapshot còn của chương cũ thì nói đang mở, không nói "chưa 
     <KiemDinh
       snapshot={snap({ chapters: HANG, selected: { chapter: 1, review: DUYET } })}
       tacPham="b"
-      choGhi
       dangChay={false}
       chuongChon={2}
       onChonChuong={() => {}}

@@ -452,6 +452,28 @@
   font: 400 11.5px/1.45 var(--ui);
   color: var(--ink-3);
 }
+/* Lời khai "không cần khóa": một dòng nhỏ ngay dưới ô khóa, không phải một ô nhập thứ năm. */
+#cau-hinh .chKhongKhoa {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: -4px;
+  cursor: pointer;
+}
+#cau-hinh .chKhongKhoa input[type='checkbox'] {
+  margin: 2px 0 0;
+  accent-color: var(--gold-fill);
+}
+#cau-hinh .chKhongKhoa > span {
+  display: grid;
+  gap: 2px;
+  font: 400 12px/1.45 var(--ui);
+  color: var(--ink-2);
+}
+#cau-hinh .chKhongKhoa small {
+  font: 400 11.5px/1.45 var(--ui);
+  color: var(--ink-3);
+}
 #cau-hinh .chHangNut {
   display: flex;
   align-items: center;

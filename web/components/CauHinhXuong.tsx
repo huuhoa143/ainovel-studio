@@ -11,7 +11,7 @@ import {
   type SuaCauHinh,
 } from '@/lib/api';
 import { CH } from '@/lib/chu/cau-hinh';
-import { thanXoaNhaCungCap, vaiDungNhaCungCap, vaiGhimO } from '@/lib/chuyenNhaCungCap';
+import { dungDuoc, khongCanKhoa, thanXoaNhaCungCap, vaiDungNhaCungCap, vaiGhimO } from '@/lib/chuyenNhaCungCap';
 import { useModelNapVe, type ModelNapVe } from '@/lib/modelNapVe';
 import { nhanKenhVai } from '@/lib/nhan';
 import type { CauHinhDoc, MucModel, NhaCungCap } from '@/lib/types';
@@ -96,6 +96,17 @@ export function CauHinhXuong({
         {/* Người mở app lần đầu có thể chưa từng nghe tới khóa API. Một câu nói nó là gì và
             dán vào đâu, đứng trước biểu mẫu — không bắt họ đoán từ nhãn ô nhập. */}
         {chuaCoGi ? <p className="chGoiYLanDau">{CH.goiYKhoaLanDau}</p> : null}
+        {/* Tệp hỏng trông y hệt lần đầu (needs_setup). Không nói ra thì người đã có khóa tưởng
+            app tự xóa mất thiết lập của họ. */}
+        {du?.config_error ? (
+          <div className="the chBao red" role="alert">
+            <span>
+              {CH.tepHong}
+              <br />
+              <small>{CH.tepHongChiTiet(du.config_error)}</small>
+            </span>
+          </div>
+        ) : null}
 
         {loi ? (
           <div className="the chBao red" role="alert">
@@ -114,7 +125,7 @@ export function CauHinhXuong({
             <DanhSachNhaCungCap du={du} napVe={napVe} onXong={daLuu} />
             {coNcc ? <ThietLapKhac du={du} onXong={daLuu} /> : null}
             <p className="chTep">
-              {du.base_path ? CH.haiTep(du.path, du.base_path) : CH.tepDangSua(du.path)}
+              {CH.tepDangSua(du.path)}
             </p>
           </>
         ) : null}
@@ -289,7 +300,7 @@ function MotNhaCungCap({
   const tt = useTrangThaiLuu();
   const [hoiXoa, datHoiXoa] = useState(false);
   const laMacDinh = n.name === du.provider;
-  const coKhoa = n.api_key_set || !!n.api_key_optional;
+  const coKhoa = dungDuoc(n);
   const dungBoi = vaiDungNhaCungCap(du, n.name);
   const ghim = vaiGhimO(du, n.name);
   const dsModel = n.models ?? [];
@@ -318,8 +329,15 @@ function MotNhaCungCap({
           <div className="nccDau">
             <span className="nccTen">{n.name}</span>
             {laMacDinh ? <span className="vien gold">{CH.macDinh}</span> : null}
-            <span className={`vien ${n.api_key_set ? 'teal' : n.api_key_optional ? '' : 'amber'}`}>
-              {n.api_key_set ? CH.coKhoa(n.api_key_masked ?? '') : n.api_key_optional ? CH.khongCanKhoa : CH.chuaCoKhoa}
+            {/* Tự khai không cần khóa thắng cả khóa cũ còn lưu: người dùng đã nói khóa không dùng tới. */}
+            <span className={`vien ${n.keyless ? '' : n.api_key_set ? 'teal' : khongCanKhoa(n) ? '' : 'amber'}`}>
+              {n.keyless
+                ? CH.khongCanKhoa
+                : n.api_key_set
+                  ? CH.coKhoa(n.api_key_masked ?? '')
+                  : khongCanKhoa(n)
+                    ? CH.khongCanKhoa
+                    : CH.chuaCoKhoa}
             </span>
           </div>
           <div className="nccPhu">
@@ -472,6 +490,7 @@ function FormNhaCungCap({
   const [loai, datLoai] = useState(loaiGoc);
   const [baseURL, datBaseURL] = useState(cu?.base_url ?? '');
   const [khoa, datKhoa] = useState('');
+  const [tuKhaiKhongKhoa, datTuKhaiKhongKhoa] = useState(!!cu?.keyless);
   const [chon, datChon] = useState<string[]>((cu?.models ?? []).map((m) => m.name));
   const [themTen, datThemTen] = useState('');
   const [loc, datLoc] = useState('');
@@ -511,7 +530,8 @@ function FormNhaCungCap({
           name: tenSach,
           ...kemLoai,
           base_url: baseURL.trim(),
-          ...(khoa !== '' ? { api_key: khoa } : {}),
+          ...(khoa !== '' && !tuKhaiKhongKhoa ? { api_key: khoa } : {}),
+          keyless: tuKhaiKhongKhoa,
           // Thử gọi công cụ bằng model đang chọn; chưa chọn gì thì server thử `auto` nếu có.
           tools: true,
           ...(chon[0] ? { model: chon[0] } : {}),
@@ -537,10 +557,17 @@ function FormNhaCungCap({
       return w > 0 ? { ...goc, context_window: w } : goc;
     });
     const sua: SuaCauHinh = {
-      provider_config: { name: tenSach, base_url: baseURL.trim(), models, ...kemLoai },
+      provider_config: {
+        name: tenSach,
+        base_url: baseURL.trim(),
+        models,
+        ...kemLoai,
+        // Luôn gửi, cả `false`: bỏ tích phải gỡ được lời khai cũ.
+        keyless: tuKhaiKhongKhoa,
+      },
     };
     // Chỉ gửi khóa khi người dùng THẬT SỰ gõ — chuỗi rỗng là lệnh XÓA khóa ở server.
-    if (khoa !== '') sua.provider_config!.api_key = khoa;
+    if (khoa !== '' && !tuKhaiKhongKhoa) sua.provider_config!.api_key = khoa;
     // Chưa có mặc định (lần đầu) thì đặt luôn, nếu không cấu hình vừa lưu vẫn chưa dùng được.
     if (lanDau) {
       sua.provider = tenSach;
@@ -641,9 +668,24 @@ function FormNhaCungCap({
                 datKq(null);
               }}
               autoComplete="off"
-              placeholder={cu?.api_key_set ? CH.giuKhoaCu : 'sk-…'}
+              disabled={tuKhaiKhongKhoa}
+              placeholder={tuKhaiKhongKhoa ? CH.khongCanKhoa : cu?.api_key_set ? CH.giuKhoaCu : 'sk-…'}
             />
-            {cu?.api_key_optional ? <small>{CH.khoaCucBo}</small> : null}
+            {cu?.api_key_optional && !tuKhaiKhongKhoa ? <small>{CH.khoaCucBo}</small> : null}
+          </label>
+          <label className="chKhongKhoa rong">
+            <input
+              type="checkbox"
+              checked={tuKhaiKhongKhoa}
+              onChange={(e) => {
+                datTuKhaiKhongKhoa(e.target.checked);
+                datKq(null);
+              }}
+            />
+            <span>
+              {CH.khaiKhongKhoa}
+              <small>{CH.khaiKhongKhoaGoiY}</small>
+            </span>
           </label>
         </div>
         <div className="chHangNut">

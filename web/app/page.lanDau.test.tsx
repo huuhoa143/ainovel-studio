@@ -261,3 +261,11 @@ test('xưởng rỗng: Bàn ý tưởng mở được và có lối về tạo t
     expect(screen.getByRole('heading', { level: 1, name: CHU.taoTacPham })).toBeDefined(),
   );
 });
+
+test('xưởng rỗng chỉ đường nhập truyện cũ qua menu của app', async () => {
+  // Người từng viết truyện trước đây mở app lần đầu thấy tủ trống. Không có dòng này thì
+  // không gì trên màn nói rằng truyện cũ đưa vào được — menu Tệp là chỗ họ không nhìn tới.
+  hienTai = DA_CAI;
+  render(<Trang />);
+  await waitFor(() => expect(screen.getByText(T.coTruyenCu)).toBeDefined());
+});

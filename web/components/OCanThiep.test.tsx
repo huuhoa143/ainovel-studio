@@ -2,7 +2,6 @@ import { render, screen } from '@testing-library/react';
 import { expect, test, vi } from 'vitest';
 
 import { GIAI_THICH } from '@/lib/nhan';
-import type { Capabilities } from '@/lib/types';
 
 import { OCanThiep } from './OCanThiep';
 
@@ -11,12 +10,8 @@ vi.mock('@/lib/api', async (goc) => ({
   canThiep: vi.fn(),
 }));
 
-const KHA_NANG = (steer: boolean) => ({ steer }) as unknown as Capabilities;
-
-function ve(steer: boolean) {
-  return render(
-    <OCanThiep capabilities={KHA_NANG(steer)} tacPham="b" dangChay onDoi={() => {}} />,
-  );
+function ve() {
+  return render(<OCanThiep tacPham="b" dangChay onDoi={() => {}} />);
 }
 
 /**
@@ -27,8 +22,8 @@ function ve(steer: boolean) {
  * session ở trên bé quá"*.
  */
 
-test('studio GHI ĐƯỢC → câu giải thích không chiếm chỗ, nhưng vẫn còn cho trình đọc màn hình', () => {
-  const { container } = ve(true);
+test('câu giải thích không chiếm chỗ, nhưng vẫn còn cho trình đọc màn hình', () => {
+  const { container } = ve();
   const cau = container.querySelector('#vi-sao-can-thiep')!;
 
   // Còn trong DOM: `aria-describedby` của ô nhập trỏ vào đúng id này, và một `describedby`
@@ -42,18 +37,4 @@ test('studio GHI ĐƯỢC → câu giải thích không chiếm chỗ, nhưng v�
   expect(screen.getByRole('textbox').getAttribute('title')).toBe(
     GIAI_THICH.canThiepArbiterXuLy,
   );
-});
-
-test('studio CHỈ ĐỌC → câu giải thích HIỆN RA, vì nó là chỗ duy nhất nói vì sao ô chết', () => {
-  // Vế ngược, và là vế đắt hơn nếu hỏng: ẩn câu này ở ca ô bị vô hiệu là để lại một ô nhập
-  // không gõ được mà không lời giải thích nào — đúng thứ PRODUCT.md cấm.
-  const { container } = ve(false);
-  const cau = container.querySelector('#vi-sao-can-thiep')!;
-
-  expect(cau.hasAttribute('hidden')).toBe(false);
-  expect(cau.textContent).toContain(GIAI_THICH.canThiepChoDay);
-  expect(cau.textContent).toContain(GIAI_THICH.canThiepTat);
-
-  // `title` KHÔNG lặp lại câu đang hiện: một chú giải nói lại thứ đọc được là nhiễu.
-  expect(screen.getByRole('textbox').getAttribute('title')).toBeNull();
 });

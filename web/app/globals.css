@@ -513,48 +513,6 @@ button {
   color: var(--gold);
 }
 
-/* Mục chưa dựng bề mặt: KHÔNG phải nút, và phải thấy ngay là không phải nút.
-   Ba kênh cùng nói một điều — chữ mờ hơn, nhãn "chưa dựng", và không có trạng
-   thái hover.
-
-   Nhãn "chưa dựng" xuống DÒNG RIÊNG, không đứng cùng hàng với tên khu.
-   ĐO ĐƯỢC ở 1440px: rail rộng 194px, và đặt nhãn đó cùng hàng thì nó lấy 54px,
-   khiến "Kiểm định" bị cắt thành "Kiểm ...", "Hàng chờ viết lại" thành
-   "Hàng ...", "Văn phong" thành "Văn pho...". Đúng cái lỗi cột cố định cắt nhãn
-   tiếng Việt — và ở đây nó cắt mất chính TÊN của khu, tức phần mang tin, để
-   chừa chỗ cho phần chú thích. */
-.rail .chuadung {
-  display: grid;
-  grid-template-columns: 14px 1fr auto;
-  grid-template-areas:
-    "g nhan n"
-    "x tag tag";
-  gap: 3px 9px;
-  align-items: center;
-  color: var(--ink-3);
-  cursor: default;
-}
-.rail .chuadung .g {
-  grid-area: g;
-}
-.rail .chuadung .nhan {
-  grid-area: nhan;
-}
-/* Ô số vẫn hiện ở mục chưa dựng — con số là tin vận hành và nó đúng dù bề mặt
-   chưa có. */
-.rail .chuadung .n {
-  grid-area: n;
-  margin-left: 0;
-}
-.rail .chuadung .tag {
-  grid-area: tag;
-  justify-self: start;
-  font: 400 9.5px/1 var(--ui);
-  color: var(--ink-3);
-  border: 1px dashed var(--line);
-  border-radius: 3px;
-  padding: 3px 5px;
-}
 .rail .g {
   width: 14px;
   text-align: center;
@@ -891,7 +849,7 @@ button {
    duy nhất còn lại để nhấn là bố cục, không phải màu.
 
    Bố cục: lưới hai cột `1fr auto` — chữ bên trái, hai nút căn phải. Lưới chứ không phải
-   flex vì bốn khối phụ (`.cntO`, `.loiDoc`, câu chỉ-đọc) phải trải HẾT bề rộng dưới cả
+   flex vì các khối phụ (`.cntO`, `.loiDoc`) phải trải HẾT bề rộng dưới cả
    hai cột; với flex chúng sẽ chen vào cùng một hàng với hai cái nút. */
 /* Màu của cửa duyệt: VIOLET, theo DESIGN.md ("Tím chờ duyệt", ◆). Đặt thành biến ở
    đây vì CÓ HAI nơi tô màu cho dải — luật tĩnh dưới đây và nhịp thở `thoCho` — và
@@ -1880,9 +1838,18 @@ time .mocNgay {
   border-top: 1px solid var(--line);
   min-width: 0;
   /* KHÔNG co, kể cả lúc cả cột giữa thiếu chỗ: một ô nhập bị bóp là một ô nhập
-     không gõ được, và câu giải thích ngay dưới nó là chỗ DUY NHẤT nói vì sao ô
-     bị vô hiệu ở ca studio chỉ đọc. */
+     không gõ được. */
   flex: none;
+}
+/* Lối vào "Bàn hướng tiếp theo" đứng ngay sau ô nhập, trước mọi câu báo (chúng xuống hàng). */
+.blcanthiep .blBanHuong {
+  flex: none;
+  order: 1;
+  white-space: nowrap;
+}
+.blcanthiep > .steerhint,
+.blcanthiep > .loiDoc {
+  order: 2;
 }
 .blcanthiep > h2 {
   flex: none;
@@ -1901,11 +1868,9 @@ time .mocNgay {
 }
 /* Câu giải thích rút về nhiều nhất HAI dòng: nó nằm dưới mắt suốt phiên và mỗi
    dòng của nó là một dòng lấy từ khu chữ.
-   Hai chứ không phải một, và con số đó có lý do: ở ca ô nhập bị VÔ HIỆU, câu này
-   là chỗ DUY NHẤT nói vì sao — cắt nó về một dòng ở 1440px để lại đúng nửa vế
-   đầu ("Ô nhập vô hiệu — studio đang ở chế độ chỉ đọc") mà mất phần nói phải làm
-   gì. Chữ không bị xóa khỏi DOM, nên trình đọc màn hình và `aria-describedby`
-   của ô nhập vẫn nhận đủ câu.
+   Hai chứ không phải một: câu báo hệ quả sau khi gửi ("Đã gửi góp ý. Điều phối
+   đang xem xét…") cắt về một dòng ở 1440px là mất nửa sau. Chữ không bị xóa khỏi
+   DOM, nên trình đọc màn hình vẫn nhận đủ câu.
    `.loiDoc` KHÔNG bị kẹp: đó là lỗi nguyên văn từ server, và một câu lỗi bị cắt
    là đúng thứ `PRODUCT.md` cấm ("nói rõ lỗi gì và làm gì tiếp, không làm dịu"). */
 .blcanthiep .steerhint {
@@ -2821,33 +2786,6 @@ time .mocNgay {
   font-size: 13px;
   line-height: 1.78;
   color: var(--ink-2);
-}
-.trangtrong .goc {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 7px 10px;
-  align-items: baseline;
-  font-size: 12.5px;
-}
-.trangtrong .goc dt {
-  color: var(--ink-3);
-}
-.trangtrong .goc dd {
-  margin: 0;
-  font: 400 12px var(--mono);
-  color: var(--ink);
-  overflow-wrap: anywhere;
-}
-.trangtrong .lenh {
-  display: block;
-  width: 100%;
-  padding: 10px 12px;
-  background: var(--bg);
-  border: 1px solid var(--line-2);
-  border-radius: var(--r);
-  font: 400 12px/1.6 var(--mono);
-  color: var(--ink-2);
-  overflow-x: auto;
 }
 .trangtrong .loi {
   color: var(--red);
@@ -3801,11 +3739,9 @@ time .mocNgay {
 
 /* ── nhãn báo trước ở rail: "vào được, nhưng chưa có số liệu" ── */
 
-/* Mục này VẪN là nút, khác `.chuadung`. Nhưng nó phải mượn đúng bố cục hai hàng
-   của `.chuadung`, và lý do là một phép đo đã ghi ở đó: rail rộng 194px, đặt nhãn
-   cùng hàng với tên khu thì nhãn ăn hết chỗ và cắt mất chính TÊN khu
-   ("Văn pho..."). Nhãn ở đây còn dài hơn "chưa dựng", nên nếu để inline trong
-   `display: flex` của `.mucdi` thì lỗi đó tái diễn nguyên vẹn.
+/* Nhãn xuống DÒNG RIÊNG, không đứng cùng hàng với tên khu. ĐO ĐƯỢC ở 1440px: rail rộng
+   194px, đặt nhãn cùng hàng với tên khu thì nhãn ăn hết chỗ và cắt mất chính TÊN khu
+   ("Văn pho..."), tức phần mang tin, để chừa chỗ cho phần chú thích.
    `:has()` đã là thành ngữ sẵn trong tệp này (xem `div:has(> .qcrow)`). */
 .rail .mucdi:has(.tag.mo) {
   display: grid;
@@ -3826,8 +3762,7 @@ time .mocNgay {
   grid-area: n;
   margin-left: 0;
 }
-/* Viền LIỀN, không đứt — và đó là chỗ nhãn này tự phân biệt với `.chuadung`.
-   Nét đứt trong hệ này nghĩa là "chưa có, đừng chờ" (xem `.mucxem button:disabled`
+/* Viền LIỀN, không đứt. Nét đứt trong hệ này nghĩa là "chưa có, đừng chờ" (xem `.mucxem button:disabled`
    và `.nguoi .hang.h-secondary`). Ở đây bề mặt CÓ và bấm được; chỉ nguồn là rỗng.
    Hai câu khác nhau nên hai nét khác nhau. */
 .rail .mucdi:has(.tag.mo) .tag.mo {

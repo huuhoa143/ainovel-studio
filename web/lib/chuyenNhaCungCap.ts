@@ -1,5 +1,5 @@
 import type { SuaCauHinh } from './api';
-import type { CauHinhDoc, MucModel, MucVai } from './types';
+import type { CauHinhDoc, MucModel, MucVai, NhaCungCap } from './types';
 
 /**
  * Luật của màn Model & khóa API — phần không có DOM.
@@ -15,6 +15,20 @@ import type { CauHinhDoc, MucModel, MucVai } from './types';
  * Tách khỏi component vì đây là toàn bộ phần có luật, và luật thì phải kiểm được bằng bảng ca
  * chứ không bằng cách dựng một hộp thoại rồi bấm.
  */
+
+/**
+ * Nhà cung cấp chạy được mà không cần khóa. Server đã gộp lời khai `keyless` vào kết luận
+ * `api_key_optional`; một hàm cho mọi chỗ hỏi, để nhãn danh sách, nút Kiểm tra và ô chọn model
+ * không bao giờ trả lời khác nhau.
+ */
+export function khongCanKhoa(n: NhaCungCap): boolean {
+  return !!n.api_key_optional;
+}
+
+/** Gọi được ngay: có khóa, hoặc không cần khóa. */
+export function dungDuoc(n: NhaCungCap): boolean {
+  return n.api_key_set || khongCanKhoa(n);
+}
 
 /** Một dòng trong bảng đối chiếu trước khi ghi. */
 export interface DongChuyen {

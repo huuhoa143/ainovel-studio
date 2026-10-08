@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react';
 
-import { LoiApi, cungDungGiaiDoan, cungDungMoSach } from '@/lib/api';
+import { LoiApi, chotCungDung, cungDungGiaiDoan, cungDungMoSach, huyCungDungGiaiDoan } from '@/lib/api';
 import { TU_TRUYEN as T } from '@/lib/chu/tu-truyen';
+import { TEN_KHU } from '@/lib/khu';
 import { CHU, GIAI_THICH, nhanVai } from '@/lib/nhan';
 import type { DapCungDung, LuotCungDung } from '@/lib/types';
 
@@ -30,6 +31,14 @@ import { NutVeTaoTruyen } from './NutVeTaoTruyen';
  *     đúng lượt hiện tại.
  *
  * Gộp cả ba vào MỘT hàm `apDung` để không có chỗ thứ hai làm khác.
+ *
+ * # Cùng dựng giai đoạn không được bỏ cuốn sách nằm tạm dừng
+ *
+ * Lượt đầu ở chế độ `giai-doan` TẠM DỪNG truyện đang mở (`PauseForCoCreate`), và chỉ hai
+ * lệnh trả nó về: áp dụng bản nháp (`chotCungDung`) hoặc hủy (`huyCungDungGiaiDoan`). Lịch
+ * sử đối thoại chỉ sống trong component này — rời bề mặt là mất nó, tức không còn đường nào
+ * để "bàn tiếp". Nên mọi lối rời khi phiên còn mở đều là HỦY: bấm nút, đổi khu (unmount),
+ * đổi cuốn, hay đóng/tải lại trang (`pagehide`). Hủy lặp lại vô hại, nên không cần đếm.
  */
 export function CungDung({
   cheDo,
@@ -39,7 +48,10 @@ export function CungDung({
 }: {
   cheDo: 'mo-sach' | 'giai-doan';
   tacPham: string | undefined;
-  /** Gọi khi bản nháp đã sẵn sàng — bên gọi quyết định làm gì với nó. */
+  /**
+   * `mo-sach`: gọi với bản nháp đã sẵn sàng — bên gọi quyết định làm gì với nó.
+   * `giai-doan`: gọi SAU KHI bản nháp đã được áp dụng cho cuốn và truyện chạy lại.
+   */
   onXong: (banNhap: string) => void;
   /** Có = xưởng chưa có truyện, không có rail — xem `NutVeTaoTruyen`. */
   onVeTaoTruyen?: () => void;
@@ -51,6 +63,60 @@ export function CungDung({
   const [chu, datChu] = useState('');
   const [dangGui, datDangGui] = useState(false);
   const [loi, datLoi] = useState<string | null>(null);
+  const [dangDong, datDangDong] = useState<'huy' | 'ap-dung' | null>(null);
+  const giaiDoan = cheDo === 'giai-doan' && !!tacPham;
+  /** Cuốn đang bị tạm dừng vì cuộc bàn NÀY — chưa áp dụng, chưa hủy. */
+  const [moPhien, datMoPhien] = useState(false);
+  const phienRef = useRef<string | null>(null);
+  phienRef.current = moPhien && giaiDoan ? tacPham! : null;
+
+  // Mọi lối rời khi phiên còn mở là hủy — xem chú thích đầu tệp. Cleanup chạy khi unmount VÀ
+  // khi đổi cuốn/chế độ, nên đọc cuốn từ ref (giá trị lúc rời), không từ closure.
+  useEffect(() => {
+    const roi = () => {
+      if (phienRef.current) void huyCungDungGiaiDoan(phienRef.current).catch(() => {});
+    };
+    window.addEventListener('pagehide', roi);
+    return () => {
+      window.removeEventListener('pagehide', roi);
+      roi();
+    };
+  }, [giaiDoan, tacPham]);
+
+  const datLai = () => {
+    datMoPhien(false);
+    datLichSu([]);
+    datBanNhap('');
+    datSanSang(false);
+    datGoiY([]);
+  };
+
+  const huy = () => {
+    if (!tacPham) return;
+    datDangDong('huy');
+    datLoi(null);
+    huyCungDungGiaiDoan(tacPham)
+      .then(datLai)
+      .catch((e: unknown) => datLoi(e instanceof LoiApi ? e.message : String(e)))
+      .finally(() => datDangDong(null));
+  };
+
+  const chot = () => {
+    if (!giaiDoan) {
+      onXong(banNhap);
+      return;
+    }
+    datDangDong('ap-dung');
+    datLoi(null);
+    chotCungDung(tacPham!, banNhap)
+      .then(() => {
+        const ban = banNhap;
+        datLai();
+        onXong(ban);
+      })
+      .catch((e: unknown) => datLoi(e instanceof LoiApi ? e.message : String(e)))
+      .finally(() => datDangDong(null));
+  };
 
   /** Ba luật của ApplyReply, ở đúng một chỗ. */
   const apDung = (d: DapCungDung) => {
@@ -73,10 +139,10 @@ export function CungDung({
     datDangGui(true);
     datLoi(null);
 
-    const goi =
-      cheDo === 'giai-doan' && tacPham
-        ? cungDungGiaiDoan(tacPham, moi)
-        : cungDungMoSach(moi);
+    // Đánh dấu phiên mở TRƯỚC khi chờ: server tạm dừng cuốn trước lúc gọi mô hình, nên một lượt
+    // hỏng giữa chừng vẫn để lại cuốn tạm dừng cần hủy.
+    if (giaiDoan) datMoPhien(true);
+    const goi = giaiDoan ? cungDungGiaiDoan(tacPham!, moi) : cungDungMoSach(moi);
 
     goi
       .then(apDung)
@@ -101,18 +167,23 @@ export function CungDung({
     <main className="canvas" id="cung-dung">
       <div className="head">
         {onVeTaoTruyen ? <NutVeTaoTruyen onClick={onVeTaoTruyen} /> : null}
-        <h1>{CHU.cungDung}</h1>
+        <h1>{giaiDoan ? TEN_KHU['ban-huong'] : CHU.cungDung}</h1>
         {lichSu.length > 0 ? <span className="sub">{T.cdSoLuot(lichSu.filter((m) => m.role === 'user').length)}</span> : null}
       </div>
 
       <div className="cdKhung">
         <section className="cdTroChuyen" aria-label={CHU.cungDung}>
-          {cheDo === 'giai-doan' ? (
+          {giaiDoan ? (
             <p className="vphacap cdTamDung">
               <span className="ky" aria-hidden="true">
                 ■
               </span>
               <span>{GIAI_THICH.cungDungGiaiDoanTamDung}</span>
+              {moPhien ? (
+                <button type="button" className="nutPhu" onClick={huy} disabled={dangDong !== null || dangGui}>
+                  {dangDong === 'huy' ? T.cdDangHuy : T.cdHuyBan}
+                </button>
+              ) : null}
             </p>
           ) : null}
 
@@ -122,9 +193,9 @@ export function CungDung({
                 <span className="cdChaoDau" aria-hidden="true">
                   <BieuTuong ten="yTuong" co={20} />
                 </span>
-                <h2>{T.cdChaoDe}</h2>
-                <p>{T.cdChaoThan}</p>
-                <p className="cdChaoPhu">{GIAI_THICH.cungDungGiaiThich}</p>
+                <h2>{giaiDoan ? T.cdGdChaoDe : T.cdChaoDe}</h2>
+                <p>{giaiDoan ? T.cdGdChaoThan : T.cdChaoThan}</p>
+                {giaiDoan ? null : <p className="cdChaoPhu">{GIAI_THICH.cungDungGiaiThich}</p>}
                 {/* ĐỦ sáu thể loại, không cắt bốn.
                     `slice(0, 4)` cũ không có lý do nào ghi lại, và nó làm hai bề mặt gần như
                     cùng một việc mời khác nhau: "Viết truyện mới" bày đủ sáu, bàn ý tưởng chỉ
@@ -132,13 +203,16 @@ export function CungDung({
                     cắt ấy theo THỨ TỰ MẢNG, nên thêm một thể loại vào đầu `Y_TUONG_MAU` sẽ
                     lặng lẽ đẩy một thể loại khác ra khỏi bàn ý tưởng.
                     Sáu chip xuống dòng được (xem `.cdChaoChip`), nên chỗ hẹp không phải lý do. */}
-                <div className="cdChaoChip" role="group" aria-label={T.thuMotY}>
-                  {T.yTuongMau.map((m) => (
-                    <button key={m.the} type="button" className="chip" onClick={() => dienY(m.cau)}>
-                      {m.the}
-                    </button>
-                  ))}
-                </div>
+                {/* Thể loại mẫu chỉ có nghĩa cho truyện MỚI. */}
+                {giaiDoan ? null : (
+                  <div className="cdChaoChip" role="group" aria-label={T.thuMotY}>
+                    {T.yTuongMau.map((m) => (
+                      <button key={m.the} type="button" className="chip" onClick={() => dienY(m.cau)}>
+                        {m.the}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             ) : null}
             {lichSu.map((m, i) => (
@@ -203,9 +277,11 @@ export function CungDung({
                   }
                 }}
                 placeholder={
-                  lichSu.length === 0
-                    ? 'Viết truyện trinh thám điều tra dài, nhịp chậm, giọng tiết chế…'
-                    : 'Trả lời hoặc nói thêm…'
+                  lichSu.length > 0
+                    ? 'Trả lời hoặc nói thêm…'
+                    : giaiDoan
+                      ? T.cdGdGoiYNhap
+                      : 'Viết truyện trinh thám điều tra dài, nhịp chậm, giọng tiết chế…'
                 }
                 disabled={dangGui}
               />
@@ -238,10 +314,10 @@ export function CungDung({
                 <button
                   type="button"
                   className="nutChinh cdChot"
-                  disabled={!sanSang}
-                  onClick={() => onXong(banNhap)}
+                  disabled={!sanSang || dangDong !== null || dangGui}
+                  onClick={chot}
                 >
-                  {CHU.chotBanNhap}
+                  {giaiDoan ? (dangDong === 'ap-dung' ? T.cdDangApDung : T.cdApDung) : CHU.chotBanNhap}
                 </button>
                 {!sanSang ? <p className="cdChotPhu">{T.cdChuaSanSangPhu}</p> : null}
               </>

@@ -53,6 +53,7 @@ export type Khu =
   | 'chi-phi-xuong'
   | 'tac-pham-moi'
   | 'cung-dung'
+  | 'ban-huong'
   | 'nhap-xuat';
 
 /**
@@ -85,6 +86,7 @@ export const TEN_KHU: Record<Khu, string> = {
   'chi-phi-xuong': 'Chi phí tổng',
   'tac-pham-moi': 'Viết truyện mới',
   'cung-dung': 'Bàn ý tưởng',
+  'ban-huong': 'Bàn hướng tiếp theo',
   'nhap-xuat': 'Xuất bản & nhập',
 };
 
@@ -107,6 +109,7 @@ export const KHU: readonly Khu[] = [
   'chi-phi-xuong',
   'tac-pham-moi',
   'cung-dung',
+  'ban-huong',
   'nhap-xuat',
 ] as const;
 

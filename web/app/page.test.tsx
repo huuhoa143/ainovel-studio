@@ -57,7 +57,7 @@ const STUDIO_GIA: Studio = {
 
 vi.mock('@/lib/useStudio', () => ({ useStudio: () => STUDIO_GIA }));
 vi.mock('@/lib/useMay', () => ({
-  useMay: () => ({ choGhi: true, canCaiDat: false, daHoi: true }),
+  useMay: () => ({ canCaiDat: false, daHoi: true }),
 }));
 
 /**
@@ -92,7 +92,6 @@ function ve(
       sach={[snap({}).book]}
       tong={tongGia()}
       tacPham="b"
-      choGhi
       vuaChot={new Set<number>()}
       chuongChon={undefined}
       onChonChuong={() => {}}
@@ -237,7 +236,7 @@ test('CÙNG một snapshot thì cả buồng lái và Kiểm định đều vẽ
   // không bài nào của chúng biết bên kia tồn tại.
   //
   // Đi qua `Khu` chứ không dựng hai component thẳng: tầng định tuyến là chỗ prop được rót vào,
-  // nên đây cũng là chỗ đo được việc `Khu` truyền `advance`/`choGhi`/`onDoi` xuống CẢ HAI nhánh
+  // nên đây cũng là chỗ đo được việc `Khu` truyền `advance`/`onDoi` xuống CẢ HAI nhánh
   // `case`. Gắn đủ cho một nhánh rồi quên nhánh kia là ca thật.
   const cho = { advance: { mode: 'review', hold: true, permit_chapter: 8 } };
 
@@ -246,24 +245,6 @@ test('CÙNG một snapshot thì cả buồng lái và Kiểm định đều vẽ
 
   const b = ve('kiem-dinh', BO_DEM_RONG, { snapshot: snap({ ...cho }) });
   expect(b.container.querySelector('.cuanghiemthu')).not.toBeNull();
-});
-
-test('`Khu` truyền `choGhi` xuống dải ở CẢ HAI bề mặt', () => {
-  // Nửa còn lại: `choGhi` nhét cứng thành `true` ở tầng định tuyến cho ra hai nút bấm được
-  // trên một studio chỉ đọc, tức gửi vào hư không. Bài trên xanh cả khi điều đó xảy ra.
-  const cho = { advance: { mode: 'review', hold: true, permit_chapter: 8 } };
-
-  for (const khu of ['dong-san-xuat', 'kiem-dinh'] as KhuMa[]) {
-    const { container } = ve(khu, BO_DEM_RONG, {
-      snapshot: snap({ ...cho }),
-      choGhi: false,
-    });
-    const dai = container.querySelector('.cuanghiemthu')!;
-    expect(dai).not.toBeNull();
-    for (const n of dai.querySelectorAll('button')) {
-      expect(n.disabled).toBe(true);
-    }
-  }
 });
 
 test('`Trang` nối hành động mở-tại-khu THẬT của studio xuống nút `Mở` của Xưởng', () => {

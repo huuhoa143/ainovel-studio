@@ -40,6 +40,7 @@ export function TacPhamMoi({
   onXong,
   nhapSan = '',
   onChonKhu,
+  tuTrong = false,
 }: {
   onXong: (book: string) => void;
   /**
@@ -54,6 +55,8 @@ export function TacPhamMoi({
    * một cú tạo ngầm sẽ tiêu tiền thật mà họ chưa xác nhận.
    */
   nhapSan?: string;
+  /** Tủ chưa có truyện nào — thêm một dòng chỉ đường nhập truyện cũ. */
+  tuTrong?: boolean;
 }) {
   /* Bản nháp còn lại từ lượt trước (sang sửa khóa / Bàn ý tưởng rồi quay về) — xem
      lib/banNhapTaoTruyen.ts. Đọc MỘT lần lúc dựng, trong bộ khởi tạo của useState: biểu mẫu chỉ
@@ -320,6 +323,7 @@ export function TacPhamMoi({
               </button>
             </p>
           ) : null}
+          {tuTrong ? <p className="tpmGhiChu">{T.coTruyenCu}</p> : null}
         </aside>
       </div>
     </main>

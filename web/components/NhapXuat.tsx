@@ -2,12 +2,13 @@
 
 import { useState } from 'react';
 
-import { LoiApi, chayMoPhong, nhapHoSoMoPhong, nhapTruyen, xuatBan } from '@/lib/api';
+import { LoiApi, boNhapDo, chayMoPhong, nhapHoSoMoPhong, nhapTruyen, tiepTucNhap, xuatBan } from '@/lib/api';
 import { CHU_VH } from '@/lib/chu/van-hanh';
 import { CHU, GIAI_THICH } from '@/lib/nhan';
-import type { DongNhatKy } from '@/lib/types';
+import type { DongNhatKy, NhapDo } from '@/lib/types';
 
 import { BieuTuong } from './BieuTuong';
+import { HopXacNhan } from './HopXacNhan';
 
 /**
  * Nhập & Xuất — ba luồng cần tệp.
@@ -30,10 +31,16 @@ import { BieuTuong } from './BieuTuong';
 export function NhapXuat({
   tacPham,
   soChuongXong,
+  nhapDo = null,
+  onDoi = () => {},
 }: {
   tacPham: string | undefined;
   /** Số chương đã xong — chặn trên của khoảng chương. Vắng thì không chặn (không đoán 0). */
   soChuongXong?: number;
+  /** `snapshot.import` — lượt nhập đang dừng giữa chừng, nếu có. */
+  nhapDo?: NhapDo | null;
+  /** Nạp lại snapshot sau mỗi bước nhập — pha nhập đổi ở phía engine. */
+  onDoi?: () => void;
 }) {
   return (
     <main className="canvas vhMan" id="nhap-xuat">
@@ -59,7 +66,7 @@ export function NhapXuat({
                   <p>{CHU_VH.nhapVaHocPhu}</p>
                 </div>
               </div>
-              <NhapTruyen tacPham={tacPham} />
+              <NhapTruyen tacPham={tacPham} nhapDo={nhapDo} onDoi={onDoi} />
               <MoPhong tacPham={tacPham} />
             </section>
           </>
@@ -196,69 +203,220 @@ function XuatBan({ tacPham, soChuongXong }: { tacPham: string; soChuongXong?: nu
 
 /* ── nhập truyện ngoài ─────────────────────────────────────────────────── */
 
-function NhapTruyen({ tacPham }: { tacPham: string }) {
+/**
+ * # Lượt nhập dừng giữa chừng
+ *
+ * Engine dừng một lượt nhập ở ba chỗ (`snapshot.import.phase`) và giữ khóa viết cho tới khi
+ * lượt nhập xong — nên mỗi pha phải có lối đi tiếp ngay ở đây, nếu không cuốn đứng mãi. Chỉ
+ * hiện điều khiển của ĐÚNG pha đang có; tải tệp mới lúc còn lượt dở thì server từ chối, nên
+ * biểu mẫu tệp ẩn đi thay vì để người dùng bấm vào một lỗi. Nhãn nút khớp nguyên văn câu
+ * engine viết trong nhật ký.
+ */
+function NhapTruyen({
+  tacPham,
+  nhapDo,
+  onDoi,
+}: {
+  tacPham: string;
+  nhapDo: NhapDo | null;
+  onDoi: () => void;
+}) {
   const [tep, datTep] = useState<File | null>(null);
   const [huongDan, datHuongDan] = useState('');
   const [tuDongChot, datTuDongChot] = useState(false);
+  const [ket, datKet] = useState<'open' | 'closed' | null>(null);
   const [chay, datChay] = useState(false);
   const [loi, datLoi] = useState<string | null>(null);
   const [nhatKy, datNhatKy] = useState<DongNhatKy[] | null>(null);
+  const [hoiBo, datHoiBo] = useState(false);
+  const [dangBo, datDangBo] = useState(false);
+  const [daBo, datDaBo] = useState(false);
 
-  const gui = () => {
-    if (!tep) return;
+  const chayLuong = (fn: () => Promise<{ log: DongNhatKy[] }>) => {
     datChay(true);
     datLoi(null);
     datNhatKy(null);
-    nhapTruyen(tacPham, tep, { autoConfirm: tuDongChot, guide: huongDan })
+    datDaBo(false);
+    fn()
       .then((r) => datNhatKy(r.log))
       .catch((e: unknown) => datLoi(e instanceof LoiApi ? e.message : String(e)))
-      .finally(() => datChay(false));
+      // Pha nhập đổi ở phía engine — nạp lại snapshot để điều khiển đi theo pha mới.
+      .finally(() => {
+        datChay(false);
+        onDoi();
+      });
   };
 
+  const gui = () => {
+    if (!tep) return;
+    chayLuong(() => nhapTruyen(tacPham, tep, { autoConfirm: tuDongChot, guide: huongDan }));
+  };
+
+  const tiepTuc = (tuyChon: Parameters<typeof tiepTucNhap>[1]) => chayLuong(() => tiepTucNhap(tacPham, tuyChon));
+
+  const bo = () => {
+    datDangBo(true);
+    datLoi(null);
+    boNhapDo(tacPham)
+      .then((r) => {
+        datHoiBo(false);
+        datNhatKy(null);
+        // `false` = không còn gì để bỏ (đã xong từ trước) — không báo "đã bỏ" cho một việc không xảy ra.
+        datDaBo(r.discarded);
+        onDoi();
+      })
+      .catch((e: unknown) => {
+        datHoiBo(false);
+        datLoi(e instanceof LoiApi ? e.message : String(e));
+      })
+      .finally(() => datDangBo(false));
+  };
+
+  const oHuongDan = (
+    <label className="oNhap">
+      <span>{CHU.huongDanChia}</span>
+      <input
+        value={huongDan}
+        onChange={(e) => datHuongDan(e.target.value)}
+        placeholder="Ví dụ: mỗi chương bắt đầu bằng một dòng chỉ có số"
+      />
+    </label>
+  );
+
   return (
-    <details className="vhGapLon">
+    // Có lượt dở thì mở sẵn: đây là việc đang chặn cả cuốn, không phải việc làm một lần.
+    <details className="vhGapLon" open={nhapDo ? true : undefined}>
       <summary>
         <span className="vhGapTen">{CHU.nhapTruyenNgoai}</span>
         <span className="vhGapGiai">{GIAI_THICH.nhapTruyenGiaiThich}</span>
       </summary>
 
-      <div className="bieuMau">
-        <label className="oNhap">
-          <span>{CHU.tepNguon}</span>
-          <input
-            type="file"
-            accept=".txt,.md,text/plain,text/markdown"
-            onChange={(e) => datTep(e.target.files?.[0] ?? null)}
-          />
-        </label>
-        <label className="oNhap">
-          <span>{CHU.huongDanChia}</span>
-          <input
-            value={huongDan}
-            onChange={(e) => datHuongDan(e.target.value)}
-            placeholder="Ví dụ: mỗi chương bắt đầu bằng một dòng chỉ có số"
-          />
-        </label>
-        <label className="oNhap oNhapCheck">
-          <span>{CHU.tuDongChotChia}</span>
-          <input
-            type="checkbox"
-            checked={tuDongChot}
-            onChange={(e) => datTuDongChot(e.target.checked)}
-          />
-        </label>
-        {/* Cảnh báo đứng cạnh CHÍNH ô nó nói về, không ở đầu mục: đây là uỷ quyền mù, và
-            người dùng phải đọc nó lúc đang bấm chứ không phải lúc bắt đầu đọc trang. */}
-        <p className="steerhint">{GIAI_THICH.tuDongChotLaUyQuyenMu}</p>
+      {nhapDo ? (
+        <div className="bieuMau vhNhapDo" role="group" aria-label={CHU_VH.nhapDoTieuDe}>
+          <p className="vhNhapDoDau">
+            <strong>{CHU_VH.nhapDoTieuDe}.</strong> {CHU_VH.nhapDoChanViet}
+            {!nhapDo.error && nhapDo.chapters > 0 ? (
+              <> {CHU_VH.nhapDoTienDo(nhapDo.chapters, nhapDo.analyzed)}</>
+            ) : null}
+          </p>
 
-        {loi ? <p className="loiDoc">{loi}</p> : null}
+          {nhapDo.phase === 'awaiting_confirm' ? (
+            <>
+              <p className="steerhint">{CHU_VH.nhapDoChoChia}</p>
+              {oHuongDan}
+              <div className="nccNut">
+                <button type="button" className="nutChinh" disabled={chay} onClick={() => tiepTuc({ accept: true })}>
+                  {chay ? CHU.dangChayLuong : CHU_VH.chapNhanChia}
+                </button>
+                <button
+                  type="button"
+                  className="nutPhu"
+                  disabled={chay || !huongDan.trim()}
+                  onClick={() => tiepTuc({ guide: huongDan.trim() })}
+                >
+                  {CHU_VH.tiepTucNhap}
+                </button>
+              </div>
+            </>
+          ) : nhapDo.phase === 'story_uncertain' ? (
+            <>
+              <p className="steerhint">{CHU_VH.nhapDoChuaRoKet}</p>
+              <div className="vhChonKet" role="radiogroup" aria-label={CHU_VH.nhapDoChuaRoKet}>
+                {(
+                  [
+                    ['closed', CHU_VH.truyenDaKet],
+                    ['open', CHU_VH.truyenConViet],
+                  ] as const
+                ).map(([ma, nhan]) => (
+                  <label key={ma}>
+                    <input type="radio" name="nhap-ket" checked={ket === ma} onChange={() => datKet(ma)} />
+                    {nhan}
+                  </label>
+                ))}
+              </div>
+              <div className="nccNut">
+                <button
+                  type="button"
+                  className="nutChinh"
+                  disabled={chay || !ket}
+                  onClick={() => ket && tiepTuc({ story: ket })}
+                >
+                  {chay ? CHU.dangChayLuong : CHU_VH.tiepTucNhap}
+                </button>
+              </div>
+            </>
+          ) : nhapDo.error ? (
+            // Thư mục nhập hỏng: tiếp tục chắc chắn thất bại — chỉ còn nút bỏ ngay dưới.
+            <p className="loiDoc">
+              {CHU_VH.nhapDoHong}
+              {nhapDo.error ? ` (${nhapDo.error})` : null}
+            </p>
+          ) : (
+            <>
+              <p className="steerhint">{CHU_VH.nhapDoBiNgat}</p>
+              <div className="nccNut">
+                <button type="button" className="nutChinh" disabled={chay} onClick={() => tiepTuc({})}>
+                  {chay ? CHU.dangChayLuong : CHU_VH.tiepTucNhap}
+                </button>
+              </div>
+            </>
+          )}
 
-        <div className="nccNut">
-          <button type="button" className="nutChinh" disabled={chay || !tep} onClick={gui}>
-            {chay ? CHU.dangChayLuong : CHU.batDauNhap}
-          </button>
+          {loi ? <p className="loiDoc">{loi}</p> : null}
+
+          <div className="nccNut">
+            <button type="button" className="nutPhu" disabled={chay || dangBo} onClick={() => datHoiBo(true)}>
+              {CHU_VH.boNhapDo}
+            </button>
+          </div>
+          <HopXacNhan
+            moRa={hoiBo}
+            tieuDe={CHU_VH.boNhapDoHoi}
+            than={CHU_VH.boNhapDoThan}
+            nhanLam={CHU_VH.boNhapDoLam}
+            nhanDangLam={CHU_VH.dangBo}
+            dangLam={dangBo}
+            onLam={bo}
+            onHuy={() => datHoiBo(false)}
+          />
         </div>
-      </div>
+      ) : (
+        <div className="bieuMau">
+          {daBo ? (
+            <p className="steerhint" role="status">
+              {CHU_VH.daBoNhapDo}
+            </p>
+          ) : null}
+          <label className="oNhap">
+            <span>{CHU.tepNguon}</span>
+            <input
+              type="file"
+              accept=".txt,.md,text/plain,text/markdown"
+              onChange={(e) => datTep(e.target.files?.[0] ?? null)}
+            />
+          </label>
+          {oHuongDan}
+          <label className="oNhap oNhapCheck">
+            <span>{CHU.tuDongChotChia}</span>
+            <input
+              type="checkbox"
+              checked={tuDongChot}
+              onChange={(e) => datTuDongChot(e.target.checked)}
+            />
+          </label>
+          {/* Cảnh báo đứng cạnh CHÍNH ô nó nói về, không ở đầu mục: đây là uỷ quyền mù, và
+              người dùng phải đọc nó lúc đang bấm chứ không phải lúc bắt đầu đọc trang. */}
+          <p className="steerhint">{GIAI_THICH.tuDongChotLaUyQuyenMu}</p>
+
+          {loi ? <p className="loiDoc">{loi}</p> : null}
+
+          <div className="nccNut">
+            <button type="button" className="nutChinh" disabled={chay || !tep} onClick={gui}>
+              {chay ? CHU.dangChayLuong : CHU.batDauNhap}
+            </button>
+          </div>
+        </div>
+      )}
 
       <NhatKyLuong nhatKy={nhatKy} dangChay={chay} />
     </details>

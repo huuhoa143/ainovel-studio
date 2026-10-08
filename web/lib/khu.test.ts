@@ -39,6 +39,7 @@ const MOI_KHU: Record<Khu, true> = {
   'cau-hinh': true,
   'tac-pham-moi': true,
   'cung-dung': true,
+  'ban-huong': true,
   'nhap-xuat': true,
 };
 

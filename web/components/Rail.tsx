@@ -24,43 +24,22 @@ import { useTruot } from '@/lib/truot';
  * số. Rail trống số còn tốt hơn rail có số bịa, vì người vận hành sẽ tin nó và
  * bỏ qua một hàng chờ thật.
  *
- * Ba loại mục, và sự khác nhau giữa chúng phải THẤY ĐƯỢC, không chỉ cảm được:
+ * Hai loại mục, và sự khác nhau giữa chúng phải THẤY ĐƯỢC, không chỉ cảm được:
  *
  *   1. có bề mặt thật  → nút điều hướng, `aria-current` khi đang mở
  *   2. nằm trong khu khác → nút điều hướng tới khu đó, chú giải nói rõ
- *   3. chưa dựng bề mặt → KHÔNG phải nút: chữ mờ + nhãn "chưa dựng"
  *
- * Loại 3 là chỗ dễ nói dối nhất. Một mục trông bấm được mà bấm vào không đi đâu
- * là một lời hứa hụt; tệ hơn là bấm vào rồi ra một bề mặt trống trơn, vì lúc đó
- * người vận hành kết luận tác phẩm không có dữ liệu chứ không phải studio chưa
- * dựng bề mặt.
+ * Ba mục Văn phong / Chi phí / Cài đặt đổi cách vẽ theo việc store có dữ liệu hay
+ * chưa — xem `TinhTrangNguon`:
  *
- * Ba mục Văn phong / Chi phí / Cài đặt TỪNG ở loại 3 vì API không có endpoint.
- * Giờ chúng đã có bề mặt và có endpoint (`/style`, `/cost`, `/settings`), nên
- * chúng không còn là loại 3 một cách cố định — chúng đổi loại theo BẢN ENGINE
- * ĐANG CHẠY, và đó là loại thứ tư:
- *
- *   4. có bề mặt, nhưng nguồn của nó chưa chắc có → xem `TinhTrangNguon`
- *
- * Ba trạng thái, ba cách vẽ khác nhau, và sự khác nhau phải THẤY ĐƯỢC:
- *
- *   'thieu-endpoint' → bản engine đang chạy không có route (404). Vẫn là loại 3:
- *                      chữ mờ, nhãn "chưa dựng". Bấm vào thì bề mặt chỉ hiện được
- *                      một câu lỗi HTTP, và đó là một lời hứa hụt.
- *   'co-route'       → route có, store chưa có dữ liệu. LÀ NÚT, kèm nhãn báo
- *                      trước là sẽ rỗng. Bề mặt tự nói rõ rỗng vì sao — chưa chạy
- *                      gì / tệp có mà rỗng / schema lệch — nên vào đó KHÔNG phải
- *                      một bề mặt trống trơn, mà là một câu trả lời.
+ *   'co-route'       → store chưa có dữ liệu. LÀ NÚT, kèm nhãn báo trước là sẽ
+ *                      rỗng. Bề mặt tự nói rõ rỗng vì sao — chưa chạy gì / tệp có
+ *                      mà rỗng / schema lệch — nên vào đó KHÔNG phải một bề mặt
+ *                      trống trơn, mà là một câu trả lời.
  *   'co-nguon'       → nút thường.
  *
- * Vì sao không gate bằng ba cờ trong `capabilities`: cờ trả lời "store có dữ liệu
- * không", không trả lời "engine này có route không". Với một binary engine cũ hơn
- * bản web, cờ vắng mặt và mọi phép kiểm falsy trên nó sẽ dán nhãn sai lên cả ba
- * mục. `Profile` hỏi thăm endpoint thật nên nó phân biệt được hai câu đó.
- *
- * Và khi CHƯA BIẾT (`hoSo` chưa về, hoặc lời hỏi thăm lỗi mạng) thì mục vẫn là
- * NÚT. Chỉ hạ xuống "chưa dựng" khi biết chắc là thiếu endpoint: đoán theo hướng
- * kia sẽ nháy một nhãn "chưa dựng" lên một bề mặt đã dựng, mỗi lần đổi tác phẩm.
+ * Và khi CHƯA BIẾT (`hoSo` chưa về) thì mục là nút thường: đoán "rỗng" sẽ nháy một
+ * nhãn báo trước lên một bề mặt có dữ liệu, mỗi lần đổi tác phẩm.
  */
 export function Rail({
   snapshot,
@@ -515,7 +494,6 @@ export function Rail({
               onChonKhu={diKhu}
               nguon={hoSo?.vanPhong}
               chuGiai={GIAI_THICH.railVanPhong}
-              viSaoThieu={GIAI_THICH.thieuEndpointVanPhong}
             />
           </Nhom>
 
@@ -540,7 +518,6 @@ export function Rail({
               onChonKhu={diKhu}
               nguon={hoSo?.chiPhi}
               chuGiai={GIAI_THICH.railChiPhi}
-              viSaoThieu={GIAI_THICH.thieuEndpointChiPhi}
             />
             <MucDi
               nhan={DH.nhomAi}
@@ -557,7 +534,6 @@ export function Rail({
               onChonKhu={diKhu}
               nguon={hoSo?.caiDat}
               chuGiai={GIAI_THICH.railPhienChay}
-              viSaoThieu={GIAI_THICH.thieuEndpointPhienChay}
             />
           </Nhom>
         </section>
@@ -887,15 +863,11 @@ function MucDi({
 }
 
 /**
- * Mục có bề mặt ở tầng web, nhưng nguồn của nó tuỳ bản engine đang chạy.
+ * Mục có bề mặt, kèm nhãn báo trước khi store chưa có dữ liệu cho nó.
  *
- * Chỉ `'thieu-endpoint'` hạ mục xuống dạng "chưa dựng". Mọi giá trị khác — kể cả
- * `undefined`, tức chưa hỏi thăm xong hoặc hỏi thăm lỗi — đều cho ra NÚT.
- *
- * Hướng mặc định đó là có chủ ý: hai hướng sai không tương đương. Vẽ nút cho một
- * endpoint thiếu thì người vận hành bấm vào và đọc được câu lỗi thật của server —
- * bất tiện, nhưng vẫn là sự thật. Vẽ "chưa dựng" cho một bề mặt đã dựng thì họ
- * không bao giờ bấm, và câu sai đó không có cách nào tự lộ ra.
+ * Chỉ `'co-route'` gắn nhãn. `undefined` — chưa đọc xong — cho ra nút thường: nhãn sai
+ * "chưa có số liệu" trên một bề mặt có dữ liệu thì người vận hành không bấm, và câu sai
+ * đó không có cách nào tự lộ ra.
  */
 function MucNguon({
   nhan,
@@ -905,7 +877,6 @@ function MucNguon({
   onChonKhu,
   nguon,
   chuGiai,
-  viSaoThieu,
 }: {
   nhan: string;
   ky: string;
@@ -915,11 +886,7 @@ function MucNguon({
   nguon: TinhTrangNguon | undefined;
   /** Phạm vi của bề mặt — điều không đọc được từ tên mục. */
   chuGiai: string;
-  viSaoThieu: string;
 }) {
-  if (nguon === 'thieu-endpoint') {
-    return <MucChuaDung nhan={nhan} ky={ky} viSao={viSaoThieu} />;
-  }
   const trong = nguon === 'co-route';
   return (
     <MucDi
@@ -934,46 +901,6 @@ function MucNguon({
       chuGiai={trong ? `${chuGiai} — ${GIAI_THICH.coRouteChuaCoNguon}` : chuGiai}
       nhanPhu={trong ? DH.chuaCoSoLieu : undefined}
     />
-  );
-}
-
-/**
- * Mục chưa có bề mặt riêng.
- *
- * Vẫn hiện số đếm khi có nguồn — con số là tin vận hành và nó đúng dù bề mặt
- * chưa dựng. Nhưng mục này không phải nút và mang nhãn "chưa dựng", để không ai
- * bấm rồi chờ.
- *
- * `viSao` là lý do CỤ THỂ của từng mục, và nó bắt buộc phải có. Ba mục còn lại
- * đều chưa dựng vì cùng một loại nguyên nhân — dữ liệu nằm trong store nhưng
- * chưa có endpoint trả ra — chứ không vì giao diện chưa kịp làm. Một chú giải
- * chung ("chưa dựng bề mặt") để người đọc tưởng đây là việc tồn của tầng web và
- * đi chờ sai chỗ.
- */
-function MucChuaDung({
-  nhan,
-  ky,
-  dem,
-  canhBao,
-  viSao,
-}: {
-  nhan: string;
-  ky: string;
-  dem?: number;
-  canhBao?: boolean;
-  viSao: string;
-}) {
-  return (
-    <div className="muc chuadung" title={viSao} aria-disabled="true">
-      <span className="g" aria-hidden="true">
-        <BieuTuong ten={ky} />
-      </span>
-      <span className="nhan">{nhan}</span>
-      {dem !== undefined ? (
-        <span className={`n${canhBao ? ' warn' : ''}`}>{dem}</span>
-      ) : null}
-      <span className="tag">{DH.chuaCo}</span>
-    </div>
   );
 }
 

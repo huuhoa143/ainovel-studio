@@ -7,6 +7,7 @@ import { CH } from '@/lib/chu/cau-hinh';
 import {
   coGhimModel,
   coVaiLacCho,
+  dungDuoc,
   hieuLucCua,
   modelKhaiCua,
   thanChonModel,
@@ -259,7 +260,7 @@ export function nhomModel(du: CauHinhDoc, napVe: ModelNapVe): NhomModel[] {
   return [...du.providers]
     .sort((a, b) => Number(b.name === du.provider) - Number(a.name === du.provider) || a.name.localeCompare(b.name))
     .map((n) => {
-      const coKhoa = n.api_key_set || !!n.api_key_optional;
+      const coKhoa = dungDuoc(n);
       return {
         provider: n.name,
         daKhai: (n.models ?? []).map((m) => m.name),

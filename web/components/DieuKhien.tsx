@@ -81,13 +81,11 @@ const CHO_DOI_TOI_DA_MS = 20_000;
 export function DieuKhien({
   snapshot,
   tacPham,
-  choGhi,
   dangChay,
   onDoi,
 }: {
   snapshot: Snapshot | undefined;
   tacPham: string | undefined;
-  choGhi: boolean | undefined;
   dangChay: boolean;
   /** Gọi sau mỗi lệnh để bề mặt chính nạp lại — trạng thái vừa đổi ở phía engine. */
   onDoi: () => void;
@@ -108,7 +106,7 @@ export function DieuKhien({
     return () => clearTimeout(t);
   }, [lenh]);
 
-  if (!choGhi || !tacPham || !snapshot) return null;
+  if (!tacPham || !snapshot) return null;
 
   /**
    * Gửi một lệnh, và giữ nút ở trạng thái "đang làm" cho tới khi ENGINE đổi trạng thái — không

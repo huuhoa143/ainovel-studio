@@ -41,23 +41,12 @@ type DangGui = 'tiep' | null;
  * chạy, tức trả tiền hai lần — cùng lớp rủi ro đã khiến màn Xưởng bị cấm có nút chạy.
  * Một cờ cho CẢ HAI nút chứ không phải mỗi nút một cờ: hai lệnh này loại trừ nhau về ý
  * định, và cho đi tiếp trong lúc câu trả-về đang bay là một trạng thái không ai đọc được.
- *
- * # Vì sao hai nút cùng khóa theo `choGhi`
- *
- * Cả hai đều là đường GHI, và cả nhóm route ghi không được mắc vào mux khi studio lắng
- * nghe ngoài loopback. Vẽ nút bấm được rồi gửi vào hư không là lỗi tệ nhất ở đây — cùng lý
- * lẽ đã ghi trong `OCanThiep.tsx`.
- *
- * `choGhi === undefined` (đang hỏi `/api/config`) khóa nút nhưng KHÔNG hiện câu giải
- * thích: "studio đang ở chế độ chỉ đọc" lúc đó là một khẳng định chưa ai đo được — cùng
- * lớp `null` khác `false` mà cả hợp đồng `/studio` giữ.
  */
 export function CuaNghiemThu({
   advance,
   runtime,
   stop,
   tacPham,
-  choGhi,
   soChuongXong,
   onDoi,
 }: {
@@ -72,8 +61,6 @@ export function CuaNghiemThu({
   /** `snapshot.stop` — để một lần bạn tự dừng giữa chương không bị đọc thành cửa duyệt. */
   stop?: { kind: string } | null;
   tacPham: string | undefined;
-  /** undefined = chưa biết (đang hỏi `/api/config`) — xem `useMay`. */
-  choGhi: boolean | undefined;
   /** Gọi sau mỗi lệnh để snapshot được nạp lại — đừng tự đoán trạng thái mới. */
   onDoi: () => void;
 }) {
@@ -88,8 +75,7 @@ export function CuaNghiemThu({
   const cuaNen = soChuongXong === 0;
   const chuongDuyet = chuongChoDuyet(cua, soChuongXong);
   const nhanTra = cuaNen ? CHU.gopYChoDanY : CHU.traChuongVeVietLai(chuongDuyet);
-  const batDuoc = choGhi === true && !!tacPham;
-  const khoa = !batDuoc || dangGui !== null;
+  const khoa = !tacPham || dangGui !== null;
 
   const goi = (viec: Exclude<DangGui, null>, fn: () => Promise<unknown>) => {
     if (!tacPham) return;
@@ -162,12 +148,6 @@ export function CuaNghiemThu({
           xảy ra — 409 ở đây có thể là "engine đã đóng", "chương đã được cấp phép rồi" hay
           "auto còn sót giấy phép", ba việc phải xử khác nhau. */}
       {loi ? <p className="loiDoc">{loi}</p> : null}
-
-      {choGhi === false ? (
-        <p className="steerhint">
-          <strong>{GIAI_THICH.nghiemThuChoDay}.</strong> {GIAI_THICH.canThiepTat}
-        </p>
-      ) : null}
     </section>
   );
 }
