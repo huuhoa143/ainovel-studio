@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -19,74 +18,51 @@ import (
 Một nguồn sự thật cho màn Model & khóa API.
 
 Mỗi bài ở đây là một lỗi ĐO ĐƯỢC trên máy thật (rà lỗi 2026-10-01): lượt ghi trả "đã lưu"
-trong khi thứ màn hình hiện ra — bản TRỘN của tầng toàn cục và tầng dự án — không đổi, hoặc
-đổi thành một cặp provider/model không tồn tại.
+trong khi thứ màn hình hiện ra không đổi, hoặc đổi thành một cặp provider/model không tồn tại.
 */
 
-// haiTang dựng HOME (tầng toàn cục) và một cwd dự án KHÁC HOME (tầng dự án), mỗi tầng một tệp.
-func haiTang(t *testing.T, toanCuc, duAn string) (*server, string, string) {
+// motTep dựng server trên một tệp cấu hình có sẵn nội dung.
+func motTep(t *testing.T, noiDung string) (*server, string) {
 	t.Helper()
-	nha := dungNhaCauHinh(t)
-	goc := filepath.Join(nha, ".ainovel", "config.json")
-	ghiCauHinhTho(t, goc, toanCuc)
-	thuMuc := t.TempDir()
-	t.Chdir(thuMuc)
-	dich := filepath.Join(thuMuc, ".ainovel", "config.json")
-	ghiCauHinhTho(t, dich, duAn)
-	return &server{root: t.TempDir(), choGhi: true, may: newBoMay(t.TempDir())}, goc, dich
+	s, duong := dungCauHinh(t)
+	ghiCauHinhTho(t, duong, noiDung)
+	return s, duong
 }
 
-const toanCucLingo = `{"provider":"lingo","model":"auto","providers":{"lingo":{"type":"openai","api_key":"sk-goc","base_url":"https://lingo.example/v1","models":[{"name":"auto"}]}}}`
-
-const duAnBa = `{"provider":"lingo","model":"auto","providers":{
+const baNcc = `{"provider":"lingo","model":"auto","providers":{
   "lingo":{"type":"openai","api_key":"sk-goc","base_url":"https://lingo.example/v1","models":[{"name":"auto"}]},
   "r9":{"type":"openai","api_key":"sk-r9","base_url":"https://r9.example/v1","models":[{"name":"cx/luna"}]},
   "kira":{"type":"openai","api_key":"sk-kira","base_url":"https://kira.example/v1","models":[{"name":"kira-mini"}]}}}`
 
-// B2: xóa một nhà cung cấp mà tầng toàn cục cũng có — trước đây "đã lưu" mà nó vẫn còn.
-func TestCauHinh_XoaNccBiTangToanCucChe_TuChoiVaHoanNguyen(t *testing.T) {
-	s, goc, dich := haiTang(t, toanCucLingo, duAnBa)
-	if rec := goiCauHinh(t, s, "PUT", `{"provider":"r9","model":"cx/luna"}`); rec.Code != 200 {
-		t.Fatalf("đổi mặc định: %d %s", rec.Code, rec.Body.String())
+// Xóa một nhà cung cấp không còn ai dùng thì nó biến mất khỏi tệp.
+func TestCauHinh_XoaNcc(t *testing.T) {
+	s, duong := motTep(t, baNcc)
+	if rec := goiCauHinh(t, s, "PUT", `{"remove_provider":"kira"}`); rec.Code != 200 {
+		t.Fatalf("xóa: %d %s", rec.Code, rec.Body.String())
 	}
-	truoc, _ := os.ReadFile(dich)
-
-	rec := goiCauHinh(t, s, "PUT", `{"remove_provider":"lingo","roles":{}}`)
-	if rec.Code != http.StatusConflict {
-		t.Fatalf("xóa bị tầng toàn cục che phải 409, được %d: %s", rec.Code, rec.Body.String())
-	}
-	if !strings.Contains(rec.Body.String(), goc) {
-		t.Errorf("thông báo phải chỉ ra tệp đang che (%s): %s", goc, rec.Body.String())
-	}
-	if sau, _ := os.ReadFile(dich); string(sau) != string(truoc) {
-		t.Error("lượt bị từ chối vẫn để lại thay đổi trên tệp dự án")
+	if _, con := docCauHinhTho(t, duong)["providers"].(map[string]any)["kira"]; con {
+		t.Error("đã báo xóa mà nhà cung cấp vẫn nằm trong tệp")
 	}
 }
 
-// B2: xóa khóa ở tầng dự án khi tầng toàn cục còn khóa — trước đây thẻ vẫn "đã đặt khóa".
-func TestCauHinh_XoaKhoaBiChe_TuChoi(t *testing.T) {
-	s, _, _ := haiTang(t, toanCucLingo, duAnBa)
-	rec := goiCauHinh(t, s, "PUT", `{"provider_config":{"name":"lingo","api_key":""}}`)
-	if rec.Code != http.StatusConflict {
-		t.Fatalf("xóa khóa bị che phải 409, được %d: %s", rec.Code, rec.Body.String())
+// Xóa khóa của nhà cung cấp mặc định thì cấu hình không còn viết được: GET phải nói cần cài
+// lại, để app đưa người dùng về màn nhập khóa thay vì để lượt chạy sau chết vì 401.
+func TestCauHinh_XoaKhoaNccMacDinh_CanCaiLai(t *testing.T) {
+	s, _ := motTep(t, baNcc)
+	if doc := giaiCauHinh(t, goiCauHinh(t, s, "GET", "")); doc["needs_setup"] != false {
+		t.Fatalf("có khóa mà needs_setup = %v", doc["needs_setup"])
+	}
+	if rec := goiCauHinh(t, s, "PUT", `{"provider_config":{"name":"lingo","api_key":""}}`); rec.Code != 200 {
+		t.Fatalf("xóa khóa: %d %s", rec.Code, rec.Body.String())
+	}
+	if doc := giaiCauHinh(t, goiCauHinh(t, s, "GET", "")); doc["needs_setup"] != true {
+		t.Errorf("mặc định mất khóa mà needs_setup = %v", doc["needs_setup"])
 	}
 }
 
-// GET phải nói ra tầng toàn cục đang trộn vào, để màn hình giải thích được vì sao.
-func TestCauHinh_GetNoiRaTangToanCuc(t *testing.T) {
-	s, goc, dich := haiTang(t, toanCucLingo, duAnBa)
-	doc := giaiCauHinh(t, goiCauHinh(t, s, "GET", ""))
-	if doc["path"] != dich {
-		t.Errorf("path = %v, muốn %s", doc["path"], dich)
-	}
-	if doc["base_path"] != goc {
-		t.Errorf("base_path = %v, muốn %s", doc["base_path"], goc)
-	}
-}
-
-// B3: `model: ""` từng thừa hưởng `auto` của tầng toàn cục và sinh ra `kira · auto`.
+// B3: `model: ""` không phải "không đặt" — nhà cung cấp đứng một mình không chạy được.
 func TestCauHinh_ModelRong_TuChoi(t *testing.T) {
-	s, _, dich := haiTang(t, toanCucLingo, duAnBa)
+	s, dich := motTep(t, baNcc)
 	truoc, _ := os.ReadFile(dich)
 	rec := goiCauHinh(t, s, "PUT", `{"provider":"kira","model":""}`)
 	if rec.Code != http.StatusBadRequest {
@@ -99,7 +75,7 @@ func TestCauHinh_ModelRong_TuChoi(t *testing.T) {
 
 // B3/B11: cặp provider/model không tồn tại không được lưu — ở mặc định lẫn ở vai.
 func TestCauHinh_CapKhongTonTai_TuChoi(t *testing.T) {
-	s, _, _ := haiTang(t, toanCucLingo, duAnBa)
+	s, _ := motTep(t, baNcc)
 	if rec := goiCauHinh(t, s, "PUT", `{"provider":"kira","model":"cx/luna"}`); rec.Code != http.StatusBadRequest {
 		t.Errorf("mặc định trỏ model của nhà cung cấp khác phải 400, được %d", rec.Code)
 	}
@@ -116,10 +92,7 @@ func TestCauHinh_CapKhongTonTai_TuChoi(t *testing.T) {
 
 // B4: sửa một mục KHÔNG khai type (giao thức suy theo tên) không được âm thầm thành openai.
 func TestCauHinh_SuaNccKhongDoiGiaoThuc(t *testing.T) {
-	nha := dungNhaCauHinh(t)
-	duong := filepath.Join(nha, ".ainovel", "config.json")
-	ghiCauHinhTho(t, duong, `{"provider":"anthropic","model":"claude","providers":{"anthropic":{"api_key":"sk-a","models":[{"name":"claude"}]}}}`)
-	s := &server{root: t.TempDir(), choGhi: true, may: newBoMay(t.TempDir())}
+	s, duong := motTep(t, `{"provider":"anthropic","model":"claude","providers":{"anthropic":{"api_key":"sk-a","models":[{"name":"claude"}]}}}`)
 
 	if rec := goiCauHinh(t, s, "PUT", `{"provider_config":{"name":"anthropic","base_url":"https://proxy.example/v1"}}`); rec.Code != 200 {
 		t.Fatalf("sửa base_url: %d %s", rec.Code, rec.Body.String())
@@ -138,7 +111,7 @@ func TestCauHinh_SuaNccKhongDoiGiaoThuc(t *testing.T) {
 
 // B5 (phía server): mục vai mang fallbacks + reasoning_effort đi qua nguyên vẹn.
 func TestCauHinh_VaiGiuFallbacksVaDoSuyLuan(t *testing.T) {
-	s, _, dich := haiTang(t, toanCucLingo, duAnBa)
+	s, dich := motTep(t, baNcc)
 	rec := goiCauHinh(t, s, "PUT", `{"roles":{"writer":{"provider":"r9","model":"cx/luna","reasoning_effort":"high","fallbacks":[{"provider":"lingo","model":"auto"}]}}}`)
 	if rec.Code != 200 {
 		t.Fatalf("ghi vai: %d %s", rec.Code, rec.Body.String())
@@ -151,7 +124,7 @@ func TestCauHinh_VaiGiuFallbacksVaDoSuyLuan(t *testing.T) {
 
 // B7: nhà cung cấp chưa có khóa (và không phải gateway trên máy) không được chọn làm mặc định.
 func TestCauHinh_NccChuaKhoa_KhongDungDuoc(t *testing.T) {
-	s, _, _ := haiTang(t, toanCucLingo, duAnBa)
+	s, _ := motTep(t, baNcc)
 	rec := goiCauHinh(t, s, "PUT", `{"provider_config":{"name":"thu","type":"openai","base_url":"https://thu.example/v1","models":[{"name":"m1"}]},"provider":"thu","model":"m1"}`)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("nhà cung cấp không khóa làm mặc định phải 400, được %d: %s", rec.Code, rec.Body.String())
@@ -170,17 +143,15 @@ func TestCauHinh_NccChuaKhoa_KhongDungDuoc(t *testing.T) {
 	}
 }
 
-// B6: "Kiểm tra" phải đọc CÙNG nguồn với màn hình. Nhà cung cấp chỉ nằm ở tầng toàn cục từng
-// trả "không có nhà cung cấp" trong khi thẻ của nó hiện "đã đặt khóa".
-func TestLietKeModel_DocBanTron(t *testing.T) {
+// B6: "Kiểm tra" phải đọc CÙNG tệp với màn hình — từng trả "không có nhà cung cấp" trong khi
+// thẻ của nó hiện "đã đặt khóa".
+func TestLietKeModel_DocCungTep(t *testing.T) {
 	gw := httptestGateway(t, `{"data":[{"id":"auto"}]}`)
-	s, _, _ := haiTang(t,
-		`{"provider":"g","model":"auto","providers":{"g":{"type":"openai","api_key":"k","base_url":"`+gw+`","models":[{"name":"auto"}]}}}`,
-		`{"style":"default"}`)
-	r := httpReqModel("g")
-	rec := ghiNhan(s, r)
+	s, _ := motTep(t,
+		`{"provider":"g","model":"auto","providers":{"g":{"type":"openai","api_key":"k","base_url":"`+gw+`","models":[{"name":"auto"}]}}}`)
+	rec := ghiNhan(s, httpReqModel("g"))
 	if rec.Code != 200 {
-		t.Fatalf("nhà cung cấp ở tầng toàn cục phải kiểm được, mã %d: %s", rec.Code, rec.Body.String())
+		t.Fatalf("nhà cung cấp trong tệp phải kiểm được, mã %d: %s", rec.Code, rec.Body.String())
 	}
 }
 func httptestGateway(t *testing.T, than string) string {
@@ -215,7 +186,7 @@ func TestThuKetNoi_KiemBanNhapKhongGhi(t *testing.T) {
 		_, _ = w.Write([]byte(`{"data":[{"id":"m1"},{"id":"m2"}]}`))
 	}))
 	t.Cleanup(gw.Close)
-	s, _, dich := haiTang(t, toanCucLingo, duAnBa)
+	s, dich := motTep(t, baNcc)
 	truoc, _ := os.ReadFile(dich)
 
 	thu := func(than string) *httptest.ResponseRecorder {
@@ -280,5 +251,74 @@ func TestTransport_LastCall(t *testing.T) {
 	lc := snap.Transport.LastCall
 	if lc == nil || lc.Agent != "writer" || lc.Provider != "9Router" || lc.Model != "cx/gpt-5.6-luna" || lc.At != "2026-10-02T09:30:00Z" {
 		t.Errorf("transport.last_call = %+v", lc)
+	}
+}
+
+// Gateway từ xa không cần khóa: người dùng KHAI `keyless`, không phải để server đoán theo địa
+// chỉ. Có lời khai thì đặt làm mặc định được và hết cần cài; bỏ lời khai thì lại bị chặn.
+func TestCauHinh_KeylessLaLoiKhaiTuongMinh(t *testing.T) {
+	s, duong := dungCauHinh(t)
+	khongKhai := `{"provider_config":{"name":"xa","type":"openai","base_url":"https://gw.example.com/v1","models":[{"name":"m1"}]},"provider":"xa","model":"m1"}`
+	if rec := goiCauHinh(t, s, "PUT", khongKhai); rec.Code != http.StatusBadRequest {
+		t.Fatalf("gateway từ xa không khóa, không khai keyless phải 400, được %d: %s", rec.Code, rec.Body.String())
+	}
+
+	coKhai := `{"provider_config":{"name":"xa","type":"openai","base_url":"https://gw.example.com/v1","keyless":true,"models":[{"name":"m1"}]},"provider":"xa","model":"m1"}`
+	if rec := goiCauHinh(t, s, "PUT", coKhai); rec.Code != 200 {
+		t.Fatalf("khai keyless phải lưu được, %d: %s", rec.Code, rec.Body.String())
+	}
+	if k := docCauHinhTho(t, duong)["providers"].(map[string]any)["xa"].(map[string]any)["keyless"]; k != true {
+		t.Errorf("keyless không nằm trong tệp: %v", k)
+	}
+	doc := giaiCauHinh(t, goiCauHinh(t, s, "GET", ""))
+	if doc["needs_setup"] != false {
+		t.Errorf("mặc định khai keyless mà needs_setup = %v", doc["needs_setup"])
+	}
+	n := doc["providers"].([]any)[0].(map[string]any)
+	if n["keyless"] != true || n["api_key_optional"] != true {
+		t.Errorf("GET phải trả keyless + api_key_optional: %v", n)
+	}
+
+	// Gửi không kèm keyless = không đổi; gửi false = bỏ lời khai → mặc định không còn chạy được.
+	if rec := goiCauHinh(t, s, "PUT", `{"provider_config":{"name":"xa","base_url":"https://gw2.example.com/v1"}}`); rec.Code != 200 {
+		t.Fatalf("sửa base_url: %d %s", rec.Code, rec.Body.String())
+	}
+	if k := docCauHinhTho(t, duong)["providers"].(map[string]any)["xa"].(map[string]any)["keyless"]; k != true {
+		t.Errorf("PUT không nhắc keyless đã xóa lời khai: %v", k)
+	}
+	if rec := goiCauHinh(t, s, "PUT", `{"provider_config":{"name":"xa","keyless":false}}`); rec.Code != 200 {
+		t.Fatalf("bỏ keyless: %d %s", rec.Code, rec.Body.String())
+	}
+	if doc := giaiCauHinh(t, goiCauHinh(t, s, "GET", "")); doc["needs_setup"] != true {
+		t.Errorf("bỏ keyless mà needs_setup = %v", doc["needs_setup"])
+	}
+}
+
+// Kiểm bản nháp của một gateway không khóa: không gửi khóa nào, chỉ cần khai keyless.
+func TestThuKetNoi_KeylessKhongCanKhoa(t *testing.T) {
+	var khoaNhan string
+	gw := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		khoaNhan = r.Header.Get("Authorization")
+		_, _ = w.Write([]byte(`{"data":[{"id":"m1"}]}`))
+	}))
+	t.Cleanup(gw.Close)
+	s, _ := dungCauHinh(t)
+	thu := func(than string) *httptest.ResponseRecorder {
+		r := httptest.NewRequest(http.MethodPost, "/api/models/try", strings.NewReader(than))
+		r.Host = "127.0.0.1:8420"
+		r.Header.Set(tenHeaderRao, "1")
+		return ghiNhan(s, r)
+	}
+	if rec := thu(`{"name":"xa","type":"openai","base_url":"https://gw.invalid/v1"}`); rec.Code == 200 {
+		t.Fatalf("không khóa, không khai keyless mà vẫn kiểm: %s", rec.Body.String())
+	}
+	// base_url phải là gateway giả để kiểm thật; nó là 127.0.0.1 nên luật địa chỉ cũng cho qua —
+	// điều đang đo là trường keyless được NHẬN (DisallowUnknownFields sẽ 400 nếu không).
+	rec := thu(`{"name":"xa","type":"openai","base_url":"` + gw.URL + `","keyless":true}`)
+	if rec.Code != 200 || !strings.Contains(rec.Body.String(), `"m1"`) {
+		t.Fatalf("keyless: %d %s", rec.Code, rec.Body.String())
+	}
+	if strings.TrimSpace(strings.TrimPrefix(khoaNhan, "Bearer")) != "" {
+		t.Errorf("không có khóa mà vẫn gửi Authorization %q", khoaNhan)
 	}
 }

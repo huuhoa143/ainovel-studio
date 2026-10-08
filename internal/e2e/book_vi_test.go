@@ -416,7 +416,7 @@ func chayMotSach(t *testing.T, noiDung func(ch int) string) *lanChay {
 
 func TestVongDoiSachTiengViet(t *testing.T) {
 	lan := chayMotSach(t, nil)
-	dir, st, h, kb, events := lan.dir, lan.store, lan.host, lan.kichBan, lan.events
+	dir, st, kb, events := lan.dir, lan.store, lan.kichBan, lan.events
 
 	// ── 1. Vòng đời đi hết ──
 	progress, err := st.Progress.Load()
@@ -519,7 +519,7 @@ func TestVongDoiSachTiengViet(t *testing.T) {
 
 	// ── 4. Xuất bản thảo ──
 	out := filepath.Join(dir, "ban-thao.txt")
-	res, err := h.Export(context.Background(), exp.Options{OutPath: out, Overwrite: true})
+	res, err := exp.Run(context.Background(), exp.Deps{Store: st}, exp.Options{OutPath: out, Overwrite: true})
 	if err != nil {
 		t.Fatalf("Export: %v", err)
 	}

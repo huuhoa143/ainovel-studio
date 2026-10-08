@@ -14,6 +14,8 @@ import (
 	"github.com/huuhoa143/ainovel-studio/internal/domain"
 	"github.com/huuhoa143/ainovel-studio/internal/entry/startup"
 	"github.com/huuhoa143/ainovel-studio/internal/host"
+	"github.com/huuhoa143/ainovel-studio/internal/host/imp"
+	"github.com/huuhoa143/ainovel-studio/internal/store"
 )
 
 // Bộ giám sát engine — phần cho phép studio GHI, không chỉ đọc.
@@ -51,11 +53,13 @@ import (
 // cuốn cùng chạy là gấp đôi tiền và gấp đôi RAM, đó là quyết định của người dùng chứ
 // không phải của mã. Map làm cho việc nới ra sau này không phải đổi hình dạng gì.
 type boMay struct {
-	mu       sync.Mutex
-	root     string
-	soToiDa  int
-	dang     map[string]*phienMay
-	napConfg func() (bootstrap.Config, error) // tách ra để test tiêm được
+	mu      sync.Mutex
+	root    string
+	soToiDa int
+	dang    map[string]*phienMay
+	// cauHinh là tệp cấu hình DUY NHẤT của tiến trình (`serve --config`): engine đọc nó mỗi
+	// lần mở, studio đọc và ghi nó ở /api/config.
+	cauHinh string
 
 	// dangTat bật ở đầu dongTatCa và không bao giờ tắt lại. Canh bởi mu.
 	//
@@ -72,13 +76,23 @@ type boMay struct {
 // là hai mốc lệch nhau mà không ai kiểm.
 func mocBayGio() time.Time { return time.Now() }
 
-func newBoMay(root string) *boMay {
+func newBoMay(root, cauHinh string) *boMay {
 	return &boMay{
-		root:     root,
-		soToiDa:  1,
-		dang:     map[string]*phienMay{},
-		napConfg: bootstrap.LoadConfig,
+		root:    root,
+		soToiDa: 1,
+		dang:    map[string]*phienMay{},
+		cauHinh: cauHinh,
 	}
+}
+
+// napCauHinh đọc tệp cấu hình. Chưa có tệp thì trả cấu hình rỗng, không lỗi: đó là lần mở
+// app đầu tiên, và NeedsSetup sẽ nói phần còn lại.
+func (b *boMay) napCauHinh() (bootstrap.Config, error) {
+	cfg, err := bootstrap.LoadConfig(b.cauHinh)
+	if errors.Is(err, os.ErrNotExist) {
+		return bootstrap.Config{ConfigPath: b.cauHinh}, nil
+	}
+	return cfg, err
 }
 
 // phienMay là một engine đang mở cho một cuốn sách.
@@ -148,7 +162,7 @@ func (b *boMay) mo(id string) (*phienMay, error) {
 		}
 	}
 
-	cfg, err := b.napConfg()
+	cfg, err := b.napCauHinh()
 	if err != nil {
 		return nil, fmt.Errorf("đọc cấu hình: %w", err)
 	}
@@ -159,11 +173,9 @@ func (b *boMay) mo(id string) (*phienMay, error) {
 	cfg.OutputDir = dir
 	cfg.FillDefaults()
 
-	bundle := assets.Load(cfg.Style, assets.DefaultLoadOptions(cfg.OutputDir))
-	// host.New lấy khóa tệp của thư mục (store.Khoa) và Close trả lại. Bản đầu của bộ
-	// giám sát này tự lấy khóa riêng, và nó VÔ DỤNG: host.New có năm chỗ gọi, nên khóa
-	// đặt ở serve chỉ chặn được serve tự đụng chính nó — không chặn được TUI hay headless,
-	// tức đúng cái nó tồn tại để chặn.
+	bundle := assets.Load(cfg.Style, assets.DefaultLoadOptions(cfg.OutputDir, cfg.UserDir()))
+	// host.New lấy khóa tệp của thư mục (store.Khoa) và Close trả lại — khóa nằm ở đó chứ
+	// không ở đây để mọi chỗ dựng Host (studio, eval) cùng được canh.
 	eng, err := host.New(cfg, bundle)
 	if err != nil {
 		return nil, err
@@ -255,6 +267,28 @@ func (b *boMay) dangMo(id string) (*phienMay, error) {
 	return nil, errChuaMoMay
 }
 
+var errBiGiuNoiKhac = errors.New("tác phẩm đang được một cửa sổ AINovel Studio khác mở — đóng nó rồi thử lại")
+
+// boNhapDo bỏ lượt nhập dở của một cuốn. Engine đang mở thì đi qua Host (nó biết có bước nhập
+// nào đang chạy không); chưa mở thì làm thẳng trên đĩa, giữ b.mu để không ai mở engine chen
+// vào giữa chừng, và từ chối nếu tiến trình khác đang giữ khóa của cuốn.
+func (b *boMay) boNhapDo(id string) (bool, error) {
+	dir, err := (&server{root: b.root}).bookDir(id)
+	if err != nil {
+		return false, err
+	}
+	b.mu.Lock()
+	if p, ok := b.dang[id]; ok {
+		b.mu.Unlock()
+		return p.eng.DiscardImport()
+	}
+	defer b.mu.Unlock()
+	if store.DangCoNguoiGiu(dir) {
+		return false, errBiGiuNoiKhac
+	}
+	return imp.Discard(store.NewStore(dir))
+}
+
 // dong đóng engine và trả khóa.
 func (b *boMay) dong(id string) error {
 	b.mu.Lock()
@@ -293,7 +327,7 @@ func (b *boMay) dongTatCa() {
 
 // tao bắt đầu một tác phẩm mới từ một câu yêu cầu.
 //
-// Thứ tự ba bước LẤY ĐÚNG từ headless.Run: PrepareQuick → PrepareUserRules → StartPrepared.
+// Thứ tự ba bước: PrepareQuick → PrepareUserRules → StartPrepared.
 // `PrepareUserRules` phải chạy TRƯỚC `StartPrepared` vì nó chốt ảnh chụp luật người dùng
 // cho cả cuốn; đảo thứ tự thì cuốn sách chạy với luật của lần trước.
 func (b *boMay) tao(id, yeuCau string) (*phienMay, error) {

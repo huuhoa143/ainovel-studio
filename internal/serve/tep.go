@@ -115,27 +115,46 @@ type dongNhatKy struct {
 	Loi     bool   `json:"error,omitempty"`
 }
 
-// handleNhap — POST /api/books/{book}/import (multipart: file)
+// handleNhap — POST /api/books/{book}/import (multipart)
+//
+// Có `file` = nhập mới. KHÔNG có `file` = chạy tiếp lượt nhập đang dở (nút «Tiếp tục nhập»):
+// lượt nhập dừng ở chỗ chờ người — xác nhận cách chia chương, hoặc chọn truyện gốc đã kết hay
+// còn tiếp — và một lượt tải lên mới bị từ chối vì thư mục nhập đã có. Không có đường chạy tiếp
+// thì cuốn sách kẹt: engine chặn viết khi còn một lượt nhập dở.
+//
+// Trường tùy chọn: `accept=true` chấp nhận cách chia chương đang chờ (đã xem trong nhật ký),
+// `story=open|closed`, `guide`, `auto_confirm`, `continue`.
 func (s *server) handleNhap(w http.ResponseWriter, r *http.Request) {
 	p, err := s.may.dangMo(r.PathValue("book"))
 	if err != nil {
 		writeErr(w, maLoi(err), err)
 		return
 	}
-	thuMuc, duong, err := nhanTep(r, "file")
-	if err != nil {
-		writeErr(w, http.StatusBadRequest, err)
+	if err := r.ParseMultipartForm(gioiHanTaiLen); err != nil {
+		writeErr(w, http.StatusBadRequest, fmt.Errorf("đọc tệp tải lên: %w", err))
 		return
 	}
-	defer os.RemoveAll(thuMuc)
-	if len(duong) != 1 {
-		writeErr(w, http.StatusBadRequest,
-			fmt.Errorf("nhập truyện nhận đúng MỘT tệp, được %d", len(duong)))
-		return
+	nguon := ""
+	if len(r.MultipartForm.File["file"]) > 0 {
+		thuMuc, duong, err := nhanTep(r, "file")
+		if err != nil {
+			writeErr(w, http.StatusBadRequest, err)
+			return
+		}
+		defer os.RemoveAll(thuMuc)
+		if len(duong) != 1 {
+			writeErr(w, http.StatusBadRequest,
+				fmt.Errorf("nhập truyện nhận đúng MỘT tệp, được %d", len(duong)))
+			return
+		}
+		nguon = duong[0]
 	}
 
 	opts := imp.Options{
-		SourcePath: duong[0],
+		SourcePath: nguon, // rỗng = chạy tiếp lượt nhập đang dở
+		// Người dùng đã xem cách chia trong nhật ký rồi bấm chấp nhận — khác `auto_confirm` (uỷ
+		// quyền trước khi thấy gì).
+		AcceptSegmentation: r.FormValue("accept") == "true",
 		// AutoConfirm theo lựa chọn tường minh của người dùng. KHÔNG mặc định true: `--yes`
 		// là uỷ quyền mù (chấp nhận cách chia chương mà chưa xem), và bật ngầm nó sẽ khiến
 		// một cuốn bị chia sai mà không ai kịp thấy.
@@ -157,6 +176,20 @@ func (s *server) handleNhap(w http.ResponseWriter, r *http.Request) {
 	}
 	nk, coLoi := vetImp(ch)
 	writeJSON(w, map[string]any{"log": nk, "failed": coLoi})
+}
+
+// handleBoNhapDo — POST /api/books/{book}/import/discard (nút «Bỏ lượt nhập dở»)
+//
+// Bỏ lượt nhập dở hoặc đã hỏng, để cuốn sách hết bị chặn viết. Bất biến: không có gì để bỏ
+// vẫn 200 với `discarded: false`. Đang có bước nhập (hay viết) chạy thì 409 — xóa thư mục dưới
+// chân một bước đang ghi vào nó là hỏng cả hai.
+func (s *server) handleBoNhapDo(w http.ResponseWriter, r *http.Request) {
+	daBo, err := s.may.boNhapDo(r.PathValue("book"))
+	if err != nil {
+		writeErr(w, maLoi(err), err)
+		return
+	}
+	writeJSON(w, map[string]any{"discarded": daBo})
 }
 
 // handleMoPhong — POST /api/books/{book}/simulate (multipart: file, nhiều tệp)

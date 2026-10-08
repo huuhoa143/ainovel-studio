@@ -14,7 +14,7 @@ import (
 	"github.com/huuhoa143/ainovel-studio/internal/i18n"
 )
 
-// Command 是 `ainovel-cli eval` 子命令入口，返回进程退出码：
+// Command 是 `ainovel-eval`（cmd/ainovel-eval）的入口，返回进程退出码：
 // 0=PASS/WARN，1=有 case FAIL，2=用法/配置错误。
 //
 // 清晰流程：加载配置 → 加载 case → 按 single/A-B 编排运行 → 采集 → 评分 → 聚合 → 报告。
@@ -22,7 +22,7 @@ func Command(argv []string) int {
 	fs := flag.NewFlagSet("eval", flag.ContinueOnError)
 	casesPath := fs.String("cases", "", i18n.F("case 目录或单个 .json 文件（必填）"))
 	variantDir := fs.String("variant", "", i18n.F("variant prompt 覆盖目录（含 writer.md 等核心提示词）"))
-	configPath := fs.String("config", "", i18n.F("配置文件路径（缺省用默认路径）"))
+	configPath := fs.String("config", "", i18n.F("配置文件路径（必填）"))
 	outDir := fs.String("out", "", i18n.F("报告输出目录（缺省 workspace/evals/<run_id>）"))
 	maxChapters := fs.Int("max-chapters", -1, i18n.F("覆盖所有 case 的章数上限（-1=不覆盖）"))
 	timeout := fs.Duration("timeout", 30*time.Minute, i18n.F("单 case 墙钟上限（0=不限）"))
@@ -41,13 +41,14 @@ func Command(argv []string) int {
 		return 2
 	}
 
-	// eval 的 -config 指向独立文件时按单文件加载（可复现、不被本机全局/项目污染）；
-	// 缺省则走默认的全局+项目两层合并。
-	loadConfig := bootstrap.LoadConfig
-	if strings.TrimSpace(*configPath) != "" {
-		loadConfig = func() (bootstrap.Config, error) { return bootstrap.LoadConfigFile(*configPath) }
+	// Không có đường dẫn mặc định: cấu hình của app nằm trong thư mục dữ liệu của app, và một
+	// lượt eval phải nói rõ nó chạy bằng tệp nào để tái lập được.
+	if strings.TrimSpace(*configPath) == "" {
+		fmt.Fprintln(os.Stderr, i18n.F("eval: 缺少 --config"))
+		fs.Usage()
+		return 2
 	}
-	cfg, err := loadConfig()
+	cfg, err := bootstrap.LoadConfig(*configPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, i18n.F("eval: 加载配置失败: %v\n"), err)
 		return 2

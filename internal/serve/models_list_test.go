@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/huuhoa143/ainovel-studio/internal/bootstrap"
@@ -32,7 +31,7 @@ Cửa sổ chỉ là thứ thêm vào. Hình dạng lạ thì mất cửa sổ, 
 // dungGateway dựng một gateway giả trả đúng `than`, và một tệp cấu hình trỏ vào nó.
 func dungGateway(t *testing.T, than string) *server {
 	t.Helper()
-	nha := dungNhaCauHinh(t)
+	s, duongCauHinh := dungCauHinh(t)
 
 	gw := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -51,14 +50,10 @@ func dungGateway(t *testing.T, than string) *server {
 	if err != nil {
 		t.Fatalf("gói cấu hình: %v", err)
 	}
-	duong := filepath.Join(nha, ".ainovel")
-	if err := os.MkdirAll(duong, 0o755); err != nil {
-		t.Fatalf("tạo thư mục cấu hình: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(duong, "config.json"), b, 0o600); err != nil {
+	if err := os.WriteFile(duongCauHinh, b, 0o600); err != nil {
 		t.Fatalf("ghi cấu hình: %v", err)
 	}
-	return &server{root: t.TempDir(), choGhi: true, may: newBoMay(t.TempDir())}
+	return s
 }
 
 // hoiModel gọi handler và trả về thân đã giải mã.

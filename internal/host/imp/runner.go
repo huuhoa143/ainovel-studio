@@ -303,7 +303,7 @@ func (r *runner) applyGuidance() error {
 		return fmt.Errorf(i18n.F("读取正式 premise: %w"), err)
 	}
 	if p != "" {
-		return errors.New(i18n.F("正式 Foundation 已开始发布，--guide 重切会与已发布内容冲突而被拒绝覆盖，不再接受切分指导"))
+		return errors.New(i18n.F("正式 Foundation 已开始发布，按「Gợi ý cách chia chương」重切会与已发布内容冲突而被拒绝覆盖，不再接受切分指导"))
 	}
 	return r.ws.writeAtomic(fileGuidance, []byte(g))
 }
@@ -324,7 +324,7 @@ func (r *runner) checkSourceIdentity() error {
 		return fmt.Errorf(i18n.F("读取源文件 %s：%w"), r.opts.SourcePath, err)
 	}
 	if Digest(raw) != m.RawSHA256 {
-		return fmt.Errorf(i18n.F("已有 %q 的导入在进行中，本次源文件与其内容不同：请先完成或放弃旧导入（删除 meta/import/）再导入新书"), m.SourceName)
+		return fmt.Errorf(i18n.F("已有 %q 的导入在进行中，本次源文件与其内容不同：请先完成旧导入，或在「Nhập truyện có sẵn」点「Bỏ lượt nhập dở」后再导入新书"), m.SourceName)
 	}
 	return nil
 }
@@ -395,7 +395,7 @@ func (r *runner) ingest(ctx context.Context) error {
 	// createWorkspace 会以「已存在（无参数 /import 可恢复）」拒绝，无参数重跑又因
 	// WorkspaceReady=false 回到这里要求源路径——两条提示互相打架，用户无路可走。
 	if r.ws.Active() {
-		return errors.New(i18n.F("meta/import/ 已存在但工作区身份不可用（manifest/source/intent 缺失或损坏），请人工确认后删除该目录再重新导入"))
+		return errors.New(LoiThuMucHong())
 	}
 	if err := checkImportPreconditions(r.deps.Store); err != nil {
 		return err
@@ -470,7 +470,7 @@ func (r *runner) confirm() bool {
 	if !auto && !accept {
 		msg := buildConfirmPreview(&seg.Payload)
 		if blockedByNotes {
-			msg += i18n.F("  ! 存在切分容错说明，--yes 未自动放行，请人工核对\n")
+			msg += i18n.F("  ! 存在切分容错说明，「Tự chốt cách chia chương」未自动放行，请核对后点「Chấp nhận cách chia chương」\n")
 		}
 		r.emit(StageAwaitingConfirmation, len(seg.Payload.Chapters), len(seg.Payload.Chapters), msg, nil)
 		return false
@@ -480,7 +480,7 @@ func (r *runner) confirm() bool {
 		r.fail(i18n.F("读取切分工件"), err)
 		return false
 	}
-	method, doneMsg := confirmMethodAuto, i18n.F("已自动接受切分（--yes）")
+	method, doneMsg := confirmMethodAuto, i18n.F("已自动接受切分（「Tự chốt cách chia chương」）")
 	if accept {
 		method, doneMsg = confirmMethodUser, i18n.F("已确认切分（人工核对）")
 	}
@@ -676,7 +676,7 @@ func (r *runner) resolveStoryStatus() bool {
 		return false
 	}
 	if choice != storyOpen && choice != storyClosed {
-		r.emit(StageAwaitingStoryStatus, 0, 0, i18n.F("综合判定故事状态为 uncertain，请用 --story=open|closed 明确后重试"), nil)
+		r.emit(StageAwaitingStoryStatus, 0, 0, i18n.F("综合判定故事状态为 uncertain，请选「Truyện gốc đã kết」或「Truyện gốc còn viết tiếp」后点「Tiếp tục nhập」"), nil)
 		return false
 	}
 	raw, err := r.ws.readBytes(fileSynthesis)
@@ -709,7 +709,7 @@ func (r *runner) resolveStory(syn *BookSynthesis) (bool, error) {
 		case storyOpen:
 			return false, nil
 		default:
-			return false, errors.New(i18n.F("故事状态 uncertain，需 --story=open|closed"))
+			return false, errors.New(i18n.F("故事状态 uncertain，需选「Truyện gốc đã kết」或「Truyện gốc còn viết tiếp」"))
 		}
 	default:
 		return false, fmt.Errorf(i18n.F("未知 story_status：%q"), syn.StoryStatus)
@@ -730,4 +730,10 @@ func (r *runner) setCompletionHold() error {
 		After:  domain.AdvanceHoldAtBoundary,
 		Reason: i18n.F("外部小说导入完成，等待验收后续写"),
 	})
+}
+
+// LoiThuMucHong là câu báo thư mục nhập còn đó mà bộ ba nhận diện thiếu/hỏng — một chỗ cho cả bộ
+// máy nhập lẫn trạng thái nhập mà studio hiện ra.
+func LoiThuMucHong() string {
+	return i18n.F("导入工作区已损坏（manifest/source/intent 缺失或损坏），请在「Nhập truyện có sẵn」点「Bỏ lượt nhập dở」后重新导入")
 }

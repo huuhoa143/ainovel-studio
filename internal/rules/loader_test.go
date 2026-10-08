@@ -7,43 +7,6 @@ import (
 	"testing"
 )
 
-// TestEnsureRulesDirAt 验证备好目录 + README.txt：写入说明、始终覆盖为最新模板，
-// 且 README.txt（非 .md）不会被扫描当成规则。
-func TestEnsureRulesDirAt(t *testing.T) {
-	dir := filepath.Join(t.TempDir(), "rules")
-	if err := ensureRulesDirAt(dir); err != nil {
-		t.Fatal(err)
-	}
-	readme := filepath.Join(dir, "README.txt")
-	data, err := os.ReadFile(readme)
-	if err != nil {
-		t.Fatalf("README.txt should be written: %v", err)
-	}
-	// 砍 YAML 后引导改讲"大白话 + 自动归一化"，不再教 front matter。
-	if !strings.Contains(string(data), "归一化") {
-		t.Errorf("README.txt 应说明自然语言会被归一化，got %q", data)
-	}
-	if strings.Contains(string(data), "front matter") {
-		t.Errorf("README.txt 不应再教 YAML front matter，got %q", data)
-	}
-
-	// 始终覆盖为最新模板：旧版本写的过时文案再次 ensure 时被刷新
-	if err := os.WriteFile(readme, []byte("旧版本写的过时文案"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := ensureRulesDirAt(dir); err != nil {
-		t.Fatal(err)
-	}
-	if again, _ := os.ReadFile(readme); string(again) != homeRulesReadme() {
-		t.Errorf("README.txt should be refreshed to latest template, got %q", again)
-	}
-
-	// README.txt 不被当规则（扫描只认 .md）
-	if srcs := RawFileSources(LoadOptions{HomeRulesDir: dir}); len(srcs) != 0 {
-		t.Errorf("README.txt must not be scanned as a rule, got %d sources", len(srcs))
-	}
-}
-
 // TestDefaultProjectRulesDir 锁死项目级规则目录镜像全局：./.ainovel/rules/。
 func TestDefaultProjectRulesDir(t *testing.T) {
 	proj := filepath.Join("/tmp", "demo-book")
@@ -56,11 +19,10 @@ func TestDefaultProjectRulesDir(t *testing.T) {
 	}
 }
 
-// TestDefaultOptions_ScansProjectRulesFromDotAinovel 端到端验证：
-// DefaultOptions 把 cwd 下的 ./.ainovel/rules/ 接进 SourceProject 来源。
-func TestDefaultOptions_ScansProjectRulesFromDotAinovel(t *testing.T) {
+// OptionsFor nối tầng chung cạnh tệp cấu hình và tầng riêng trong thư mục truyện — không
+// cái nào trôi theo cwd.
+func TestOptionsFor_NeoTheoCauHinhVaTruyen(t *testing.T) {
 	proj := t.TempDir()
-	t.Chdir(proj)
 	rulesDir := filepath.Join(proj, ".ainovel", "rules")
 	if err := os.MkdirAll(rulesDir, 0o755); err != nil {
 		t.Fatal(err)
@@ -69,7 +31,25 @@ func TestDefaultOptions_ScansProjectRulesFromDotAinovel(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	srcs := RawFileSources(DefaultOptions())
+	userDir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(userDir, "rules"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(userDir, "rules", "chung.md"), []byte("# chung"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(t.TempDir()) // cwd khác hẳn: không nguồn nào được đọc từ đây
+
+	srcs := RawFileSources(OptionsFor(userDir, proj))
+	coChung := false
+	for _, s := range srcs {
+		if s.Kind == SourceGlobal && s.Label == "global:chung.md" {
+			coChung = true
+		}
+	}
+	if !coChung {
+		t.Errorf("tầng chung phải đọc từ <userDir>/rules, được %+v", srcs)
+	}
 	var got *RawSource
 	for i := range srcs {
 		if srcs[i].Kind == SourceProject {

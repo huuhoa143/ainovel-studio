@@ -16,13 +16,13 @@
 //
 // Hai thứ được thêm để chuyện đó an toàn:
 //
-//   - `store.Khoa()` trong `host.New` — khóa mức TỆP, chặn TUI/headless mở cùng
-//     một cuốn. Nó cần thiết vì `IO.WithWriteLock` chỉ là mutex trong process.
-//   - `raoGhi` + hàng rào địa chỉ trong `rao.go` — studio giờ giữ khóa API và tiêu
+//   - `store.Khoa()` trong `host.New` — khóa mức TỆP, chặn một tiến trình khác mở
+//     cùng một cuốn. Nó cần thiết vì `IO.WithWriteLock` chỉ là mutex trong process.
+//   - `raoGhi` + hàng rào địa chỉ trong `rao.go` — studio giữ khóa API và tiêu
 //     được tiền, nên nó phải từ chối lệnh ghi từ mọi nguồn không phải chính nó.
 //
-// Nhóm route ghi chỉ được mắc khi địa chỉ lắng nghe là loopback. Chạy ra ngoài
-// loopback thì package này lui về đúng hành vi chỉ-đọc cũ.
+// `serve` chỉ lắng nghe loopback: địa chỉ khác là lỗi khởi động, không có chế độ
+// chỉ-đọc nào để lui về.
 //
 // # Vì sao tail queue thay vì hook vào engine
 //
@@ -74,7 +74,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/huuhoa143/ainovel-studio/internal/bootstrap"
 	"github.com/huuhoa143/ainovel-studio/internal/domain"
 	"github.com/huuhoa143/ainovel-studio/internal/store"
 )
@@ -99,6 +98,7 @@ func Command(argv []string) int {
 	fs.StringVar(&tc.root, "root", filepath.Join("output"), "thư mục gốc chứa các tác phẩm")
 	fs.StringVar(&tc.book, "book", "", "chỉ phục vụ một tác phẩm (tên thư mục con trong root)")
 	fs.StringVar(&tc.webDir, "web", "", "thư mục web tĩnh đã build (rỗng = chỉ chạy API)")
+	fs.StringVar(&tc.config, "config", "", "đường dẫn TUYỆT ĐỐI tới tệp cấu hình — tệp duy nhất được đọc và ghi (bắt buộc)")
 	thoatKhiDongStdin := fs.Bool("exit-on-stdin-close", false,
 		"tắt êm khi stdin đóng — dành cho process cha (app desktop) giữ ống stdin làm dây sống")
 	if err := fs.Parse(argv); err != nil {
@@ -135,9 +135,7 @@ type tuyChon struct {
 	root   string
 	book   string
 	webDir string
-
-	// napConfg thay bootstrap.LoadConfig cho bộ máy. Chỉ test đặt; nil = đọc cấu hình thật.
-	napConfg func() (bootstrap.Config, error)
+	config string
 	// themRoute mắc thêm route vào mux trước khi phục vụ. Chỉ test đặt — để dựng một yêu cầu
 	// chậm mà đo được nhịp tắt êm qua `chay` thật.
 	themRoute func(*http.ServeMux)
@@ -169,51 +167,39 @@ const thoiHanTatEm = 2 * time.Second
 // lỗi cổng bận phải lộ ra TRƯỚC khi báo sẵn sàng — báo rồi mới chết thì process cha đã tin
 // một địa chỉ không ai nghe.
 func chay(ctx context.Context, tc tuyChon, stdin io.Reader, stdout, stderr io.Writer) error {
+	// Chỉ loopback, và đây là lỗi khởi động chứ không phải cảnh báo: studio đọc được bản thảo,
+	// khởi động được engine (đốt tiền API thật) và đặt được khóa API, mà không có mật khẩu nào.
+	// Hàng rào địa chỉ chính là thứ thay cho xác thực. Kiểm TRƯỚC khi Listen để không bao giờ
+	// mở cổng ra mạng, dù chỉ một khoảnh khắc.
+	if !laDiaChiCucBo(tc.addr) {
+		return fmt.Errorf("--addr %q không phải loopback — studio chỉ lắng nghe trên chính máy này (vd 127.0.0.1:0)", tc.addr)
+	}
+	// Một tệp cấu hình, do app chỉ định. Tương đối thì nó trôi theo thư mục làm việc — đúng thứ
+	// lỗi "lưu rồi mà không ăn" mà cơ chế hai tầng cũ đã gây ra.
+	if tc.config == "" {
+		return errors.New("thiếu --config <đường dẫn tuyệt đối tới tệp cấu hình>")
+	}
+	if !filepath.IsAbs(tc.config) {
+		return fmt.Errorf("--config phải là đường dẫn tuyệt đối tới tệp cấu hình, có %q", tc.config)
+	}
 	ln, err := net.Listen("tcp", tc.addr)
 	if err != nil {
 		return err
 	}
-	// Địa chỉ THẬT, không phải chuỗi người dùng gõ: cổng 0 thành cổng đã cấp, và `:0` lộ ra
-	// đúng là đang nghe mọi giao diện.
+	// Địa chỉ THẬT, không phải chuỗi người dùng gõ: cổng 0 thành cổng đã cấp.
 	diaChi := ln.Addr().String()
-
-	// Mặc định chỉ lắng nghe localhost: store chứa toàn văn tác phẩm chưa phát hành và
-	// khóa cấu hình, mở ra mọi giao diện mạng là rò rỉ mặc định.
-	if err := warnIfPublic(diaChi); err != nil {
-		fmt.Fprintf(stderr, "serve: %v\n", err)
-	}
-
-	// Đường GHI chỉ bật trên loopback, và đây là TỪ CHỐI chứ không phải cảnh báo.
-	//
-	// Từ khi studio ghi được, một yêu cầu từ người lạ không chỉ đọc được bản thảo mà còn
-	// khởi động được engine (đốt tiền API thật) và đặt được khóa API. Người dùng đã chọn
-	// không có mật khẩu, nên hàng rào địa chỉ chính là thứ thay cho việc xác thực —
-	// không thể để nó là một dòng cảnh báo rồi vẫn chạy.
-	choGhi := laDiaChiCucBo(diaChi)
 
 	// dungSSE đóng ngay khi bắt đầu tắt — xem chú thích ở httpSrv bên dưới.
 	dungSSE := make(chan struct{})
-	srv := &server{root: tc.root, onlyBook: tc.book, webDir: tc.webDir, choGhi: choGhi, dungSSE: dungSSE}
-	if choGhi {
-		srv.may = newBoMay(tc.root)
-		if tc.napConfg != nil {
-			srv.may.napConfg = tc.napConfg
-		}
-		// Chạy SAU Shutdown (defer chạy ngược thứ tự): không còn yêu cầu nào mở engine mới
-		// chen vào giữa lúc đang trả khóa.
-		defer srv.may.dongTatCa()
-	}
+	srv := &server{root: tc.root, onlyBook: tc.book, webDir: tc.webDir, may: newBoMay(tc.root, tc.config), dungSSE: dungSSE}
+	// Chạy SAU Shutdown (defer chạy ngược thứ tự): không còn yêu cầu nào mở engine mới chen vào
+	// giữa lúc đang trả khóa.
+	defer srv.may.dongTatCa()
 
 	fmt.Fprintf(stdout, "%s http://%s\n", dongSanSang, diaChi)
 	fmt.Fprintf(stdout, "ainovel studio đang chạy tại http://%s\n", diaChi)
 	fmt.Fprintf(stdout, "  thư mục gốc: %s\n", tc.root)
-	if choGhi {
-		fmt.Fprintln(stdout, "  chế độ: đầy đủ — tạo, chạy, can thiệp được từ giao diện")
-	} else {
-		fmt.Fprintf(stderr,
-			"  chế độ: CHỈ ĐỌC — %s không phải loopback nên đường ghi bị tắt.\n"+
-				"          Muốn dùng đầy đủ thì chạy với --addr 127.0.0.1:8420.\n", diaChi)
-	}
+	fmt.Fprintf(stdout, "  tệp cấu hình: %s\n", tc.config)
 	if tc.webDir == "" {
 		fmt.Fprintln(stdout, "  chế độ: chỉ API (dùng --web để phục vụ giao diện đã build)")
 	}
@@ -276,27 +262,13 @@ func chay(ctx context.Context, tc tuyChon, stdin io.Reader, stdout, stderr io.Wr
 	return nil
 }
 
-// warnIfPublic cảnh báo khi lắng nghe ra ngoài loopback.
-//
-// Dùng chung `laDiaChiCucBo` thay vì tự so chuỗi. Bản cũ liệt kê tay `case "", "127.0.0.1",
-// "localhost", "::1"` và vì thế IM LẶNG với `--addr :8420` — dạng viết tắt của 0.0.0.0,
-// tức nghe mọi giao diện. Đúng cái nó tồn tại để cảnh báo thì nó bỏ qua.
-func warnIfPublic(addr string) error {
-	if laDiaChiCucBo(addr) {
-		return nil
-	}
-	return fmt.Errorf("đang lắng nghe %s — store chứa toàn văn chưa phát hành, đừng mở ra mạng công cộng", addr)
-}
-
 type server struct {
 	root     string
 	onlyBook string
 	webDir   string
 
-	// choGhi bật nhóm route ghi. Tách khỏi `may != nil` để `routes()` đọc được ý định một
-	// cách tường minh, và để test dựng được ca "chỉ đọc" mà không phải mò.
-	choGhi bool
-	may    *boMay
+	// may giữ engine và tệp cấu hình. Các bài kiểm chỉ đụng đường đọc được phép để nil.
+	may *boMay
 
 	// dungSSE đóng khi server bắt đầu tắt; luồng SSE chọn trên nó để thoát ngay thay vì giữ
 	// Shutdown tới hết hạn. nil (các bài kiểm dựng server trần) = không bao giờ đóng.
@@ -322,54 +294,51 @@ func (s *server) routes() *http.ServeMux {
 	// được — đó chính là lúc người ta cần nó.
 	mux.HandleFunc("GET /api/books/{book}/diag", s.handleChanDoan)
 
-	// Nhóm GHI. Không mắc vào mux khi không cho ghi — trả 404 thay vì 403 là có chủ ý:
-	// route không tồn tại thì không có gì để dò, và giao diện đã có `/api/engine` để hỏi
-	// trạng thái nên nó không cần đoán từ mã lỗi.
-	if s.choGhi && s.may != nil {
-		mux.HandleFunc("GET /api/engine", s.handleMay)
-		mux.HandleFunc("POST /api/books", raoGhi(s.handleTaoSach))
-		// Xóa nằm ở nhóm GHI: bản chỉ-đọc không được phép xóa gì của ai.
-		mux.HandleFunc("DELETE /api/books/{book}", raoGhi(s.handleXoaSach))
-		mux.HandleFunc("POST /api/books/{book}/open", raoGhi(s.handleMoMay))
-		mux.HandleFunc("POST /api/books/{book}/run", raoGhi(s.handleChay))
-		mux.HandleFunc("POST /api/books/{book}/steer", raoGhi(s.handleCanThiep))
-		mux.HandleFunc("POST /api/books/{book}/abort", raoGhi(s.handleDung))
-		mux.HandleFunc("POST /api/books/{book}/close", raoGhi(s.handleDongMay))
-		mux.HandleFunc("GET /api/books/{book}/live", s.handleSong)
+	// Nhóm GHI — mọi route đổi trạng thái, tiêu tiền hay chạm khóa API đi qua `raoGhi`.
+	mux.HandleFunc("GET /api/engine", s.handleMay)
+	mux.HandleFunc("POST /api/books", raoGhi(s.handleTaoSach))
+	mux.HandleFunc("DELETE /api/books/{book}", raoGhi(s.handleXoaSach))
+	mux.HandleFunc("POST /api/books/{book}/open", raoGhi(s.handleMoMay))
+	mux.HandleFunc("POST /api/books/{book}/run", raoGhi(s.handleChay))
+	mux.HandleFunc("POST /api/books/{book}/steer", raoGhi(s.handleCanThiep))
+	mux.HandleFunc("POST /api/books/{book}/abort", raoGhi(s.handleDung))
+	mux.HandleFunc("POST /api/books/{book}/close", raoGhi(s.handleDongMay))
+	mux.HandleFunc("GET /api/books/{book}/live", s.handleSong)
 
-		// Cấu hình: GET không qua `raoGhi` vì nó chỉ đọc (và đã che khóa), PUT thì qua.
-		mux.HandleFunc("GET /api/config", s.handleDocCauHinh)
-		mux.HandleFunc("PUT /api/config", raoGhi(s.handleGhiCauHinh))
-		// Liệt kê model của một nhà cung cấp — QUA raoGhi, dù là GET.
-		//
-		// Nó không đổi gì trong cấu hình, nhưng nó phát một yêu cầu RA NGOÀI kèm khóa API.
-		// Một GET không hàng rào thì trang bất kỳ kích được bằng \:
-		// không đọc nổi kết quả, nhưng vẫn khiến studio gọi ra ngoài. Và nó lệch luật của
-		// chính tệp này — mọi thứ chạm khóa đều nằm sau hàng rào.
-		mux.HandleFunc("GET /api/models", raoGhi(s.handleLietKeModel))
-		mux.HandleFunc("POST /api/models/try", raoGhi(s.handleThuKetNoi))
-		mux.HandleFunc("GET /api/books/{book}/models", s.handleDocVaiModel)
-		mux.HandleFunc("PUT /api/books/{book}/models", raoGhi(s.handleGhiVaiModel))
-		mux.HandleFunc("POST /api/books/{book}/models/apply", raoGhi(s.handleApDungCauHinh))
+	// Cấu hình: GET không qua `raoGhi` vì nó chỉ đọc (và đã che khóa), PUT thì qua.
+	mux.HandleFunc("GET /api/config", s.handleDocCauHinh)
+	mux.HandleFunc("PUT /api/config", raoGhi(s.handleGhiCauHinh))
+	// Liệt kê model của một nhà cung cấp — QUA raoGhi, dù là GET.
+	//
+	// Nó không đổi gì trong cấu hình, nhưng nó phát một yêu cầu RA NGOÀI kèm khóa API.
+	// Một GET không hàng rào thì trang bất kỳ kích được bằng \:
+	// không đọc nổi kết quả, nhưng vẫn khiến studio gọi ra ngoài. Và nó lệch luật của
+	// chính tệp này — mọi thứ chạm khóa đều nằm sau hàng rào.
+	mux.HandleFunc("GET /api/models", raoGhi(s.handleLietKeModel))
+	mux.HandleFunc("POST /api/models/try", raoGhi(s.handleThuKetNoi))
+	mux.HandleFunc("GET /api/books/{book}/models", s.handleDocVaiModel)
+	mux.HandleFunc("PUT /api/books/{book}/models", raoGhi(s.handleGhiVaiModel))
+	mux.HandleFunc("POST /api/books/{book}/models/apply", raoGhi(s.handleApDungCauHinh))
 
-		// Vòng đời sáng tác — bản web của /review, /next, /reopen.
-		mux.HandleFunc("PUT /api/books/{book}/advance-mode", raoGhi(s.handleDoiCheDoTien))
-		mux.HandleFunc("POST /api/books/{book}/advance", raoGhi(s.handleChoDiTiep))
-		mux.HandleFunc("POST /api/books/{book}/reopen", raoGhi(s.handleMoLai))
+	// Vòng đời sáng tác — bản web của /review, /next, /reopen.
+	mux.HandleFunc("PUT /api/books/{book}/advance-mode", raoGhi(s.handleDoiCheDoTien))
+	mux.HandleFunc("POST /api/books/{book}/advance", raoGhi(s.handleChoDiTiep))
+	mux.HandleFunc("POST /api/books/{book}/reopen", raoGhi(s.handleMoLai))
 
-		// Engine hỏi người dùng — luồng CHẶN. Câu hỏi đi kèm /live; đây là đường trả lời.
-		mux.HandleFunc("POST /api/books/{book}/ask", raoGhi(s.handleTraLoiHoi))
+	// Engine hỏi người dùng — luồng CHẶN. Câu hỏi đi kèm /live; đây là đường trả lời.
+	mux.HandleFunc("POST /api/books/{book}/ask", raoGhi(s.handleTraLoiHoi))
 
-		// Cùng dựng — đối thoại nhiều lượt. Lịch sử do client giữ, xem cung_dung.go.
-		mux.HandleFunc("POST /api/cocreate", raoGhi(s.handleCungDungMoSach))
-		mux.HandleFunc("POST /api/books/{book}/stage-cocreate", raoGhi(s.handleCungDungGiaiDoan))
+	// Cùng dựng — đối thoại nhiều lượt. Lịch sử do client giữ, xem cung_dung.go.
+	mux.HandleFunc("POST /api/cocreate", raoGhi(s.handleCungDungMoSach))
+	mux.HandleFunc("POST /api/books/{book}/stage-cocreate", raoGhi(s.handleCungDungGiaiDoan))
+	mux.HandleFunc("POST /api/books/{book}/stage-cocreate/cancel", raoGhi(s.handleHuyCungDungGiaiDoan))
 
-		// Luồng tệp: tải lên để nhập / mô phỏng, tải về để xuất bản.
-		mux.HandleFunc("POST /api/books/{book}/import", raoGhi(s.handleNhap))
-		mux.HandleFunc("POST /api/books/{book}/simulate", raoGhi(s.handleMoPhong))
-		mux.HandleFunc("POST /api/books/{book}/simulate/profile", raoGhi(s.handleNhapHoSoMoPhong))
-		mux.HandleFunc("POST /api/books/{book}/export", raoGhi(s.handleXuatBan))
-	}
+	// Luồng tệp: tải lên để nhập / mô phỏng, tải về để xuất bản.
+	mux.HandleFunc("POST /api/books/{book}/import", raoGhi(s.handleNhap))
+	mux.HandleFunc("POST /api/books/{book}/import/discard", raoGhi(s.handleBoNhapDo))
+	mux.HandleFunc("POST /api/books/{book}/simulate", raoGhi(s.handleMoPhong))
+	mux.HandleFunc("POST /api/books/{book}/simulate/profile", raoGhi(s.handleNhapHoSoMoPhong))
+	mux.HandleFunc("POST /api/books/{book}/export", raoGhi(s.handleXuatBan))
 
 	if s.webDir != "" {
 		mux.Handle("/", webTinh(s.webDir))
@@ -453,9 +422,7 @@ func (s *server) handleWorkshop(w http.ResponseWriter, r *http.Request) {
 	}
 	ws.WebBuild = s.maBanDung()
 	// EngineOpen cần s.may — một trường của server, không phải của store — nên nó được đặt
-	// ở đây chứ không trong scanWorkshop/bookFrom, cùng lý lẽ với Capabilities.Steer ở
-	// handleStudio. `s.may == nil` (bản chỉ-đọc) thì mọi cuốn đều engine_open=false, đúng
-	// giá trị zero của bool nên không cần gán tường minh cho ca đó.
+	// ở đây chứ không trong scanWorkshop/bookFrom.
 	if s.may != nil {
 		for i := range ws.Books {
 			if p, err := s.may.dangMo(ws.Books[i].ID); err == nil {
@@ -480,16 +447,9 @@ func (s *server) handleStudio(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, err)
 		return
 	}
-	// Steer là khả năng của SERVER, không phải của store — nên nó được đặt ở đây chứ
-	// không trong buildSnapshot. `buildSnapshot` chỉ biết thư mục tác phẩm; nó không biết
-	// server có mắc nhóm route ghi hay không, và trước đây nó viết cứng `false` kèm một
-	// chú thích nói "cần engine hợp tác". Engine giờ chạy trong process này, nên câu trả
-	// lời đúng là: ghi được khi và chỉ khi nhóm route ghi tồn tại.
-	snap.Capabilities.Steer = s.choGhi && s.may != nil
-
 	// Trường sống (agents, advance, context, ...) chỉ có nghĩa khi engine đang mở CHO
 	// ĐÚNG CUỐN NÀY. `buildSnapshot` không biết gì về bộ giám sát engine (s.may — nó
-	// thuộc server, không thuộc store), nên phải nối ở đây, cùng chỗ Steer đã nối.
+	// thuộc server, không thuộc store), nên phải nối ở đây.
 	// `dangMo` không tự mở mới: mở studio để ĐỌC một cuốn không được vô tình khởi động
 	// engine (tốn tiền API) cho cuốn đó.
 	if s.may != nil {

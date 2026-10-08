@@ -14,7 +14,7 @@ func TestNhuongCho_PhienRanhDuocDongDeNhuongSuat(t *testing.T) {
 	dongPhien = func(*phienMay) {}
 	docMay = func(*phienMay) (string, string) { return "completed", "Truyện cũ" }
 
-	may := newBoMay(t.TempDir())
+	may := boMayThu(t, t.TempDir())
 	may.dang["cu"] = &phienMay{id: "cu", hoi: &cauNoiHoi{}}
 	if err := may.nhuongCho(); err != nil {
 		t.Fatalf("phiên rảnh mà không nhường: %v", err)
@@ -31,7 +31,7 @@ func TestNhuongCho_PhienDangVietGiuSuatVaNeuTen(t *testing.T) {
 	dongPhien = func(*phienMay) {}
 	docMay = func(*phienMay) (string, string) { return "running", "Người Lái Đò" }
 
-	may := newBoMay(t.TempDir())
+	may := boMayThu(t, t.TempDir())
 	may.dang["do"] = &phienMay{id: "do", hoi: &cauNoiHoi{}}
 	err := may.nhuongCho()
 	if !errors.Is(err, errQuaNhieuMay) {

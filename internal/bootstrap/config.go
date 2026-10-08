@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"net"
+	"net/url"
 	"path/filepath"
 	"strings"
 	"time"
@@ -53,6 +55,9 @@ type ProviderConfig struct {
 	Type    string        `json:"type,omitempty"`     // API 协议类型（openai/anthropic/gemini），自定义代理时指定
 	API     string        `json:"api,omitempty"`      // OpenAI 协议 endpoint：chat（默认）/ responses
 	APIKey  string        `json:"api_key,omitempty"`  // API Key
+	// Keyless là lời khai TƯỜNG MINH của người dùng: nhà cung cấp này không cần khóa API (gateway
+	// tự dựng có xác thực ở tầng khác, proxy nội bộ...). Không đoán từ địa chỉ — xem KhongCanKhoa.
+	Keyless bool `json:"keyless,omitempty"`
 	BaseURL string        `json:"base_url,omitempty"` // API Base URL
 	Models  []ModelConfig `json:"models,omitempty"`   // 可选模型列表，供 TUI 切换时展示
 	// ExtraBody 透传给该 provider 每次请求的额外参数（如 temperature/top_p/min_p/
@@ -149,11 +154,62 @@ func (pc ProviderConfig) StreamIdleTimeoutValue() (time.Duration, error) {
 // 2. 显式指定 Type 的配置视为自定义代理，允许无 key；
 // 3. 其他 provider 默认要求 key，保持对官方托管接口的保守校验。
 func (pc ProviderConfig) RequiresAPIKey(name string) bool {
+	if pc.Keyless {
+		return false
+	}
 	switch name {
 	case "ollama", "bedrock":
 		return false
 	}
 	return pc.Type == ""
+}
+
+// KhongCanKhoa nói một nhà cung cấp có thật sự chạy được KHÔNG khóa hay không — luật của
+// studio, hẹp hơn `RequiresAPIKey`.
+//
+// Luật của engine coi MỌI mục có `type` là "proxy tự dựng, khóa tùy chọn" — mà biểu mẫu web
+// luôn gửi `type`. Dùng luật đó cho studio thì không nhà cung cấp nào thêm qua web từng bị đòi
+// khóa: ĐO ĐƯỢC, thêm `thu` không khóa rồi đặt làm mặc định → lưu xong, lượt chạy sau mới
+// chết vì 401. Nên chỉ tin: lời khai `keyless` của người dùng, tên đã biết (ollama/bedrock),
+// hoặc địa chỉ trên máy/LAN. Gateway từ xa không cần khóa thì người dùng khai `keyless` —
+// không thêm luật đoán theo địa chỉ.
+func KhongCanKhoa(name string, pc ProviderConfig) bool {
+	if pc.Keyless {
+		return true
+	}
+	switch strings.ToLower(name) {
+	case "ollama", "bedrock":
+		return true
+	}
+	if strings.EqualFold(pc.Type, "ollama") || strings.EqualFold(pc.Type, "bedrock") {
+		return true
+	}
+	u, err := url.Parse(strings.TrimSpace(pc.BaseURL))
+	if err != nil || u.Hostname() == "" {
+		return false
+	}
+	host := u.Hostname()
+	if host == "localhost" || strings.HasSuffix(host, ".local") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && (ip.IsLoopback() || ip.IsPrivate())
+}
+
+// NeedsSetup báo cấu hình chưa đủ để viết: chỉ coi là đã cài khi model mặc định thuộc một nhà
+// cung cấp DÙNG ĐƯỢC — có khóa, hoặc thật sự chạy không cần khóa (`KhongCanKhoa`).
+//
+// Không đòi model nằm trong danh sách `models` của nhà cung cấp: danh sách ấy là gợi ý cho bộ
+// chọn, engine vẫn gọi được model ngoài danh sách.
+func NeedsSetup(c Config) bool {
+	if strings.TrimSpace(c.Provider) == "" || strings.TrimSpace(c.ModelName) == "" {
+		return true
+	}
+	pc, ok := c.Providers[c.Provider]
+	if !ok {
+		return true
+	}
+	return pc.APIKey == "" && !KhongCanKhoa(c.Provider, pc)
 }
 
 // ProviderType 返回有效的 API 协议类型。
@@ -206,6 +262,9 @@ var knownRoles = map[string]bool{
 type Config struct {
 	// 运行时字段（不序列化到 JSON）
 	OutputDir string `json:"-"` // 输出根目录
+	// ConfigPath là tệp cấu hình mà bản này được đọc ra (LoadConfig gán). Mọi lượt ghi ngược
+	// lúc chạy đều về đúng tệp này; rỗng = cấu hình dựng trong bộ nhớ, không ghi đi đâu.
+	ConfigPath string `json:"-"`
 
 	// 默认 LLM 配置
 	Provider  string `json:"provider"` // 默认 provider（Providers map 中的 key）
@@ -274,7 +333,7 @@ func (c *Config) ValidateBase() error {
 	// 默认 provider 必须有凭证
 	pc, ok := c.Providers[c.Provider]
 	if !ok {
-		return fmt.Errorf(i18n.F("provider %q 未在 providers 中配置凭证；若在 ./.ainovel/config.json 里覆盖了 provider，需同时声明 providers.%s（含 api_key/base_url），不能只改顶层 provider: %w"), c.Provider, c.Provider, errs.ErrConfig)
+		return fmt.Errorf(i18n.F("provider %q 未在 providers 中配置凭证: %w"), c.Provider, errs.ErrConfig)
 	}
 	if pc.RequiresAPIKey(c.Provider) && pc.APIKey == "" {
 		return fmt.Errorf("provider %q has no api_key configured: %w", c.Provider, errs.ErrConfig)
@@ -411,6 +470,16 @@ func validateConfigText(name, value string) error {
 		return fmt.Errorf("%s contains control character: %w", name, errs.ErrConfig)
 	}
 	return nil
+}
+
+// UserDir là thư mục chứa tệp cấu hình — nơi DUY NHẤT cho mọi dữ liệu dùng chung của người dùng
+// ngoài truyện (luật viết chung, văn phong chung, bộ đệm giá model). Cấu hình dựng trong bộ nhớ
+// (không có ConfigPath) thì rỗng, và người gọi bỏ qua những tầng đó.
+func (c Config) UserDir() string {
+	if c.ConfigPath == "" {
+		return ""
+	}
+	return filepath.Dir(c.ConfigPath)
 }
 
 // DefaultProviderConfig 返回默认 provider 的凭证配置。

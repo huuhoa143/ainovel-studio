@@ -1,8 +1,6 @@
 package rules
 
 import (
-	"github.com/huuhoa143/ainovel-studio/internal/i18n"
-	"os"
 	"path/filepath"
 )
 
@@ -10,19 +8,19 @@ import (
 //
 // 目录不存在不算错误，扫描时静默跳过。
 type LoadOptions struct {
-	// HomeRulesDir 是 ~/.ainovel/rules/ 目录；扫描其下所有顶层 .md（文件名字典序合并）。空表示跳过。
+	// HomeRulesDir là `<thư mục cấu hình>/rules/` — sở thích chung cho mọi cuốn; quét mọi .md
+	// cấp đầu (ghép theo thứ tự tên tệp). Rỗng = bỏ qua.
 	HomeRulesDir string
 
-	// ProjectRulesDir 是 ./.ainovel/rules/ 目录（镜像全局，同样扫描其下所有顶层 .md）。空表示跳过。
+	// ProjectRulesDir là `<thư mục truyện>/.ainovel/rules/` — luật riêng của cuốn, ưu tiên cao
+	// nhất. Rỗng = bỏ qua.
 	ProjectRulesDir string
 }
 
-// ainovelDirName 是 ainovel 在 user / project 两级共用的 dotdir 名。
-// 全局 ~/.ainovel/rules/ 与项目 ./.ainovel/rules/ 由此对称。
+// ainovelDirName là thư mục ẩn trong thư mục truyện chứa luật riêng của cuốn.
 const ainovelDirName = ".ainovel"
 
-// DefaultProjectRulesDir 拼出 ./.ainovel/rules/ 的绝对路径（基于给定项目目录）。
-// 调用方传入项目根，避免在 loader 内部依赖 cwd；镜像 DefaultHomeRulesDir。
+// DefaultProjectRulesDir ghép `<projectDir>/.ainovel/rules/`; projectDir rỗng thì trả rỗng.
 func DefaultProjectRulesDir(projectDir string) string {
 	if projectDir == "" {
 		return ""
@@ -30,74 +28,16 @@ func DefaultProjectRulesDir(projectDir string) string {
 	return filepath.Join(projectDir, ainovelDirName, "rules")
 }
 
-// DefaultHomeRulesDir 拼出 ~/.ainovel/rules/ 目录的绝对路径。
-// home 解析失败返回空串（调用方据此跳过该来源）。
-func DefaultHomeRulesDir() string {
-	home, err := os.UserHomeDir()
-	if err != nil || home == "" {
-		return ""
-	}
-	return filepath.Join(home, ainovelDirName, "rules")
-}
-
-// homeRulesReadme() 是首次引导时写入 ~/.ainovel/rules/README.txt 的说明。
-// 刻意用 .txt 后缀而非 .md——扫描只认 .md，这份说明不会被当成规则归一化。
-func homeRulesReadme() string {
-	return i18n.F(`这里放全局写作偏好，跨所有书生效。
-
-新建一个 .md 文件（如 my-style.md），用大白话写要求就行——
-不需要任何格式、不需要 YAML：
-
-    # 角色
-    - 主角林尘别写成圣母，外冷内热即可
-    # 风格
-    - 多用身体感知（指节发白）替代情绪标签（紧张）
-    - 对话别太书面，每章 3000 字左右
-    - 不要出现"某种程度上"这种 AI 腔
-
-写完不用管格式：系统会用模型把这些自然语言要求归一化成结构化约束
-（字数范围、禁用词、疲劳词阈值等），写作时自动遵循、提交时自动自检。
-
-多个 .md 按文件名字典序合并；点开头的隐藏文件、非 .md 文件都会被忽略
-（所以这份 README.txt 不会被当成规则）。
-
-常见 AI 套句、疲劳词的机械基线已内置，开箱即用，不写也没关系。
-
-加载优先级（高 → 低）：./.ainovel/rules/*.md（本书） > ~/.ainovel/rules/*.md（这里） > 内置默认
-`)
-}
-
-// EnsureHomeRulesDir 尽力创建 ~/.ainovel/rules/ 目录并写入 README.txt 引导，
-// 让用户发现这个全局偏好扩展点、知道怎么写。
-// nice-to-have，非关键路径：home 解析失败或写入出错都静默吞掉，绝不阻断启动。
-func EnsureHomeRulesDir() {
-	if dir := DefaultHomeRulesDir(); dir != "" {
-		_ = ensureRulesDirAt(dir)
-	}
-}
-
-// ensureRulesDirAt 创建目录并把 README.txt 写成当前引导模板，是 EnsureHomeRulesDir 的可测内核。
-// README.txt 是系统生成的引导文件（用户偏好写在 *.md，它不被扫描加载），每次都覆盖为
-// 最新模板——不保留旧内容，也就不需要任何版本兼容逻辑。
-func ensureRulesDirAt(dir string) error {
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return err
-	}
-	return os.WriteFile(filepath.Join(dir, "README.txt"), []byte(homeRulesReadme()), 0o644)
-}
-
-// DefaultOptions 根据当前工作目录构造常用 LoadOptions。
+// OptionsFor dựng nguồn luật cho một cuốn: tầng chung nằm CẠNH tệp cấu hình (`userDir`, xem
+// `bootstrap.Config.UserDir`), tầng riêng nằm trong thư mục truyện.
 //
-// 适合 Host 启动时调用一次，让用户规则服务复用同一份来源配置。
-// 解析 cwd 失败时 ProjectRulesDir 留空（扫描会跳过该来源）。
-//
-// 路径语义：ProjectRulesDir 绑定 **当前工作目录（cwd）** 而非 outputDir。
-// 用户 cd 到不同目录启动写不同的书，./.ainovel/rules/ 自然跟着 cwd 走；如需跨书共享，
-// 放 ~/.ainovel/rules/ 全局目录即可（其下所有 .md 都会被加载）。
-func DefaultOptions() LoadOptions {
-	cwd, _ := os.Getwd()
-	return LoadOptions{
-		HomeRulesDir:    DefaultHomeRulesDir(),
-		ProjectRulesDir: DefaultProjectRulesDir(cwd),
+// Không có gì neo theo thư mục làm việc hay `~`: sidecar chạy với cwd do app đặt, và một
+// nguồn trôi theo cwd là nguồn người dùng không bao giờ tìm thấy.
+func OptionsFor(userDir, bookDir string) LoadOptions {
+	var opts LoadOptions
+	if userDir != "" {
+		opts.HomeRulesDir = filepath.Join(userDir, "rules")
 	}
+	opts.ProjectRulesDir = DefaultProjectRulesDir(bookDir)
+	return opts
 }

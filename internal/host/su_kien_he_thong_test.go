@@ -17,7 +17,7 @@ func TestEmitEvent_HostGhiQueueObserverKhongGhiDoi(t *testing.T) {
 	h.emitEvent(Event{Category: "TOOL", Summary: "không ghi — loại này observer lo"})
 	h.observer.emitEv(Event{Category: "SYSTEM", Summary: "observer phát, chưa ghi"})
 
-	q, err := h.ReplayQueue(0)
+	q, err := st.Runtime.LoadQueueAfter(0)
 	if err != nil {
 		t.Fatal(err)
 	}

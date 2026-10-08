@@ -555,7 +555,7 @@ func contentFilterAdvice(werr error) string {
 	if !errors.Is(werr, agentcore.ErrProviderContentFilter) {
 		return ""
 	}
-	return i18n.F("。这是服务商内容审核拦截(非本地错误),可选: /model 切到无审核层的服务商后输入「继续」;或修改本章草稿(drafts/)措辞后再继续;原样重试大概率仍被拦")
+	return i18n.F("。这是服务商内容审核拦截(非本地错误),可选: 在「Model & khóa API」切到无审核层的服务商后点「Tiếp tục viết」;或在「Góp ý」要求改写被拦段落的措辞后再继续;原样重试大概率仍被拦")
 }
 
 // errInvalidWriteTarget 标记 runWorker 前置校验拦下的非法写作目标，供错误链和

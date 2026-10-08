@@ -23,10 +23,9 @@ import (
 // cầu nối chỉ cần một channel. Nếu engine ở process con thì phải phát minh một giao thức
 // IPC hai chiều cho đúng việc này, và nó sẽ là thứ duy nhất mới trong toàn bộ thiết kế.
 //
-// TUI đã có bản mẫu (`internal/entry/tui/ask_user.go`: `askUserBridge` với hai channel
-// request/result). Bản này theo cùng hình dạng, khác ở chỗ bên đọc là HTTP nên câu hỏi
-// phải đọc được nhiều lần (trình duyệt tải lại trang thì vẫn phải thấy câu hỏi), còn
-// channel của TUI chỉ đọc một lần.
+// Hình dạng theo cầu nối của TUI cũ (hai channel request/result), khác ở chỗ bên đọc là
+// HTTP nên câu hỏi phải đọc được nhiều lần (trình duyệt tải lại trang thì vẫn phải thấy câu
+// hỏi), còn channel thì chỉ đọc được một lần.
 //
 // # Vì sao câu hỏi đi kèm /live thay vì có endpoint riêng
 //

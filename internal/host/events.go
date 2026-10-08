@@ -1,10 +1,6 @@
 package host
 
-import (
-	"time"
-
-	"github.com/huuhoa143/ainovel-studio/internal/domain"
-)
+import "time"
 
 // Event 是 TUI 消费的结构化事件。
 //
@@ -210,14 +206,4 @@ type CoCreateReply struct {
 	Ready       bool
 	Suggestions []string
 	Raw         string
-}
-
-// ReplayDeltaText 从运行时队列项中提取可回放的流式文本。
-func ReplayDeltaText(item domain.RuntimeQueueItem) string {
-	if payload, ok := item.Payload.(map[string]any); ok {
-		if text, ok := payload["delta"].(string); ok {
-			return text
-		}
-	}
-	return ""
 }

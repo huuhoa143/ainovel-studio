@@ -19,13 +19,13 @@ rồi bấm Chạy" có tác dụng — người sau nhìn thấy `SwitchModel` 
 gọi nó, tưởng chỗ này thừa, và xóa đi trong một lượt dọn dẹp vô hại.
 */
 
-// nhaCauHinh khống chế cả HOME lẫn cwd, vì `LoadConfig` đọc cả cấu hình toàn cục lẫn cấu hình
-// dự án. Thiếu một cái là bài kiểm đọc ~/.ainovel/config.json THẬT của người chạy.
+// tepCauHinhThu là tệp cấu hình của các bài kiểm nạp lại, nằm trong cwd tạm do nhaCauHinh dựng.
+const tepCauHinhThu = "config.json"
+
+// nhaCauHinh chuyển cwd sang một thư mục tạm để tepCauHinhThu là của riêng bài kiểm.
 func nhaCauHinh(t *testing.T) {
 	t.Helper()
-	nha := t.TempDir()
-	t.Setenv("HOME", nha)
-	t.Chdir(nha)
+	t.Chdir(t.TempDir())
 }
 
 func ghiCauHinhDuAn(t *testing.T, cfg bootstrap.Config) {
@@ -34,10 +34,7 @@ func ghiCauHinhDuAn(t *testing.T, cfg bootstrap.Config) {
 	if err != nil {
 		t.Fatalf("gói cấu hình: %v", err)
 	}
-	if err := os.MkdirAll(".ainovel", 0o755); err != nil {
-		t.Fatalf("tạo thư mục cấu hình: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(".ainovel", "config.json"), b, 0o600); err != nil {
+	if err := os.WriteFile(tepCauHinhThu, b, 0o600); err != nil {
 		t.Fatalf("ghi cấu hình: %v", err)
 	}
 }
@@ -48,13 +45,18 @@ func hostNapLai(t *testing.T, cfg bootstrap.Config) *Host {
 	if err != nil {
 		t.Fatalf("dựng model set: %v", err)
 	}
+	duong, err := filepath.Abs(tepCauHinhThu)
+	if err != nil {
+		t.Fatal(err)
+	}
 	return &Host{
-		cfg:       cfg,
-		models:    ms,
-		lifecycle: lifecycleIdle,
-		engine:    &engine{},
-		events:    make(chan Event, 8),
-		store:     store.NewStore(t.TempDir()),
+		cfg:        cfg,
+		models:     ms,
+		lifecycle:  lifecycleIdle,
+		engine:     &engine{},
+		events:     make(chan Event, 8),
+		store:      store.NewStore(t.TempDir()),
+		configPath: duong,
 	}
 }
 
@@ -157,10 +159,7 @@ func TestNapLaiNhaCungCap_TepHongThiGiuNguyen(t *testing.T) {
 	nhaCauHinh(t)
 	h := hostNapLai(t, cfgMot("a", "ka"))
 
-	if err := os.MkdirAll(".ainovel", 0o755); err != nil {
-		t.Fatalf("tạo thư mục: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(".ainovel", "config.json"), []byte("{ hỏng"), 0o600); err != nil {
+	if err := os.WriteFile(tepCauHinhThu, []byte("{ hỏng"), 0o600); err != nil {
 		t.Fatalf("ghi tệp hỏng: %v", err)
 	}
 

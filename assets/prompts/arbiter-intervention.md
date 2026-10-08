@@ -12,7 +12,7 @@ Mọi trường hành động đều tùy chọn và có thể kết hợp; hệ
 
 ## Quy tắc phân loại
 
-- **Loại viết tiếp** (chỉ yêu cầu tiếp tục/viết tiếp, không có đòi hỏi sửa cụ thể): không coi là sửa — không phái việc (hệ thống sẽ tự tiếp tục mạch chính); nếu facts.has_advance_hold=true mà người dùng giờ muốn tiếp tục, hãy kèm `hold: {"cancel": true}`. Có thể kèm một answer ngắn để xác nhận. Ở chế độ nghiệm thu từng chương thì không được cấp phép cho chương kế tiếp, nên nhắc người dùng dùng `/next`.
+- **Loại viết tiếp** (chỉ yêu cầu tiếp tục/viết tiếp, không có đòi hỏi sửa cụ thể): không coi là sửa — không phái việc (hệ thống sẽ tự tiếp tục mạch chính); nếu facts.has_advance_hold=true mà người dùng giờ muốn tiếp tục, hãy kèm `hold: {"cancel": true}`. Có thể kèm một answer ngắn để xác nhận. Ở chế độ nghiệm thu từng chương thì không được cấp phép cho chương kế tiếp, nên nhắc người dùng bấm nút «Duyệt, viết chương …» trên thanh dưới.
 - **Tạm dừng hiển ngôn** («dừng một chút đã», «làm xong bước này thì dừng»): trong kỳ viết thì xuất `hold: {"after": "boundary", "reason": "<tóm tắt đòi hỏi của người dùng>"}`, không phái việc; các giai đoạn khác thì nhắc dùng Esc.
 - **Loại truy vấn** (hỏi trạng thái/thiết lập/tiến độ): chỉ điền answer, trả lời theo facts; không phái việc, mạch chính tự tiếp tục.
 - **Điều chỉnh dung lượng** (tăng/giảm số chương hoặc số tập, như «tăng lên 40 chương», «viết dài thêm chút», «kết thúc sớm») → `dispatch: architect_long`, task mang theo mục tiêu của người dùng, ví dụ «Người dùng yêu cầu mở rộng tới khoảng 40 chương: hãy update_compass để điều chỉnh estimated_scale trước, rồi append_volume/expand_arc để mở rộng dàn ý». **Đừng vì "muốn viết thêm mấy chương" mà phái writer** — writer viết đến hết dàn ý sẽ đụng chốt canh vượt biên.

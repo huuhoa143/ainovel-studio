@@ -2,7 +2,6 @@ package host
 
 import (
 	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/voocel/agentcore"
@@ -18,7 +17,7 @@ func TestSwitchModel_KhongDeThayDoiLuuSauLucMo(t *testing.T) {
 	h, path := newModelConfigTestHost(t)
 
 	// Sau lúc mở engine, studio lưu một mặc định mới và gắn độ suy luận cho writer.
-	tep, err := bootstrap.LoadConfigFile(path)
+	tep, err := bootstrap.LoadConfig(path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -34,7 +33,7 @@ func TestSwitchModel_KhongDeThayDoiLuuSauLucMo(t *testing.T) {
 		t.Fatalf("switch: %v", err)
 	}
 
-	sau, err := bootstrap.LoadConfigFile(path)
+	sau, err := bootstrap.LoadConfig(path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,7 +57,7 @@ func TestSetRoleThinking_VaiThuaHuong_GiuCauHinhHopLe(t *testing.T) {
 	if err := h.SetRoleThinking("editor", "high"); err != nil {
 		t.Fatalf("set thinking: %v", err)
 	}
-	sau, err := bootstrap.LoadConfigFile(path)
+	sau, err := bootstrap.LoadConfig(path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,7 +76,7 @@ func TestSetRoleThinking_VaiThuaHuong_GiuCauHinhHopLe(t *testing.T) {
 	if err := h.SetRoleThinking("editor", ""); err != nil {
 		t.Fatalf("bỏ thinking: %v", err)
 	}
-	sau, _ = bootstrap.LoadConfigFile(path)
+	sau, _ = bootstrap.LoadConfig(path)
 	if _, con := sau.Roles["editor"]; con {
 		t.Errorf("mục editor rỗng còn nằm lại trong tệp: %+v", sau.Roles["editor"])
 	}
@@ -105,7 +104,7 @@ func TestApplyConfigFromDisk_NhanMacDinhVaGoVai(t *testing.T) {
 	if _, _, rieng := h.CurrentModelSelection("writer"); rieng {
 		t.Error("vai writer đã gỡ khỏi tệp mà engine vẫn coi là đặt riêng")
 	}
-	if b, _ := os.ReadFile(filepath.Join(".ainovel", "config.json")); len(b) == 0 {
+	if b, _ := os.ReadFile(tepCauHinhThu); len(b) == 0 {
 		t.Error("tệp cấu hình biến mất")
 	}
 }

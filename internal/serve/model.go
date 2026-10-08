@@ -19,7 +19,6 @@ type Capabilities struct {
 	PerChapterDuration bool `json:"per_chapter_duration"`
 	PerChapterCost     bool `json:"per_chapter_cost"`
 	LayeredOutline     bool `json:"layered_outline"`
-	Steer              bool `json:"steer"`
 	// Ba cờ dưới đây phục vụ ba bề mặt ở Rail. Chúng được suy từ CHÍNH builder mà
 	// endpoint tương ứng dùng (buildStyle/buildCost/buildSettings), không từ một
 	// phép kiểm riêng — đúng bài học của LayeredOutline: hai đường suy luận song
@@ -50,7 +49,7 @@ type Book struct {
 	CostPerChapter  float64 `json:"cost_per_chapter"`
 	ChaptersPerHour float64 `json:"chapters_per_hour"`
 	// EngineOpen do handleWorkshop đặt (cần s.may, một trường server — bookFrom/scanWorkshop
-	// chỉ biết store), cùng lý lẽ với Capabilities.Steer ở handleStudio.
+	// chỉ biết store).
 	EngineOpen bool `json:"engine_open"`
 	// Stop là lần dừng gần nhất của phiên đang mở (cùng phép chiếu với snapshot `stop`). Tủ
 	// truyện cần nó: một cuốn engine tự dừng vì lỗi là việc cần người, không phải "đang nghỉ".
@@ -260,6 +259,8 @@ type Snapshot struct {
 	// nó làm điểm bắt đầu cho SSE để không bỏ sót và không nhận trùng sự kiện
 	// phát ra giữa lúc tải trang và lúc mở stream.
 	QueueSeq int64 `json:"queue_seq"`
+	// Import là lượt nhập truyện đang chờ người (xem nhap_dang_do.go); null khi không có.
+	Import *TrangThaiNhap `json:"import"`
 
 	// Bốn nhóm dưới là trường SỐNG: chúng chỉ đo được khi engine đang mở. Dùng con trỏ /
 	// slice để `nil` marshal thành `null`, và `null` nghĩa là "không có nguồn" — khác hẳn `0`
@@ -517,8 +518,8 @@ const (
 //
 // Writable là false vì đây là BẢN GHI: nó nói tác phẩm đã khởi động với cấu hình
 // gì. Quá khứ không sửa được, nên một ô nhập ở đây sẽ hứa một việc không tồn tại.
-// Nó nằm TRONG payload thay vì chỉ suy từ Capabilities.Steer vì Steer nói về đúng
-// một ô can thiệp, không nói về toàn bộ cấu hình.
+// Nó nằm TRONG payload vì đây là câu trả lời cho riêng bề mặt cấu hình, không suy được từ
+// việc studio ghi được hay không.
 //
 // Lý do CŨ ghi ở đây ("engine sở hữu quyền ghi, hai process cùng sửa sẽ mất trắng
 // ý kiến can thiệp") không còn đúng: engine chạy trong process này nên studio là

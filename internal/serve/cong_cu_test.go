@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -26,7 +25,7 @@ trúc sư, còn màn cấu hình vẫn nói mọi thứ ổn.
 // + `thanChat`. Đếm số lượt chat để canh việc thử chỉ chạy khi được xin.
 func gatewayCongCu(t *testing.T, models string, maChat int, thanChat string) (*server, *int32, *string) {
 	t.Helper()
-	nha := dungNhaCauHinh(t)
+	s, duongCauHinh := dungCauHinh(t)
 	var dem int32
 	var thanNhan string
 	gw := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -51,14 +50,10 @@ func gatewayCongCu(t *testing.T, models string, maChat int, thanChat string) (*s
 		},
 	}
 	b, _ := json.Marshal(cfg)
-	duong := filepath.Join(nha, ".ainovel")
-	if err := os.MkdirAll(duong, 0o755); err != nil {
+	if err := os.WriteFile(duongCauHinh, b, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(duong, "config.json"), b, 0o600); err != nil {
-		t.Fatal(err)
-	}
-	return &server{root: t.TempDir(), choGhi: true, may: newBoMay(t.TempDir())}, &dem, &thanNhan
+	return s, &dem, &thanNhan
 }
 
 func goi(t *testing.T, s *server, method, url, than string) map[string]any {

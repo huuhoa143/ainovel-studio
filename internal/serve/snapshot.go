@@ -14,9 +14,8 @@ import (
 // buildSnapshot đọc store và dựng payload cho bề mặt studio.
 //
 // Chỉ dùng phương thức đọc công khai của store. Không sửa gì, không gọi engine.
-// Nhờ vậy `ainovel serve` chạy song song với engine (TUI hoặc headless) mà không
-// tranh chấp, và fork này không phải chạm vào core — điều quan trọng vì upstream
-// vẫn đang phát triển nhanh và mỗi dòng sửa ở core là một xung đột rebase.
+// Nhờ vậy đọc được cả khi engine của cuốn đang chạy mà không tranh chấp, và fork này
+// không phải chạm vào core — mỗi dòng sửa ở core là một xung đột khi đuổi theo upstream.
 func buildSnapshot(st *store.Store, id string, selected int) (*Snapshot, error) {
 	progress, err := st.Progress.Load()
 	if err != nil {
@@ -57,16 +56,14 @@ func buildSnapshot(st *store.Store, id string, selected int) (*Snapshot, error) 
 			// lane trên dù có đủ dữ liệu để vẽ. Đã gặp thật lúc thử với dữ liệu
 			// thật: payload có 2 tập, 2 cung, mà capability báo false.
 			LayeredOutline: len(timeline.Volumes) > 0,
-			// Steer do handleStudio đặt: nó phụ thuộc server (có mắc route ghi không), không
-			// phụ thuộc store. Để false ở đây là giá trị khởi tạo, không phải kết luận.
-			Steer:         false,
-			StyleRules:    coVanPhong(styleDoc),
-			CostBreakdown: coChiPhiChiTiet(costDoc),
-			RunSettings:   coCaiDat(settingsDoc),
+			StyleRules:     coVanPhong(styleDoc),
+			CostBreakdown:  coChiPhiChiTiet(costDoc),
+			RunSettings:    coCaiDat(settingsDoc),
 		},
 		Transport: buildTransport(st, progress, cps),
 		Decisions: buildDecisions(st),
 		Warnings:  storeWarnings(st),
+		Import:    trangThaiNhap(st),
 	}
 
 	if selected > 0 {

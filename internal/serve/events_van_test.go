@@ -23,12 +23,12 @@ func TestSSEVanSongKhungDung(t *testing.T) {
 	goc := t.TempDir()
 	newBook(t, goc, "sach", nil)
 
-	may := newBoMay(goc)
+	may := boMayThu(t, goc)
 	van := &dongVan{}
 	may.dang["sach"] = &phienMay{id: "sach", van: van, moLuc: mocBayGio()}
 	van.them("Giọt đầu tiên rơi.")
 
-	srv := &server{root: goc, choGhi: true, may: may}
+	srv := &server{root: goc, may: may}
 	rec := httptest.NewRecorder()
 	r := httptest.NewRequest("GET", "/api/books/sach/events", nil)
 	ctx, huy := contextVoiHanVan(t, 400*time.Millisecond)
@@ -61,13 +61,13 @@ func TestSSEVanSongVaoGiuaLuot(t *testing.T) {
 	goc := t.TempDir()
 	newBook(t, goc, "sach", nil)
 
-	may := newBoMay(goc)
+	may := boMayThu(t, goc)
 	van := &dongVan{}
 	may.dang["sach"] = &phienMay{id: "sach", van: van, moLuc: mocBayGio()}
 	van.them("nửa đầu ")
 	van.them("nửa sau")
 
-	srv := &server{root: goc, choGhi: true, may: may}
+	srv := &server{root: goc, may: may}
 	rec := httptest.NewRecorder()
 	ctx, huy := contextVoiHanVan(t, 400*time.Millisecond)
 	defer huy()
@@ -105,9 +105,9 @@ func TestSSEVanSongKhongCoMayVanChay(t *testing.T) {
 			newBook(t, goc, "sach", nil)
 			var may *boMay
 			if ten == "engine chưa mở" {
-				may = newBoMay(goc)
+				may = boMayThu(t, goc)
 			}
-			srv := &server{root: goc, choGhi: true, may: may}
+			srv := &server{root: goc, may: may}
 			rec := httptest.NewRecorder()
 			ctx, huy := contextVoiHanVan(t, 250*time.Millisecond)
 			defer huy()
@@ -171,11 +171,11 @@ func TestSSEVanSongChayTrongLucDangNoi(t *testing.T) {
 	goc := t.TempDir()
 	newBook(t, goc, "sach", nil)
 
-	may := newBoMay(goc)
+	may := boMayThu(t, goc)
 	van := &dongVan{}
 	may.dang["sach"] = &phienMay{id: "sach", van: van, moLuc: mocBayGio()}
 
-	srv := &server{root: goc, choGhi: true, may: may}
+	srv := &server{root: goc, may: may}
 	rec := httptest.NewRecorder()
 	ctx, huy := contextVoiHanVan(t, 700*time.Millisecond)
 	defer huy()
@@ -232,11 +232,11 @@ func TestSSEVanSongToiTrongVaiChucMili(t *testing.T) {
 	goc := t.TempDir()
 	newBook(t, goc, "sach", nil)
 
-	may := newBoMay(goc)
+	may := boMayThu(t, goc)
 	van := &dongVan{}
 	may.dang["sach"] = &phienMay{id: "sach", van: van, moLuc: mocBayGio()}
 
-	ts := httptest.NewServer((&server{root: goc, choGhi: true, may: may}).routes())
+	ts := httptest.NewServer((&server{root: goc, may: may}).routes())
 	defer ts.Close()
 
 	resp, err := http.Get(ts.URL + "/api/books/sach/events")
@@ -296,8 +296,8 @@ func TestSSEVanSongToiTrongVaiChucMili(t *testing.T) {
 func TestSSEVanSongEngineMoSauKhiNoi(t *testing.T) {
 	goc := t.TempDir()
 	newBook(t, goc, "sach", nil)
-	may := newBoMay(goc)
-	srv := httptest.NewServer((&server{root: goc, choGhi: true, may: may}).routes())
+	may := boMayThu(t, goc)
+	srv := httptest.NewServer((&server{root: goc, may: may}).routes())
 	defer srv.Close()
 
 	ctx, huy := context.WithTimeout(context.Background(), 6*time.Second)

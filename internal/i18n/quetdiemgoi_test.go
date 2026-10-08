@@ -281,16 +281,16 @@ func TestChuHanPhaiBocI18n(t *testing.T) {
 	if tk.soTep < 100 {
 		t.Fatalf("chỉ nạp được %d tệp .go sản phẩm — bộ quét lạc đường, bài kiểm rỗng nghĩa", tk.soTep)
 	}
-	if tk.soGoiI18n < 1500 {
+	if tk.soGoiI18n < 1200 {
 		t.Fatalf("chỉ thấy %d lời gọi i18n.F/T — doiSoMsgid đã hỏng, bài kiểm rỗng nghĩa", tk.soGoiI18n)
 	}
 	if tk.soLiteralHan < 500 {
 		t.Fatalf("chỉ thấy %d literal chứa chữ Hán — coChuHan đã hỏng, bài kiểm rỗng nghĩa", tk.soLiteralHan)
 	}
-	// Mẫu bọc-gián-tiếp phải còn sống. Nếu thuBocGianTiep hỏng thì luật này đỏ 23
-	// dòng vào code ĐÚNG, và cách sửa nhanh nhất khi đó là đổ 23 mục vào bảng miễn
+	// Mẫu bọc-gián-tiếp phải còn sống. Nếu thuBocGianTiep hỏng thì luật này đỏ 17
+	// dòng vào code ĐÚNG, và cách sửa nhanh nhất khi đó là đổ 17 mục vào bảng miễn
 	// trừ — tức chính cái mục ruỗng mà cơ chế này tồn tại để tránh.
-	if tk.soGianTiep < 20 {
+	if tk.soGianTiep < 15 {
 		t.Fatalf("chỉ thấy %d literal bọc gián tiếp — thuBocGianTiep đã hỏng, mẫu bọc-ở-chỗ-dùng không còn được nhận ra", tk.soGianTiep)
 	}
 
@@ -862,7 +862,7 @@ func TestKhongBocLong(t *testing.T) {
 	if len(teps) < 100 {
 		t.Fatalf("chỉ nạp được %d tệp .go sản phẩm — bộ quét lạc đường, bài kiểm rỗng nghĩa", len(teps))
 	}
-	if soGoiI18n < 1500 {
+	if soGoiI18n < 1200 {
 		t.Fatalf("chỉ thấy %d lời gọi i18n.F/T — doiSoMsgid đã hỏng, bài kiểm rỗng nghĩa", soGoiI18n)
 	}
 

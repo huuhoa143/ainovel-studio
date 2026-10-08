@@ -4,9 +4,9 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
-	"github.com/huuhoa143/ainovel-studio/internal/bootstrap"
 	"github.com/huuhoa143/ainovel-studio/internal/domain"
 	"github.com/huuhoa143/ainovel-studio/internal/store"
 )
@@ -32,7 +32,7 @@ func TestDaKetTrenDia(t *testing.T) {
 	viet("da-ket", domain.PhaseComplete)
 	viet("dang-viet", domain.PhaseWriting)
 
-	b := &boMay{root: root}
+	b := boMayThu(t, root)
 	if !b.daKetTrenDia("da-ket") {
 		t.Error("truyện phase=complete phải được coi là đã kết")
 	}
@@ -51,15 +51,16 @@ func TestDaKetTrenDia(t *testing.T) {
 
 	// Và truyện ĐÃ kết phải ĐI QUA chốt ấy để mở engine. Không dựng engine thật trong bài
 	// kiểm — chặn ở bước đọc cấu hình là đủ để chứng minh nó đã rẽ sang nhánh `mo`.
-	hong := errors.New("cấu hình hỏng")
 	b.dang = map[string]*phienMay{}
 	b.soToiDa = 1
-	b.napConfg = func() (bootstrap.Config, error) { return bootstrap.Config{}, hong }
+	if err := os.WriteFile(b.cauHinh, []byte("{ hỏng"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	_, err := b.canThiep("da-ket", "viết thêm một chương")
 	if errors.Is(err, errChuaMoMay) {
 		t.Fatal("truyện đã kết vẫn bị chặn ở 'chưa mở engine' — luồng Viết thêm chết")
 	}
-	if !errors.Is(err, hong) {
+	if err == nil || !strings.Contains(err.Error(), "đọc cấu hình") {
 		t.Errorf("phải đi tới bước mở engine, có %v", err)
 	}
 }

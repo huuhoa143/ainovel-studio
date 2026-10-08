@@ -110,7 +110,7 @@ func Run(ctx context.Context, deps Deps, opts Options) (*Result, error) {
 
 	if !opts.Overwrite {
 		if _, err := os.Stat(outPath); err == nil {
-			return nil, fmt.Errorf(i18n.F("文件已存在：%s（添加 --overwrite 覆盖）"), outPath)
+			return nil, fmt.Errorf(i18n.F("文件已存在：%s"), outPath)
 		} else if !os.IsNotExist(err) {
 			return nil, fmt.Errorf(i18n.F("检查输出路径失败：%w"), err)
 		}

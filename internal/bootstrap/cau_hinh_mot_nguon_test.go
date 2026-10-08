@@ -20,7 +20,7 @@ func TestPatchConfigFile_ChiVaDungTruong(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("vá: %v", err)
 	}
-	c, err := LoadConfigFile(duong)
+	c, err := LoadConfig(duong)
 	if err != nil {
 		t.Fatal(err)
 	}

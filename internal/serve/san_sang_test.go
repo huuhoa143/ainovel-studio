@@ -60,6 +60,12 @@ func choSanSang(t *testing.T, out *boDemKhoa, ketQua <-chan error) string {
 	}
 }
 
+// tepCauHinhTam là giá trị `--config` của các bài kiểm không quan tâm cấu hình.
+func tepCauHinhTam(t *testing.T) string {
+	t.Helper()
+	return filepath.Join(t.TempDir(), "config.json")
+}
+
 func choTraVe(t *testing.T, ketQua <-chan error) error {
 	t.Helper()
 	select {
@@ -77,7 +83,7 @@ func TestChay_Cong0InCongThatVaPhucVu(t *testing.T) {
 	out := &boDemKhoa{}
 	ketQua := make(chan error, 1)
 	go func() {
-		ketQua <- chay(ctx, tuyChon{addr: "127.0.0.1:0", root: t.TempDir()}, nil, out, io.Discard)
+		ketQua <- chay(ctx, tuyChon{addr: "127.0.0.1:0", root: t.TempDir(), config: tepCauHinhTam(t)}, nil, out, io.Discard)
 	}()
 
 	url := choSanSang(t, out, ketQua)
@@ -117,22 +123,22 @@ func TestChay_Cong0InCongThatVaPhucVu(t *testing.T) {
 // hiệu, chỉ có ống stdin đóng. Serve phải thoát VÀ trả khóa truyện — không thì lần mở app
 // sau gặp "thư mục đang bị process khác giữ" bởi một PID đã chết.
 func TestChay_DongStdinThiTatEmVaTraKhoa(t *testing.T) {
-	datNhaTam(t, t.TempDir()) // host.New ghi bộ đệm giá model vào ~/.ainovel
 	root := t.TempDir()
 	newBook(t, root, "sach", nil)
 	dir := filepath.Join(root, "sach")
 	tat := false
-	napConfg := func() (bootstrap.Config, error) {
-		return bootstrap.Config{
-			Provider:  "openrouter",
-			ModelName: "fake",
-			Providers: map[string]bootstrap.ProviderConfig{
-				// Không bao giờ được gọi: bài kiểm chỉ mở engine, không chạy.
-				"openrouter": {APIKey: "sk-fake", BaseURL: "http://127.0.0.1:1"},
-			},
-			Style:  "default",
-			Notify: bootstrap.NotifyConfig{Enabled: &tat},
-		}, nil
+	cauHinh := tepCauHinhTam(t)
+	if err := bootstrap.SaveConfig(cauHinh, bootstrap.Config{
+		Provider:  "openrouter",
+		ModelName: "fake",
+		Providers: map[string]bootstrap.ProviderConfig{
+			// Không bao giờ được gọi: bài kiểm chỉ mở engine, không chạy.
+			"openrouter": {APIKey: "sk-fake", BaseURL: "http://127.0.0.1:1"},
+		},
+		Style:  "default",
+		Notify: bootstrap.NotifyConfig{Enabled: &tat},
+	}); err != nil {
+		t.Fatal(err)
 	}
 
 	stdinDoc, stdinGhi := io.Pipe()
@@ -140,7 +146,7 @@ func TestChay_DongStdinThiTatEmVaTraKhoa(t *testing.T) {
 	ketQua := make(chan error, 1)
 	go func() {
 		ketQua <- chay(context.Background(),
-			tuyChon{addr: "127.0.0.1:0", root: root, napConfg: napConfg}, stdinDoc, out, io.Discard)
+			tuyChon{addr: "127.0.0.1:0", root: root, config: cauHinh}, stdinDoc, out, io.Discard)
 	}()
 	url := choSanSang(t, out, ketQua)
 
@@ -182,13 +188,42 @@ func TestChay_CongBanThiBaoLoiVaKhongBaoSanSang(t *testing.T) {
 	defer chiem.Close()
 
 	out := &boDemKhoa{}
-	err = chay(context.Background(), tuyChon{addr: chiem.Addr().String(), root: t.TempDir()}, nil, out, io.Discard)
+	err = chay(context.Background(), tuyChon{addr: chiem.Addr().String(), root: t.TempDir(), config: tepCauHinhTam(t)}, nil, out, io.Discard)
 	if err == nil {
 		t.Fatal("cổng bận mà serve không báo lỗi")
 	}
 	if strings.Contains(out.String(), dongSanSang) {
 		t.Errorf("khởi động hỏng mà vẫn in %s — app desktop sẽ tin một địa chỉ không ai nghe:\n%s",
 			dongSanSang, out.String())
+	}
+}
+
+// Studio chỉ nghe loopback: mọi địa chỉ khác là lỗi khởi động — không mở cổng, không in
+// READY — chứ không phải một chế độ chỉ-đọc. `:0` là dạng viết tắt của mọi giao diện.
+func TestChay_DiaChiKhongPhaiLoopbackLaLoiKhoiDong(t *testing.T) {
+	for _, addr := range []string{"0.0.0.0:0", ":0", "[::]:0", "192.168.1.10:0", "example.com:0"} {
+		out := &boDemKhoa{}
+		err := chay(context.Background(), tuyChon{addr: addr, root: t.TempDir(), config: tepCauHinhTam(t)}, nil, out, io.Discard)
+		if err == nil || !strings.Contains(err.Error(), "loopback") {
+			t.Errorf("%s: phải là lỗi khởi động nói rõ loopback, được %v", addr, err)
+		}
+		if strings.Contains(out.String(), dongSanSang) {
+			t.Errorf("%s: lỗi khởi động mà vẫn in %s", addr, dongSanSang)
+		}
+	}
+}
+
+// `--config` là bắt buộc và phải tuyệt đối: thiếu hoặc tương đối là lỗi khởi động.
+func TestChay_ThieuHoacTuongDoiConfigLaLoiKhoiDong(t *testing.T) {
+	for _, cfg := range []string{"", "config.json", filepath.Join(".", "x", "config.json")} {
+		out := &boDemKhoa{}
+		err := chay(context.Background(), tuyChon{addr: "127.0.0.1:0", root: t.TempDir(), config: cfg}, nil, out, io.Discard)
+		if err == nil || !strings.Contains(err.Error(), "--config") {
+			t.Errorf("--config %q: phải là lỗi khởi động, được %v", cfg, err)
+		}
+		if strings.Contains(out.String(), dongSanSang) {
+			t.Errorf("--config %q: lỗi khởi động mà vẫn in %s", cfg, dongSanSang)
+		}
 	}
 }
 
@@ -222,7 +257,7 @@ func TestChay_TatEmCatSSENgayNhungChoYeuCauKhac(t *testing.T) {
 	out := &boDemKhoa{}
 	ketQua := make(chan error, 1)
 	go func() {
-		ketQua <- chay(ctx, tuyChon{addr: "127.0.0.1:0", root: root, themRoute: themRoute}, nil, out, io.Discard)
+		ketQua <- chay(ctx, tuyChon{addr: "127.0.0.1:0", root: root, config: tepCauHinhTam(t), themRoute: themRoute}, nil, out, io.Discard)
 	}()
 	url := choSanSang(t, out, ketQua)
 
@@ -276,11 +311,8 @@ func TestChay_TatEmCatSSENgayNhungChoYeuCauKhac(t *testing.T) {
 // Sau khi dongTatCa bắt đầu, `mo` phải từ chối: một handler còn chạy sau thời hạn tắt êm mà
 // mở được engine mới thì engine đó không ai đóng và khóa truyện mồ côi.
 func TestBoMay_MoSauKhiTatThiTuChoi(t *testing.T) {
-	b := newBoMay(t.TempDir())
-	b.napConfg = func() (bootstrap.Config, error) {
-		t.Fatal("đã tắt mà `mo` vẫn đi đọc cấu hình để mở engine")
-		return bootstrap.Config{}, nil
-	}
+	// Tệp cấu hình là một THƯ MỤC: `mo` mà đi đọc nó thì nhận lỗi khác hẳn errDangTat.
+	b := newBoMay(t.TempDir(), t.TempDir())
 	b.dongTatCa()
 	if _, err := b.mo("sach"); !errors.Is(err, errDangTat) {
 		t.Fatalf("mo sau dongTatCa = %v, muốn errDangTat", err)

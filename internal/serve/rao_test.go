@@ -126,16 +126,13 @@ func TestCheKhoaKhongLoBiMat(t *testing.T) {
 	}
 }
 
-// TestCheDoChiDocKhongMacRouteGhi canh việc tắt đường ghi.
-//
-// Không đủ nếu chỉ tin vào `laDiaChiCucBo`: hàng rào chỉ có tác dụng nếu `routes()` thật
-// sự không mắc nhóm ghi vào mux. Bài này đo ở mức mux, tức đúng chỗ quyết định.
-func TestCheDoChiDocKhongMacRouteGhi(t *testing.T) {
+// TestRouteGhiLuonDuocMac canh việc mọi đường ghi tồn tại — không còn chế độ chỉ-đọc nào để
+// chúng vắng mặt — và chỉ đi qua được hàng rào.
+func TestRouteGhiLuonDuocMac(t *testing.T) {
 	goc := t.TempDir()
 	newBook(t, goc, "sach", nil)
 
-	chiDoc := (&server{root: goc, choGhi: false}).routes()
-	choGhi := (&server{root: goc, choGhi: true, may: newBoMay(goc)}).routes()
+	mux := (&server{root: goc, may: boMayThu(t, goc)}).routes()
 
 	duongGhi := []struct {
 		method, path string
@@ -153,30 +150,18 @@ func TestCheDoChiDocKhongMacRouteGhi(t *testing.T) {
 	}
 	for _, d := range duongGhi {
 		rec := httptest.NewRecorder()
-		chiDoc.ServeHTTP(rec, httptest.NewRequest(d.method, d.path, strings.NewReader("{}")))
-		if rec.Code != http.StatusNotFound {
-			t.Errorf("chế độ chỉ đọc: %s %s trả %d, phải 404 (route không được tồn tại)",
-				d.method, d.path, rec.Code)
-		}
-	}
-
-	// Đối chứng: cùng những đường đó PHẢI tồn tại khi cho ghi. Không có nửa này thì bài
-	// kiểm trên vẫn xanh với một `routes()` gõ sai đường dẫn.
-	for _, d := range duongGhi {
-		rec := httptest.NewRecorder()
 		r := httptest.NewRequest(d.method, d.path, strings.NewReader("{}"))
 		r.Header.Set(tenHeaderRao, "1")
-		choGhi.ServeHTTP(rec, r)
+		mux.ServeHTTP(rec, r)
 		if rec.Code == http.StatusNotFound {
-			t.Errorf("chế độ ghi: %s %s vẫn 404 — route chưa được mắc", d.method, d.path)
+			t.Errorf("%s %s trả 404 — route chưa được mắc", d.method, d.path)
 		}
 	}
 
-	// Đường ĐỌC không được bị ảnh hưởng: tắt ghi không phải tắt studio.
 	rec := httptest.NewRecorder()
-	chiDoc.ServeHTTP(rec, httptest.NewRequest("GET", "/api/workshop", nil))
+	mux.ServeHTTP(rec, httptest.NewRequest("GET", "/api/workshop", nil))
 	if rec.Code != http.StatusOK {
-		t.Errorf("chế độ chỉ đọc làm hỏng đường đọc: /api/workshop trả %d", rec.Code)
+		t.Errorf("/api/workshop trả %d", rec.Code)
 	}
 }
 

@@ -16,19 +16,16 @@ import (
 // # Vì sao store cần khóa tệp
 //
 // `IO.WithWriteLock` chỉ là `io.mu.Lock()` — một mutex trong process. Nó bảo vệ hoàn hảo
-// giữa các goroutine của cùng một engine, và bảo vệ ZERO giữa hai process. Trước đây điều
-// đó vô hại vì chỉ có một đường ghi duy nhất (TUI/headless), và người dùng khó mà mở hai
-// cái cùng lúc trên cùng thư mục.
-//
-// Nay có ba đường ghi cùng tồn tại — TUI, headless, và web studio — nên "khó mà" không
-// còn là bảo đảm. Hai bên cùng ghi `meta/run_meta.json` thì hỏng theo kiểu tệ nhất: không
-// lỗi, không log, chỉ mất dữ liệu.
+// giữa các goroutine của cùng một engine, và bảo vệ ZERO giữa hai process. Hai process có
+// thể cùng mở một thư mục (sidecar của app và harness eval, hoặc một sidecar mồ côi sau khi
+// app chết). Hai bên cùng ghi `meta/run_meta.json` thì hỏng theo kiểu tệ nhất: không lỗi,
+// không log, chỉ mất dữ liệu.
 //
 // # Vì sao khóa nằm ở ĐÂY chứ không ở tầng gọi
 //
-// Bản đầu đặt khóa trong `internal/serve`, và nó vô dụng: `host.New` có năm chỗ gọi (TUI,
-// headless, eval, serve, test), nên khóa ở một chỗ chỉ chặn được chỗ đó tự đụng chính nó.
-// Đặt ở store — nơi mọi người ghi đều phải đi qua — thì một lần viết bảo vệ được cả năm.
+// Bản đầu đặt khóa trong `internal/serve`, và nó vô dụng: `host.New` có nhiều chỗ gọi
+// (serve, eval, test), nên khóa ở một chỗ chỉ chặn được chỗ đó tự đụng chính nó. Đặt ở
+// store — nơi mọi người ghi đều phải đi qua — thì một lần viết bảo vệ được tất cả.
 //
 // Cố ý KHÔNG gọi trong `Init()`: rất nhiều bài kiểm dựng `NewStore` + `Init` rồi không bao
 // giờ đóng, và khóa trong Init sẽ rải tệp khóa mồ côi khắp nơi. Chỉ engine thật mới lấy.
@@ -104,15 +101,15 @@ func layKhoa(dir string) (*khoa, error) {
 	tk := docKhoa(duong)
 	if tk.pid != os.Getpid() && tk.nguoiGiuConSong() {
 		// Người đọc câu này có thể là người dùng app desktop, không biết "process" hay "tệp
-		// khóa" là gì. Nên câu chính nói bằng thứ họ thấy (một cửa sổ / một lệnh đang mở truyện
-		// này) và việc phải làm; PID và đường dẫn tệp đứng cuối, cho người cần chẩn đoán.
+		// khóa" là gì. Nên câu chính nói bằng thứ họ thấy (một cửa sổ đang mở truyện này) và
+		// việc phải làm; PID và đường dẫn tệp đứng cuối, cho người cần chẩn đoán.
 		//
 		// Không còn khuyên "xóa tệp khóa": từ khi so mốc khởi động, một khóa đi tới được đây là
 		// do một chương trình CÒN SỐNG và ĐÚNG LÀ chương trình đã lấy khóa — xóa tay là mời hai
 		// bên cùng ghi. Khởi động lại máy thì chắc chắn tắt nó, và lần mở sau tự dọn khóa.
-		return nil, fmt.Errorf("%w (mở lúc %s). Đóng cửa sổ AINovel Studio hoặc lệnh ainovel-cli "+
-			"khác đang mở truyện này rồi thử lại. Không tìm thấy cái nào thì khởi động lại máy rồi "+
-			"mở lại — khóa sẽ tự được gỡ. [process %d, tệp %s]",
+		return nil, fmt.Errorf("%w (mở lúc %s). Đóng cửa sổ AINovel Studio khác đang mở truyện "+
+			"này rồi thử lại. Không tìm thấy cửa sổ nào thì khởi động lại máy rồi mở lại — khóa sẽ "+
+			"tự được gỡ. [process %d, tệp %s]",
 			ErrDangBiKhoa, hienMoc(tk.moc), tk.pid, duong)
 	}
 
@@ -238,7 +235,7 @@ func hienMoc(moc string) string {
 // DangCoNguoiGiu cho biết có process CÒN SỐNG nào đang giữ khóa của thư mục này không.
 //
 // Chỉ đọc, không lấy khóa. Đây là câu trả lời mạnh nhất có được cho "cuốn này có đang được
-// viết không" từ bên ngoài engine: mọi đường chạy engine (TUI, headless, studio) đều đi qua
+// viết không" từ bên ngoài engine: mọi đường chạy engine (studio, eval) đều đi qua
 // `host`, mà `host` lấy khóa này. Không ai giữ khóa thì không ai đang ghi — dù checkpoint cuối
 // mới cách vài phút. Khóa mồ côi (process đã chết) tính là không ai giữ, cùng luật với `layKhoa`.
 func DangCoNguoiGiu(dir string) bool {

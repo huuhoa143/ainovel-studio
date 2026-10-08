@@ -53,7 +53,7 @@ func TestChapterAdvanceGateReviewRequiresExactPermit(t *testing.T) {
 	if allowed || recorder.paused != 1 {
 		t.Fatalf("未授权新章必须暂停: allowed=%v paused=%d", allowed, recorder.paused)
 	}
-	if len(recorder.reasons) == 0 || !strings.Contains(recorder.reasons[len(recorder.reasons)-1], "/next") {
+	if len(recorder.reasons) == 0 || !strings.Contains(recorder.reasons[len(recorder.reasons)-1], "Duyệt, viết chương") {
 		t.Fatalf("暂停文案必须给出明确放行方式: %v", recorder.reasons)
 	}
 

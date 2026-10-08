@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/huuhoa143/ainovel-studio/internal/errs"
 	"github.com/huuhoa143/ainovel-studio/internal/host"
 )
 
@@ -70,10 +71,10 @@ func (t thanCungDung) sangHost() ([]host.CoCreateMessage, error) {
 
 // dapCungDung là phản hồi chung của cả hai route.
 //
-// # Ba trường ở đây tồn tại vì `ApplyReply` của TUI nói rõ vì sao
+// # Ba trường ở đây tồn tại vì phiên cùng dựng của TUI cũ đã cho thấy vì sao
 //
-// Bản đầu chỉ trả `message`/`draft`/`ready`, và nó SAI ở ba chỗ mà
-// `internal/entry/startup/cocreate.go:ApplyReply` đã ghi rõ:
+// Bản đầu chỉ trả `message`/`draft`/`ready`, và nó SAI ở ba chỗ mà `ApplyReply` của phiên cùng
+// dựng TUI (đã gỡ cùng TUI) từng ghi rõ:
 //
 //  1. Lượt assistant ghi vào lịch sử phải là `Raw` (bản đầy đủ có `[DRAFT]`), không phải
 //     `Message`. Chỉ ghi `Message` thì lượt sau mô hình KHÔNG thấy bản nháp của chính nó,
@@ -110,13 +111,10 @@ func dapTu(r host.CoCreateReply) dapCungDung {
 
 // handleCungDungMoSach — POST /api/cocreate
 //
-// Không thuộc tác phẩm nào: đây là lúc chưa có tác phẩm. Nên nó cần một engine để gọi mô
-// hình, mà lại không có thư mục sách nào — giải bằng cách dùng engine ĐANG MỞ nếu có, còn
-// không thì báo rõ phải mở một cuốn trước.
-//
-// Cách này có giá: người dùng phải có một cuốn đang mở để cùng dựng cuốn MỚI. Đổi lại là
-// không phải dựng một đường tạo model set riêng ngoài `Host` — và một đường như thế sẽ là
-// bản sao thứ hai của logic chọn model, tức chỗ để hai bên trôi khỏi nhau.
+// Không thuộc tác phẩm nào: đây là lúc CHƯA có tác phẩm — kể cả xưởng còn trống ở lần mở app
+// đầu tiên. Nên nó không đi qua engine hay khóa truyện nào: chỉ đọc tệp cấu hình rồi gọi mô
+// hình (`host.CoCreateStream`). Bản trước mượn engine đang mở của một cuốn KHÁC, nên xưởng
+// trống thì nút "Bàn ý tưởng với AI trước" luôn trả 409.
 func (s *server) handleCungDungMoSach(w http.ResponseWriter, r *http.Request) {
 	var than thanCungDung
 	if err := docThan(r, &than); err != nil {
@@ -128,16 +126,16 @@ func (s *server) handleCungDungMoSach(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, err)
 		return
 	}
-
-	p := s.may.motMayBatKy()
-	if p == nil {
-		writeErr(w, http.StatusConflict, errors.New(
-			"cùng dựng cần một engine đang mở để gọi mô hình; mở một tác phẩm rồi thử lại, "+
-				"hoặc dùng ô yêu cầu ở Tác phẩm mới nếu bạn đã biết mình muốn gì"))
+	cfg, err := s.may.napCauHinh()
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, fmt.Errorf("đọc cấu hình: %w", err))
 		return
 	}
-
-	rep, err := p.eng.CoCreateStream(r.Context(), ls, nil)
+	rep, err := host.CoCreateStream(r.Context(), cfg, ls, nil)
+	if errors.Is(err, errs.ErrConfig) {
+		writeErr(w, http.StatusBadRequest, fmt.Errorf("cấu hình chưa dùng được: %w", err))
+		return
+	}
 	if err != nil {
 		writeErr(w, http.StatusBadGateway, err)
 		return
@@ -200,16 +198,20 @@ func (s *server) handleCungDungGiaiDoan(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, dapTu(rep))
 }
 
-// motMayBatKy trả một engine đang mở bất kỳ, hoặc nil.
+// handleHuyCungDungGiaiDoan — POST /api/books/{book}/stage-cocreate/cancel
 //
-// Chỉ dùng cho cùng dựng lúc MỞ SÁCH — việc duy nhất cần "một engine nào cũng được", vì lúc
-// đó chưa có tác phẩm để chọn. Mọi route khác đi qua `dangMo(id)` để không bao giờ tác động
-// lên một cuốn mà người dùng không nêu tên.
-func (b *boMay) motMayBatKy() *phienMay {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	for _, p := range b.dang {
-		return p
+// Bỏ dở cùng dựng giai đoạn. Lượt đầu của cùng dựng giai đoạn tạm dừng dây chuyền và giữ cờ
+// "đang cùng dựng", cờ đó chặn chạy tiếp / nhập / mô phỏng. Không có đường hủy thì người dùng
+// đóng hộp thoại giữa chừng là cuốn sách kẹt tới khi đóng phiên. Truyện vẫn ở trạng thái tạm
+// dừng sau khi hủy — bấm chạy tiếp như thường.
+//
+// Bất biến (idempotent): không có gì để hủy — engine chưa mở, hoặc không đang cùng dựng — vẫn
+// trả 200 với `cancelled: false`, vì kết quả người dùng muốn ("không còn cùng dựng") đã đúng.
+func (s *server) handleHuyCungDungGiaiDoan(w http.ResponseWriter, r *http.Request) {
+	p, err := s.may.dangMo(r.PathValue("book"))
+	if err != nil { // chỉ có một lỗi: engine chưa mở — tức không có gì đang cùng dựng
+		writeJSON(w, map[string]any{"cancelled": false})
+		return
 	}
-	return nil
+	writeJSON(w, map[string]any{"cancelled": p.eng.CancelCoCreate()})
 }

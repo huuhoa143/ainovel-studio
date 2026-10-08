@@ -63,9 +63,8 @@ func (s *server) handleEvents(w http.ResponseWriter, r *http.Request) {
 
 	// Bộ đệm văn sống của phiên engine, nếu cuốn này đang mở engine.
 	//
-	// `s.may == nil` là chế độ chỉ đọc (không có bộ giám sát) và `dangMo` lỗi là engine chưa
-	// mở. Cả hai KHÔNG phải lỗi của yêu cầu này: dòng sự kiện vẫn chạy, chỉ là không có văn
-	// sống nào để phát.
+	// `s.may == nil` (bài kiểm dựng server trần) và `dangMo` lỗi (engine chưa mở) KHÔNG phải lỗi
+	// của yêu cầu này: dòng sự kiện vẫn chạy, chỉ là không có văn sống nào để phát.
 	// Bộ đệm văn sống được dò LẠI ở mỗi nhịp poll, không chỉ lúc nối.
 	//
 	// ĐO ĐƯỢC (2026-10-02, truyện dong-ho-qua-lac): trang Tiến độ mở lúc engine CHƯA mở (truyện

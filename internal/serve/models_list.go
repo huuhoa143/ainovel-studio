@@ -42,10 +42,8 @@ import (
 // làm hỏng một lượt thật (xem cong_cu.go). Nên `?tools=1` xin thêm đúng MỘT lượt chat tí hon;
 // nút Kiểm tra gửi cờ đó, bộ chọn model nạp danh sách thì không.
 func (s *server) handleLietKeModel(w http.ResponseWriter, r *http.Request) {
-	// Bản TRỘN, đúng nguồn `GET /api/config` hiện ra. Bản trước đọc riêng tệp đích, nên một
-	// nhà cung cấp hay khóa nằm ở tầng toàn cục làm thẻ nói "đã đặt khóa" còn nút Kiểm tra
-	// nói "chưa có khóa" — hai câu trả lời cho cùng một câu hỏi trên cùng một màn.
-	cfg, err := bootstrap.LoadConfig()
+	// Cùng nguồn với `GET /api/config`, để thẻ và nút Kiểm tra không bao giờ trả lời khác nhau.
+	cfg, err := s.may.napCauHinh()
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, fmt.Errorf("đọc cấu hình: %w", err))
 		return
@@ -89,6 +87,8 @@ func (s *server) handleThuKetNoi(w http.ResponseWriter, r *http.Request) {
 		Loai    *string `json:"type,omitempty"`
 		BaseURL *string `json:"base_url,omitempty"`
 		APIKey  *string `json:"api_key,omitempty"`
+		// Keyless như ô cùng tên của biểu mẫu: nhà cung cấp không cần khóa API. nil = theo mục đã lưu.
+		Keyless *bool `json:"keyless,omitempty"`
 		// Model để thử gọi công cụ. Vắng thì thử `auto` nếu nhà cung cấp có, không thì báo
 		// "chưa kiểm" — xem `lietKeTheo`.
 		Model string `json:"model,omitempty"`
@@ -100,7 +100,7 @@ func (s *server) handleThuKetNoi(w http.ResponseWriter, r *http.Request) {
 	}
 	ten := strings.TrimSpace(than.Ten)
 	var pc bootstrap.ProviderConfig
-	if cfg, err := bootstrap.LoadConfig(); err == nil && ten != "" {
+	if cfg, err := s.may.napCauHinh(); err == nil && ten != "" {
 		pc = cfg.Providers[ten]
 	}
 	if than.Loai != nil {
@@ -111,6 +111,9 @@ func (s *server) handleThuKetNoi(w http.ResponseWriter, r *http.Request) {
 	}
 	if than.APIKey != nil {
 		pc.APIKey = *than.APIKey
+	}
+	if than.Keyless != nil {
+		pc.Keyless = *than.Keyless
 	}
 	var kiem *yeuCauCongCu
 	if than.Tools {
@@ -123,7 +126,7 @@ func (s *server) handleThuKetNoi(w http.ResponseWriter, r *http.Request) {
 //
 // `kiem` khác nil thì sau khi liệt kê xong còn thử MỘT lượt gọi công cụ — xem `thuGoiCongCu`.
 func lietKeTheo(w http.ResponseWriter, r *http.Request, ten string, pc bootstrap.ProviderConfig, kiem *yeuCauCongCu) {
-	if strings.TrimSpace(pc.APIKey) == "" && !khongCanKhoa(ten, pc) {
+	if strings.TrimSpace(pc.APIKey) == "" && !bootstrap.KhongCanKhoa(ten, pc) {
 		writeErr(w, http.StatusBadRequest, fmt.Errorf(
 			"nhà cung cấp %q chưa có khóa API — nhập khóa rồi mới hỏi được danh sách model", ten))
 		return
