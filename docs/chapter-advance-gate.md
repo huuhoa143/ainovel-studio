@@ -1,5 +1,7 @@
 # Chapter Advance Gate
 
+> **2026-10-08 — chỉ còn app desktop.** TUI và headless đã gỡ. Chỗ nào bên dưới nhắc TUI, `/review` hay `/next` là mô tả lúc viết; cửa gác không đổi, còn trên app nó là chế độ **Duyệt từng chương** trong thanh điều khiển của studio.
+
 > Trạng thái: đã hiện thực  
 > Ngày: 2026-07-14  
 > Giải quyết: nghiệm thu từng chương, tạm dừng an toàn sau can thiệp, giấy phép chương chính xác khi khôi phục sau sập

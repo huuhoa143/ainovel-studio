@@ -3,24 +3,24 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ainovel studio — engine viết tiểu thuyết dài bằng AI</title>
-<meta name="description" content="Engine tất định chạy trọn một cuốn tiểu thuyết dài tiếng Việt: ba tác tử Architect, Writer, Editor cộng Arbiter. Mã nguồn mở, chạy trên máy bạn.">
+<title>AINovel Studio — app viết tiểu thuyết dài bằng AI cho macOS và Windows</title>
+<meta name="description" content="App desktop cho macOS và Windows: engine tất định chạy trọn một cuốn tiểu thuyết dài tiếng Việt, ba tác tử Architect, Writer, Editor cộng Arbiter. Mã nguồn mở, chạy trên máy bạn.">
 <link rel="canonical" href="https://ainovel.lingoreup.com/">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://ainovel.lingoreup.com/">
-<meta property="og:site_name" content="ainovel studio">
+<meta property="og:site_name" content="AINovel Studio">
 <meta property="og:locale" content="vi_VN">
-<meta property="og:title" content="ainovel studio — engine viết tiểu thuyết dài bằng AI">
-<meta property="og:description" content="Engine tất định chạy trọn một cuốn tiểu thuyết dài tiếng Việt: ba tác tử Architect, Writer, Editor cộng Arbiter. Mã nguồn mở, chạy trên máy bạn.">
+<meta property="og:title" content="AINovel Studio — app viết tiểu thuyết dài bằng AI cho macOS và Windows">
+<meta property="og:description" content="App desktop cho macOS và Windows: engine tất định chạy trọn một cuốn tiểu thuyết dài tiếng Việt, ba tác tử Architect, Writer, Editor cộng Arbiter. Mã nguồn mở, chạy trên máy bạn.">
 <meta property="og:image" content="https://ainovel.lingoreup.com/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="ainovel studio — trục sản xuất Tập, Cung, Chương với các khối trạng thái đã nghiệm thu, đang chạy và chưa tới.">
+<meta property="og:image:alt" content="AINovel Studio — trục sản xuất Tập, Cung, Chương với các khối trạng thái đã nghiệm thu, đang chạy và chưa tới.">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="ainovel studio — engine viết tiểu thuyết dài bằng AI">
-<meta name="twitter:description" content="Engine tất định chạy trọn một cuốn tiểu thuyết dài tiếng Việt. Mã nguồn mở, chạy trên máy bạn.">
+<meta name="twitter:title" content="AINovel Studio — app viết tiểu thuyết dài bằng AI cho macOS và Windows">
+<meta name="twitter:description" content="App desktop cho macOS và Windows: engine tất định chạy trọn một cuốn tiểu thuyết dài tiếng Việt. Mã nguồn mở, chạy trên máy bạn.">
 <meta name="twitter:image" content="https://ainovel.lingoreup.com/og.png">
 
 <link rel="stylesheet" href="chu.css">
@@ -32,24 +32,24 @@
     {
       "@type": "SoftwareApplication",
       "@id": "https://ainovel.lingoreup.com/#app",
-      "name": "ainovel studio",
+      "name": "AINovel Studio",
       "url": "https://ainovel.lingoreup.com/",
       "description": "Engine tất định chạy trọn một cuốn tiểu thuyết dài bằng tiếng Việt. Điều phối ba tác tử sáng tác tự chủ Architect, Writer và Editor, gọi Arbiter khi cần phán quyết ngữ nghĩa. Khôi phục ở mức step, kiểm định bảy chiều có dẫn chứng.",
-      "applicationCategory": "DeveloperApplication",
+      "applicationCategory": "UtilitiesApplication",
       "applicationSubCategory": "Công cụ sáng tác bằng AI",
-      "operatingSystem": "macOS, Linux, Windows",
-      "softwareVersion": "0.8.1",
+      "operatingSystem": "macOS, Windows",
+      "downloadUrl": "https://github.com/huuhoa143/ainovel-studio/releases/latest",
       "inLanguage": "vi",
       "license": "https://www.apache.org/licenses/LICENSE-2.0",
       "isAccessibleForFree": true,
       "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
-      "softwareRequirements": "Go 1.25 trở lên; khóa API của một nhà cung cấp LLM",
+      "softwareRequirements": "macOS (chip Apple hoặc Intel) hoặc Windows 10/11 64-bit; khóa API của một nhà cung cấp LLM",
       "featureList": [
         "Engine tất định điều phối ba tác tử sáng tác tự chủ",
         "Khôi phục từ checkpoint ở mức step",
         "Kiểm định bảy chiều, mỗi chiều buộc dẫn nguyên văn làm chứng",
         "Quy hoạch cuốn dần hai tầng tập và cung",
-        "Web studio ba màn đọc trực tiếp từ store"
+        "App desktop: studio ba màn, tự cập nhật"
       ],
       "screenshot": "https://ainovel.lingoreup.com/anh/studio.webp",
       "codeRepository": "https://github.com/huuhoa143/ainovel-studio"
@@ -68,7 +68,7 @@
       "@type": "WebSite",
       "@id": "https://ainovel.lingoreup.com/#site",
       "url": "https://ainovel.lingoreup.com/",
-      "name": "ainovel studio",
+      "name": "AINovel Studio",
       "inLanguage": "vi",
       "about": { "@id": "https://ainovel.lingoreup.com/#app" }
     }
@@ -184,41 +184,29 @@ p { margin: 0; text-wrap: pretty; }
 }
 .chi-muc b { color: var(--ink-2); font-weight: 400; }
 
-/* ── lệnh cài: hành động chính ─────────────────────────────────────────────
-   Khối NHIỀU DÒNG chứ không phải một dòng cuộn ngang. Bản trước nhét cả lệnh
-   vào một dòng `nowrap`, nên ở 1440px nó đã bị nút Sao chép cắt cụt giữa
-   chừng — hành động chính của trang trông như hỏng. Lệnh thật vốn có hai
-   dòng, nên cứ hiện đúng hai dòng. */
-.lenh { margin-top: 30px; max-width: 760px; }
-.lenh-hop {
-  position: relative;
-  background: var(--panel-2);
-  border: 1px solid var(--line);
+/* ── tải app: hành động chính ────────────────────────────────────────────────
+   Hai nút, một cho mỗi hệ điều hành, cùng trỏ về trang bản phát hành mới nhất:
+   GitHub không có liên kết "tệp mới nhất cho macOS" khi tên tệp mang số phiên
+   bản, nên trỏ thẳng vào một tệp là trỏ vào một bản sẽ cũ. Dòng mono dưới mỗi
+   nút nói đúng tệp cần chọn trên trang đó, để khách không phải đoán giữa sáu tệp. */
+.tai { margin-top: 30px; max-width: 760px; }
+.tai-nut { display: flex; flex-wrap: wrap; gap: 12px; }
+.tai-nut a {
+  display: flex; flex-direction: column; gap: 3px;
+  min-width: 220px;
+  padding: 12px 18px;
   border-radius: 6px;
+  text-decoration: none;
+  background: var(--gold);
+  color: var(--bg);
 }
-.lenh-hop pre {
-  margin: 0;
-  padding: 15px 108px 15px 16px;   /* chừa chỗ nút ở góc phải trên */
-  font: 400 13px/1.85 var(--mono);
-  color: var(--ink);
-  overflow-x: auto;
-  scrollbar-width: thin;
-}
-.lenh-hop .nhac { color: var(--ink-3); }
-.sao {
-  position: absolute; top: 9px; right: 9px;
-  padding: 7px 13px;
-  border: 1px solid var(--line);
-  border-radius: 5px;
-  background: var(--raised);
-  color: var(--ink-2);
-  font: 500 12.5px/1 var(--ui);
-  cursor: pointer;
-}
-.sao:hover { background: color-mix(in oklch, var(--raised) 70%, var(--gold) 12%); color: var(--ink); }
-.sao[data-xong='1'] { color: var(--teal); }
-.lenh .duoi { margin-top: 10px; font-size: 13px; color: var(--ink-3); }
-.lenh .duoi code { font: 400 12.5px var(--mono); color: var(--ink-2); }
+.tai-nut a:hover { background: color-mix(in oklch, var(--gold) 88%, white); }
+.tai-nut a b { font: 600 15px/1.3 var(--ui); }
+.tai-nut a span { font: 400 12px/1.4 var(--mono); color: color-mix(in oklch, var(--bg) 78%, var(--gold)); }
+/* Nút thứ hai cùng hạng, không phải hành động phụ: khách Windows không phải
+   khách hạng hai. Khác biệt duy nhất là thứ tự. */
+.tai .duoi { margin-top: 12px; font-size: 13px; color: var(--ink-3); }
+.tai .duoi code { font: 400 12.5px var(--mono); color: var(--ink-2); }
 
 /* ── TRỤC SẢN XUẤT ──────────────────────────────────────────────────────────
    Khí cụ đặc trưng nhất của sản phẩm, dựng bằng DOM chứ không phải ảnh chụp.
@@ -338,6 +326,9 @@ body { padding-bottom: 40px; }   /* chừa chỗ cho transport cố định */
 .dac-ta dt { font-size: 13.5px; color: var(--ink-3); padding-right: 20px; }
 .dac-ta dd { font-size: 14px; color: var(--ink); }
 .dac-ta dd.so { font-family: var(--mono); font-size: 13px; }
+/* Tên tệp phát hành chứa "-<": JetBrains Mono ghép hai ký tự đó thành một mũi tên,
+   tức khách đọc ra một tên tệp không tồn tại. Tắt ghép chữ cho mọi số đo. */
+.dac-ta dd.so, .tai-nut a span { font-variant-ligatures: none; }
 .dac-ta dd .phu { color: var(--ink-3); }
 
 /* ── hình ────────────────────────────────────────────────────────────────── */
@@ -384,11 +375,12 @@ body { padding-bottom: 40px; }   /* chừa chỗ cho transport cố định */
 .trich figcaption { margin-top: 14px; font-size: 12.5px; color: var(--ink-3); }
 .trich figcaption b { font: 400 12.5px var(--mono); color: var(--ink-2); }
 
-/* ── cách lấy ────────────────────────────────────────────────────────────── */
+/* ── tải về: hai thẻ hệ điều hành ───────────────────────────────────────── */
 /* `minmax(0, …)` chứ không `1fr`: ô grid mặc định mang `min-width: auto` nên nó
-   KHÔNG co nhỏ hơn nội dung tối thiểu, và <pre> bên trong không xuống dòng.
-   ĐO ĐƯỢC: ở khung hẹp, hai thẻ này rộng 522px trong một viewport 485px và
-   kéo cả tài liệu tràn 57px — H1 lẫn thanh điều hướng đều bị cắt bên phải. */
+   KHÔNG co nhỏ hơn nội dung tối thiểu — một đoạn không ngắt được bên trong là
+   nong cả thẻ. ĐO ĐƯỢC ở bản trước (thẻ chứa <pre> lệnh cài): ở khung hẹp, hai
+   thẻ rộng 522px trong một viewport 485px và kéo cả tài liệu tràn 57px — H1
+   lẫn thanh điều hướng đều bị cắt bên phải. */
 .lay { margin-top: 24px; display: grid; gap: 18px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
 .lay > section { min-width: 0; }
 .lay > section {
@@ -399,18 +391,16 @@ body { padding-bottom: 40px; }   /* chừa chỗ cho transport cố định */
 }
 .lay h3 { font-size: 14px; }
 .lay .cai-gi { margin-top: 7px; font-size: 13px; line-height: 1.65; color: var(--ink-3); min-height: 3.3em; }
-.lay pre {
+.lay .buoc {
   margin: 14px 0 0;
-  padding: 13px 14px;
-  background: var(--bg);
-  border: 1px solid var(--line-2);
-  border-radius: 5px;
-  overflow-x: auto;
-  font: 400 12.5px/1.75 var(--mono);
-  color: var(--ink);
-  scrollbar-width: thin;
+  padding-left: 20px;
+  font-size: 13.5px; line-height: 1.68;
+  color: var(--ink-2);
 }
-.lay pre .nhac { color: var(--ink-3); }
+.lay .buoc li + li { margin-top: 6px; }
+.lay .buoc li::marker { font: 400 12.5px var(--mono); color: var(--gold); }
+.lay .buoc strong, .lay .cai-gi strong { color: var(--ink); font-weight: 500; }
+.lay .buoc code { font: 400 12.5px var(--mono); color: var(--ink); }
 
 /* ── chân trang ──────────────────────────────────────────────────────────── */
 .chan {
@@ -486,9 +476,9 @@ body { padding-bottom: 40px; }   /* chừa chỗ cho transport cố định */
   Mono cho MỌI số đo, Noto Serif CHỈ cho văn tiểu thuyết. Hàng nhãn–giá trị kẻ
   hairline, cột nhãn rộng theo luật tiếng Việt. Dấu hiệu ba lane giảm dần.
   STORY: khách hiểu đây là engine tất định chạy trọn một cuốn; tin vì trang nêu cả
-  GIỚI HẠN kèm số đo, không chỉ ưu điểm; và cài bằng một lệnh go install.
-  FIRST VIEWPORT: định danh trái, một câu cơ chế, hàng chỉ mục mono, rồi lệnh cài
-  kèm nút sao chép — hành động chính nằm ngay trong tầm mắt đầu tiên.
+  GIỚI HẠN kèm số đo, không chỉ ưu điểm; và cài như mọi app: tải, mở, dán khóa API.
+  FIRST VIEWPORT: định danh trái, một câu cơ chế, hàng chỉ mục mono, rồi hai nút
+  tải app (macOS, Windows) — hành động chính nằm ngay trong tầm mắt đầu tiên.
   FORM: phiếu kỹ thuật; hạng 7 trên danh sách cấu trúc đã xếp; seed 703e3d35.
   FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, and DESIGN.md
 -->
@@ -508,7 +498,7 @@ body { padding-bottom: 40px; }   /* chừa chỗ cho transport cố định */
   <nav>
     <a href="#dac-ta">Đặc tả</a>
     <a href="#van-hanh">Vận hành</a>
-    <a href="#cach-lay">Cách lấy</a>
+    <a href="#cach-lay">Tải về</a>
     <a href="https://github.com/huuhoa143/ainovel-studio">GitHub</a>
   </nav>
 </header>
@@ -526,20 +516,24 @@ body { padding-bottom: 40px; }   /* chừa chỗ cho transport cố định */
     </p>
 
     <div class="chi-muc">
-      <span><b>Loại</b> · engine + web studio</span>
-      <span><b>Chạy</b> · máy của bạn</span>
+      <span><b>Loại</b> · app desktop</span>
+      <span><b>Chạy</b> · macOS · Windows</span>
       <span><b>Đầu ra</b> · tiếng Việt</span>
       <span><b>Giấy phép</b> · Apache-2.0</span>
     </div>
 
-    <div class="lenh">
-      <div class="lenh-hop">
-<pre><span class="nhac">$</span> git clone https://github.com/huuhoa143/ainovel-studio
-<span class="nhac">$</span> cd ainovel-studio &amp;&amp; go build -o ainovel-cli ./cmd/ainovel-cli</pre>
-        <button class="sao" type="button" data-lenh="git clone https://github.com/huuhoa143/ainovel-studio
-cd ainovel-studio && go build -o ainovel-cli ./cmd/ainovel-cli">Sao chép</button>
+    <div class="tai">
+      <div class="tai-nut">
+        <a href="https://github.com/huuhoa143/ainovel-studio/releases/latest">
+          <b>Tải cho macOS</b>
+          <span>.dmg · chip Apple hoặc Intel</span>
+        </a>
+        <a href="https://github.com/huuhoa143/ainovel-studio/releases/latest">
+          <b>Tải cho Windows</b>
+          <span>.exe · Windows 10/11, 64-bit</span>
+        </a>
       </div>
-      <p class="duoi">Cần <code>Go 1.25+</code>. Chạy trên macOS, Linux và Windows. Dựng từ nguồn là đường duy nhất, và <a href="#cach-lay">mục 5</a> nói vì sao <code>go install</code> không dùng được ở đây.</p>
+      <p class="duoi">Miễn phí, mã nguồn mở. Không cần terminal, không cần cài Go hay Node. Cần một khóa API của nhà cung cấp model bạn dùng. Chọn tệp nào trên trang phát hành: <a href="#cach-lay">mục 5</a>.</p>
     </div>
 
     <!-- Trục sản xuất, dựng bằng DOM. Tỉ lệ và trạng thái lấy từ lượt chạy mẫu
@@ -635,8 +629,11 @@ cd ainovel-studio && go build -o ainovel-cli ./cmd/ainovel-cli">Sao chép</butto
         <dt>Nhà cung cấp model</dt>
         <dd>OpenRouter · Anthropic · Gemini · OpenAI</dd>
 
-        <dt>Bề mặt vận hành</dt>
-        <dd>Web studio · TUI <span class="phu">(đóng băng)</span> · headless</dd>
+        <dt>Nền tảng</dt>
+        <dd class="so">macOS arm64 · macOS x64 · Windows x64</dd>
+
+        <dt>Cập nhật</dt>
+        <dd>Tự kiểm tra mỗi lần mở, tải ngầm, hỏi trước khi khởi động lại</dd>
 
         <dt>Lưu trữ</dt>
         <dd>Hệ tệp, một thư mục một tác phẩm</dd>
@@ -651,7 +648,7 @@ cd ainovel-studio && go build -o ainovel-cli ./cmd/ainovel-cli">Sao chép</butto
     <h2><i>2</i> Bề mặt <span>ảnh chụp từ một lượt chạy thật</span></h2>
 
     <figure class="hinh">
-      <img src="anh/studio.webp" alt="Web studio đi qua năm bề mặt: Quản lý cả xưởng, Dòng sản xuất của một cuốn, Bản thảo, Chi phí toàn xưởng, Model theo vai." width="1600" height="1000" loading="lazy" decoding="async">
+      <img src="anh/studio.webp" alt="Studio đi qua năm bề mặt: Quản lý cả xưởng, Dòng sản xuất của một cuốn, Bản thảo, Chi phí toàn xưởng, Model theo vai." width="1600" height="1000" loading="lazy" decoding="async">
       <figcaption><b>Hình 1</b><span>Năm bề mặt của studio, dữ liệu thật từ một lượt chạy: Quản lý cả xưởng → Dòng sản xuất của một cuốn → Bản thảo → Chi phí toàn xưởng → Model theo vai.</span></figcaption>
     </figure>
 
@@ -719,66 +716,73 @@ cd ainovel-studio && go build -o ainovel-cli ./cmd/ainovel-cli">Sao chép</butto
         <p>Studio mở đúng một cuốn mỗi lần. Hai cuốn cùng chạy là gấp đôi tiền và gấp đôi RAM, và đó là quyết định của người dùng, nên mã không tự ý thay bạn quyết.</p>
       </div>
       <div>
-        <h3>Đường ghi chỉ mở trên loopback</h3>
-        <p>Studio giữ khóa API và khởi động được engine, nên nó từ chối lệnh ghi đến từ mạng: lắng nghe ngoài loopback thì cả nhóm route ghi không được mắc. Vì vậy không có bản dùng thử trên web; bản hosted sẽ là một sản phẩm khác, với những hàng rào khác.</p>
+        <h3>Không có bản web</h3>
+        <p>App giữ khóa API và khởi động được engine, nên engine chỉ nhận lệnh từ chính cửa sổ app: nó lắng nghe trên <code>127.0.0.1</code> và không mở cổng ra mạng. Vì vậy không có bản dùng thử trên web; bản hosted sẽ là một sản phẩm khác, với những hàng rào khác.</p>
       </div>
       <div>
         <h3>Chưa có tiếng Anh</h3>
-        <p>Giao diện, prompt và tài liệu tham chiếu đều đã việt hóa nên AI sinh truyện tiếng Việt. Web studio chưa qua tầng i18n nào.</p>
+        <p>Giao diện, prompt và tài liệu tham chiếu đều đã việt hóa nên AI sinh truyện tiếng Việt. Giao diện app chưa qua tầng i18n nào.</p>
       </div>
     </div>
   </section>
 
   <section class="muc" id="cach-lay">
-    <h2><i>5</i> Cách lấy</h2>
+    <h2><i>5</i> Tải về và cài đặt</h2>
 
     <p class="dan">
-      Dựng từ nguồn là đường duy nhất, và đó là một ràng buộc thật chứ không phải việc còn tồn.
-      Hai bước, khác nhau ở chỗ nhị phân <strong>không nhúng</strong> giao diện: nó đọc thư mục
-      đã dựng từ đĩa ở từng lượt yêu cầu. Ai chỉ cần TUI thì bỏ bước <code>npm</code>.
+      Vào <a href="https://github.com/huuhoa143/ainovel-studio/releases/latest"><strong>bản phát hành mới nhất</strong></a> trên GitHub rồi tải đúng
+      một tệp cho máy của bạn. Các tệp <code>.zip</code> và <code>.yml</code> ở đó là để app tự
+      cập nhật, không cần tải.
     </p>
+
+    <div class="dac-ta">
+      <dl>
+        <dt>Mac chip Apple</dt>
+        <dd class="so">AINovel-Studio-&lt;phiên bản&gt;-arm64.dmg <span class="phu">(M1, M2, M3, M4…)</span></dd>
+
+        <dt>Mac chip Intel</dt>
+        <dd class="so">AINovel-Studio-&lt;phiên bản&gt;-x64.dmg</dd>
+
+        <dt>Windows 10/11</dt>
+        <dd class="so">AINovel-Studio-Setup-&lt;phiên bản&gt;.exe <span class="phu">(64-bit)</span></dd>
+      </dl>
+    </div>
 
     <div class="lay">
       <section>
-        <h3>CLI, TUI và headless</h3>
-        <p class="cai-gi">Engine đầy đủ trong terminal. Không có tệp giao diện web.</p>
-<pre><span class="nhac"># cần Go 1.25+</span>
-git clone https://github.com/huuhoa143/ainovel-studio
-cd ainovel-studio
-go build -o ainovel-cli ./cmd/ainovel-cli
-
-<span class="nhac"># lần chạy đầu tự dẫn: provider → API key → base URL → model</span>
-./ainovel-cli</pre>
+        <h3>macOS</h3>
+        <p class="cai-gi">Không rõ chip gì: menu Apple → <strong>Giới thiệu về máy Mac này</strong>. Dòng <em>Chip</em> ghi "Apple M…" là chip Apple; dòng <em>Bộ xử lý</em> ghi "Intel…" là chip Intel.</p>
+        <ol class="buoc">
+          <li>Mở tệp <code>.dmg</code>, kéo <strong>AINovel Studio</strong> vào thư mục <strong>Applications</strong>.</li>
+          <li>Mở app từ Launchpad.</li>
+          <li>macOS hỏi <em>"…được tải về từ Internet. Bạn có chắc muốn mở?"</em>: bấm <strong>Mở</strong>. Chỉ hỏi một lần, vì app đã được Apple kiểm duyệt.</li>
+        </ol>
       </section>
 
       <section>
-        <h3>Kèm web studio</h3>
-        <p class="cai-gi">Thêm bước <code>npm run build</code> để có tệp giao diện.</p>
-<pre>cd web &amp;&amp; npm ci &amp;&amp; npm run build &amp;&amp; cd ..
-
-./ainovel-cli serve --web web/out
-<span class="nhac"># mở http://127.0.0.1:8420</span></pre>
+        <h3>Windows</h3>
+        <p class="cai-gi">Bộ cài chưa có chữ ký số nên có thể gặp hai lời cảnh báo, mỗi cái chỉ một lần.</p>
+        <ol class="buoc">
+          <li>Lúc tải, Edge/Chrome có thể báo tệp <em>"không thường được tải xuống"</em>: bấm <strong>…</strong> (hoặc mũi tên cạnh tệp) → <strong>Giữ lại</strong> (<em>Keep</em>).</li>
+          <li>Chạy bộ cài. Nếu hiện hộp xanh <em>"Windows protected your PC"</em>: bấm <strong>More info</strong> → <strong>Run anyway</strong>.</li>
+        </ol>
       </section>
     </div>
 
     <p class="dan" style="margin-top:22px">
-      <strong>Vì sao không có <code>go install</code>.</strong> Go từ chối
-      <code>go install pkg@version</code> với mọi module mang chỉ thị <code>replace</code>, và
-      module này có một: <code>github.com/voocel/litellm</code> được nối vào bản đã vá nằm trong
-      <code>third_party/</code>.
+      <strong>Lần đầu mở app</strong>, nó mở thẳng màn <strong>Cài đặt → Model &amp; khóa API</strong>.
+      Dán khóa API của nhà cung cấp bạn dùng (OpenRouter, Anthropic, Gemini, OpenAI…), chọn model,
+      bấm lưu là viết được ngay. Khóa và truyện nằm trong thư mục dữ liệu của app trên máy bạn,
+      không qua máy chủ nào của dự án.
     </p>
     <p class="dan">
-      Bản vá đó không bỏ được. Nhiều gateway tương thích OpenAI phát đủ chunk kết thúc, gồm cả
-      <code>finish_reason</code> và <code>usage</code>, rồi đóng kết nối mà không gửi sentinel
-      <code>data: [DONE]</code>. litellm bản gốc coi đó là stream bị cắt, nên engine bỏ một lượt
-      sinh <em>hoàn chỉnh</em> rồi thử lại bảy lần, mỗi lần gửi lại toàn bộ prompt. Đo trên một
-      gateway thật: không cuốn nào viết nổi chương đầu, và mỗi lần bấm Chạy đều tiêu tiền mà
-      không ra chương. Đánh đổi chuyện đó lấy sự tiện của một lệnh cài là không xứng.
+      <strong>Đã dùng bản cũ?</strong> Cấu hình ở <code>~/.ainovel/config.json</code> được tự chép
+      sang lần mở đầu tiên. Truyện cũ đưa vào bằng menu <strong>Tệp → Nhập truyện từ thư
+      mục…</strong>.
     </p>
     <p class="dan">
-      <code>scripts/install.sh</code> trong repo vẫn trỏ về upstream nên nó cài bản gốc, không
-      phải bản này. Fork không phát hành nhị phân release, nên cập nhật là <code>git pull</code>
-      rồi dựng lại.
+      Muốn sửa mã hay dựng app từ nguồn: xem
+      <a href="https://github.com/huuhoa143/ainovel-studio/blob/main/CONTRIBUTING.md">CONTRIBUTING.md</a>.
     </p>
   </section>
 
@@ -788,7 +792,7 @@ go build -o ainovel-cli ./cmd/ainovel-cli
         Đây là <strong>bản fork tiếng Việt</strong> của
         <a href="https://github.com/voocel/ainovel-cli">voocel/ainovel-cli</a>. Toàn bộ engine,
         kiến trúc và thiết kế gốc thuộc về dự án upstream; bản fork này không phải dự án gốc.
-        Phần thêm vào là việt hóa giao diện, prompt cùng tài liệu, và web studio.
+        Phần thêm vào là việt hóa giao diện, prompt cùng tài liệu, studio và app desktop.
       </p>
       <p>
         Chữ trên trang: Inter, JetBrains&nbsp;Mono, Noto&nbsp;Serif, tự host, không gọi CDN
@@ -813,39 +817,8 @@ go build -o ainovel-cli ./cmd/ainovel-cli
   <div class="o">model <b>gemini-2.5-pro</b></div>
   <div class="o">giá thành <b>$1,475</b> / chương</div>
   <div class="o">tổng <b>$7,37</b></div>
-  <div class="o di"><a href="#cach-lay">Cài trên máy bạn</a></div>
+  <div class="o di"><a href="#cach-lay">Tải app</a></div>
 </div>
 
-<script>
-/* Nút sao chép. Trạng thái xong hiện bằng CHỮ và MÀU, không chỉ màu — luật
-   accessibility của PRODUCT.md: màu không bao giờ là kênh thông tin duy nhất. */
-document.querySelectorAll('.sao').forEach(function (nut) {
-  var chuGoc = nut.textContent;
-  var hen;
-  nut.addEventListener('click', function () {
-    var lenh = nut.getAttribute('data-lenh');
-    function xong() {
-      nut.textContent = 'Đã sao chép';
-      nut.dataset.xong = '1';
-      clearTimeout(hen);
-      hen = setTimeout(function () {
-        nut.textContent = chuGoc;
-        delete nut.dataset.xong;
-      }, 2000);
-    }
-    function truot() {
-      /* Không im lặng khi thất bại: nói người dùng phải làm gì thay vì giả vờ xong. */
-      nut.textContent = 'Hãy chọn và copy tay';
-      clearTimeout(hen);
-      hen = setTimeout(function () { nut.textContent = chuGoc; }, 2600);
-    }
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(lenh).then(xong, truot);
-    } else {
-      truot();
-    }
-  });
-});
-</script>
 </body>
 </html>

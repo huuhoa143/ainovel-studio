@@ -1,6 +1,6 @@
 # Ảnh và GIF của README / README media
 
-Bốn tệp ở thư mục này là bề mặt web studio **chụp thật**, không phải mockup:
+Bốn tệp ở thư mục này là giao diện studio của app **chụp thật**, không phải mockup:
 
 | Tệp | Bề mặt | Dùng ở |
 |---|---|---|
@@ -13,8 +13,9 @@ Bốn tệp ở thư mục này là bề mặt web studio **chụp thật**, kh�
 
 Ảnh lên README là ảnh **công khai**, nên hai thứ trong store thật không được lên:
 
-1. **Đường dẫn nhà.** Thanh trên cùng in thư mục gốc. Chạy thẳng từ máy ai thì ảnh mang tên
-   người đó (`/Users/<tên>/...`). Store demo đặt ở `/tmp/ainovel/xuong` nên thanh đó đọc là
+1. **Đường dẫn nhà.** Thanh trên cùng in thư mục gốc (trong app thật là thư mục dữ liệu của
+   app, mang tên người dùng máy). Chạy thẳng từ máy ai thì ảnh mang tên
+   người đó (`/Users/<tên>/...`). Store nhân bản đặt ở `/tmp/ainovel/xuong` nên thanh đó đọc là
    `tmp/ainovel/xuong` — không có gì để lộ.
 2. **Ba cuốn trùng tên.** Store thật có ba lượt chạy thử đều đặt `novel_name` là *Trấn Yêu Ký*.
    Đúng dữ liệu, nhưng ba dòng trùng tên trên một bảng quản lý **đọc thành lỗi hiển thị**. Bản
@@ -30,16 +31,16 @@ cho dễ nhìn.
 ```bash
 # 1. Nhân bản store, đổi tên hai cuốn phụ cho khác nhau
 rm -rf /tmp/ainovel && mkdir -p /tmp/ainovel
-cp -R output /tmp/ainovel/xuong
+cp -R "$HOME/Library/Application Support/AINovel Studio/books" /tmp/ainovel/xuong   # hoặc thư mục truyện bất kỳ
 mv /tmp/ainovel/xuong/chay-thu /tmp/ainovel/xuong/cuu-tuyen-duong
 # rồi sửa "novel_name" trong meta/progress.json của từng cuốn
 
-# 2. Cấu hình TẦNG DỰ ÁN, để khỏi đọc ~/.ainovel/config.json của máy
-mkdir -p /tmp/ainovel/.ainovel      # viết config.json với khóa giả
+# 2. Cấu hình riêng với khóa giả, để khỏi đọc config.json của app đã cài
+#    (viết /tmp/ainovel/config.json: một provider, api_key giả, một model mặc định)
 
-# 3. Chạy studio với cwd = /tmp/ainovel (cwd quyết định tầng cấu hình nào thắng)
-cd /tmp/ainovel && ainovel serve --addr 127.0.0.1:8421 \
-  --root /tmp/ainovel/xuong --web <repo>/web/out
+# 3. Chạy sidecar thẳng; --config là tệp DUY NHẤT nó đọc/ghi, --addr phải là loopback
+./ainovel-cli serve --addr 127.0.0.1:8421 --root /tmp/ainovel/xuong \
+  --config /tmp/ainovel/config.json --web web/out
 ```
 
 Chụp ở khung `1440×900` cho ảnh tĩnh và `1200×800` cho khung GIF, DPR 2. Rồi:
@@ -56,7 +57,7 @@ tiếng Việt bị vỡ thành mảng nếu tắt dither.
 
 ---
 
-The four files here are **real captures** of the web studio, not mockups. They are shot from a
+The four files here are **real captures** of the app's studio interface, not mockups. They are shot from a
 cloned store at `/tmp/ainovel/xuong` for two reasons: the top bar prints the root directory (a
 real store leaks `/Users/<name>/...` into a public image), and the real store has three test runs
 that all share the novel name *Trấn Yêu Ký* — correct data that reads as a rendering bug in a

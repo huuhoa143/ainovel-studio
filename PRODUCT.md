@@ -6,7 +6,7 @@ product
 
 ## Users
 
-Một người viết, tự chạy studio trên máy mình (local) để nhờ AI viết tiểu thuyết: quản lý nhiều truyện, theo dõi tiến độ, đọc và góp ý. Có thể có nền kỹ thuật, nhưng giao diện không được đòi hỏi điều đó — người dùng nghĩ bằng truyện, chương, nhân vật, không bằng engine, store hay endpoint.
+Một người viết, cài app desktop **AINovel Studio** (macOS hoặc Windows) trên máy mình để nhờ AI viết tiểu thuyết: quản lý nhiều truyện, theo dõi tiến độ, đọc và góp ý. Có thể có nền kỹ thuật, nhưng giao diện không được đòi hỏi điều đó — người dùng nghĩ bằng truyện, chương, nhân vật, không bằng engine, store hay endpoint.
 
 Bối cảnh sử dụng: engine chạy hàng giờ đến hàng ngày mà không cần người trực. Người vận hành không ngồi xem liên tục; họ **quay lại theo chu kỳ** để trả lời ba câu hỏi, theo đúng thứ tự đó:
 
@@ -22,11 +22,11 @@ Việc họ làm trên bề mặt này: tạo tác phẩm mới, chạy và dừ
 
 ainovel biến một câu yêu cầu thành một bộ tiểu thuyết dài hoàn chỉnh bằng tiếng Việt, chạy trọn vẹn không cần người can thiệp. Engine tất định điều phối ba tác tử tự chủ (Architect / Writer / Editor) và gọi Arbiter khi cần phán quyết ngữ nghĩa.
 
-Web studio là **bề mặt duy nhất** của cỗ máy đó: nơi tạo tác phẩm, chạy dây chuyền, giám sát, can thiệp, kiểm soát chất lượng và truy vết quyết định. Nó không nhân bản logic engine — engine chạy trong cùng process và mọi lệnh đi qua `*host.Host`, nên engine vẫn là nguồn sự thật duy nhất.
+Studio bên trong app desktop là **bề mặt duy nhất** của cỗ máy đó: nơi tạo tác phẩm, chạy dây chuyền, giám sát, can thiệp, kiểm soát chất lượng và truy vết quyết định. Không có bản CLI/TUI, không có bản chạy trên web. Studio không nhân bản logic engine — engine chạy trong tiến trình sidecar cùng HTTP API và mọi lệnh đi qua `*host.Host`, nên engine vẫn là nguồn sự thật duy nhất. HTTP API đó cũng là bề mặt điều khiển duy nhất cho agent tự động sau này.
 
-TUI trong terminal vẫn chạy được nhưng đã **đóng băng**: không thêm tính năng mới cho nó nữa.
+Người dùng không cần terminal, không cần cài Go hay Node, không cần biết tệp cấu hình nằm đâu: tải bộ cài, dán khóa API, viết.
 
-Thành công trông như thế này: người vận hành mở studio sau 6 giờ đi vắng và trong vòng 5 giây biết được dây chuyền khỏe hay bệnh, không cần đọc log.
+Thành công trông như thế này: người vận hành mở app sau 6 giờ đi vắng và trong vòng 5 giây biết được dây chuyền khỏe hay bệnh, không cần đọc log.
 
 ## Brand Personality
 

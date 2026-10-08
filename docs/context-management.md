@@ -1,5 +1,7 @@
 # Thuyết minh về quản lý ngữ cảnh
 
+> **2026-10-08 — chỉ còn app desktop.** TUI và headless đã gỡ. Chỗ nào bên dưới nhắc TUI (`internal/entry/tui/…`, sự kiện `COMPACT` trên TUI, màu phần trăm ngữ cảnh) là mô tả lúc viết; cơ chế nén ngữ cảnh không đổi, còn phần hiển thị trên app nằm ở studio và trong `sidecar.log`.
+
 Tài liệu này thuyết minh hệ thống quản lý ngữ cảnh hiện tại của `ainovel-cli`, gồm:
 
 - Vì sao phải quản lý ngữ cảnh

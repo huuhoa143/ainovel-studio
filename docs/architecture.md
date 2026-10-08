@@ -1,8 +1,10 @@
-# Kiến trúc runtime của ainovel-cli
+# Kiến trúc runtime của engine AINovel Studio
 
 > Tầng sự thật thì tất định, tầng ngữ nghĩa thì tự chủ: một Engine tất định chạy tuần tự, ba Worker tự chủ, vài hàm Arbiter gọi khi cần, một tầng sự thật nằm trên hệ tệp.
 >
 > 2026-07-12 hoàn tất việc thay mặt điều khiển: vòng lặp dài Coordinator LLM đã nghỉ, Engine (vòng lặp tất định) + Arbiter (hàm phán quyết ngữ nghĩa) tiếp quản. Quyết định thiết kế và biên bản duyệt xem `docs/engine-arbiter.md`, RFC xem `docs/engine-rfc.md`.
+>
+> 2026-10-08: sản phẩm chỉ còn app desktop. Cửa vào TUI và headless đã gỡ; engine chỉ chạy qua `serve`, tiến trình sidecar mà app spawn (xem `docs/superpowers/specs/2026-10-08-desktop-app-design.md`).
 
 ---
 
@@ -70,7 +72,7 @@ Không đưa vào các trừu tượng kiểu WorkflowInstance / TaskInstance / 
 ## 3. Toàn cảnh kiến trúc
 
 ```
-[Entry: TUI / headless]
+[Entry: serve — sidecar của app desktop, HTTP API trên loopback]
         │ prompt / steer
 [Vỏ Host]
    ├── observer            Trung kế tiến độ Worker + sự kiện phái việc của Engine → chiếu ra UI/log
@@ -397,7 +399,8 @@ internal/
                   + events.go + usage*.go + budget.go + advance_gate.go + resume.go + cocreate.go
     imp/          Nhập tiểu thuyết ngoài bằng biên dịch ngữ nghĩa: ingest → segment → analyze → synthesize → publish (suy trạng thái thuần + LLM làm hàm)
     exp/          Xuất các chương đã hoàn thành: TXT / EPUB 3; chỉ đọc thuần
-  entry/          tui (Bubble Tea) / headless / startup
+  serve/          HTTP API trên loopback mà app desktop (desktop/) spawn làm sidecar; giao diện là web/out
+  entry/          startup (khởi động engine cho serve)
   bootstrap/      config + ModelSet + provider failover + trình dẫn dắt setup
   eval/           Đánh giá offline (A/B prompt/voice, hồi quy)
   diag/ errs/ models/ notify/ rules/ userrules/ stylestat/ ...

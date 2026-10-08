@@ -77,7 +77,7 @@ Việc lắp ghép của ngữ nghĩa nối thêm có cờ đánh dấu biên t�
 ### 3.4 Ngữ nghĩa đường dẫn: cấp theo sách gắn với outputDir, không gắn cwd
 
 ```
-Cấp theo sách   <outputDir>/style/     >   Toàn cục   ~/.ainovel/style/   >   Mặc định dựng sẵn (embed đỡ lưng)
+Cấp theo sách   <outputDir>/style/     >   Toàn cục   <userData>/style/   >   Mặc định dựng sẵn (embed đỡ lưng)
 ```
 
 - Gắn với outputDir làm Voice **đi cùng sách**: đổi thư mục rồi khôi phục cùng cuốn đó thì nạp cùng một bản văn phong; Docker/headless/TUI giải đường dẫn như nhau; nhiều sách dùng chung cwd thì không lẫn vào nhau
@@ -87,7 +87,7 @@ Cấp theo sách   <outputDir>/style/     >   Toàn cục   ~/.ainovel/style/   
 Cấu trúc đầy đủ của thư mục người dùng:
 
 ```
-<outputDir>/style/            (~/.ainovel/style/ đồng dạng)
+<outputDir>/style/            (<userData>/style/ đồng dạng — thư mục dữ liệu app, cạnh config.json)
   voice.md                    đoạn nối thêm
   anti-ai-tone.md             đoạn nối thêm
   styles/

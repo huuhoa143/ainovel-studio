@@ -1,7 +1,18 @@
 # landing/
 
-Trang giới thiệu tĩnh của ainovel studio, đang chạy ở
-**[ainovel.lingoreup.com](https://ainovel.lingoreup.com)**.
+Trang giới thiệu và tải app **AINovel Studio**, đang chạy ở
+**[ainovel.lingoreup.com](https://ainovel.lingoreup.com)**. Hành động chính của trang là hai nút
+"Tải cho macOS" / "Tải cho Windows".
+
+## Vì sao nút tải trỏ vào trang phát hành, không vào tệp
+
+Cả hai nút trỏ về `https://github.com/huuhoa143/ainovel-studio/releases/latest`. GitHub chỉ có
+liên kết "tệp mới nhất" dạng `releases/latest/download/<tên tệp>`, và tên tệp của bản phát hành
+mang số phiên bản (`AINovel-Studio-1.2.3-arm64.dmg`) — trỏ thẳng vào một tệp là trỏ vào đúng một
+bản sẽ cũ đi ở lần phát hành sau. Mục 5 của trang liệt kê tệp nào cho máy nào để khách chọn đúng
+trên trang phát hành.
+
+Tên tệp đổi trong `desktop/scripts/release.sh` thì nhớ sửa bảng ở mục 5 và ở README.
 
 Không có bước build. `index.html` là một tệp tự chứa: CSS nội tuyến, font tự host trong `chu/`,
 ảnh trong `anh/`. Mở thẳng bằng trình duyệt là xem được.
