@@ -344,6 +344,13 @@ The initial translation memory was taken from
 [kentjuno/ainovel-cli](https://github.com/kentjuno/ainovel-cli) at commit `68eb92d` — thanks
 for their localisation work.
 
+### Reference projects
+
+- [voocel/agentcore](https://github.com/voocel/agentcore) — the agent runtime the engine uses (a dependency).
+- [voocel/litellm](https://github.com/voocel/litellm) — the model-provider layer; the modified copy lives in `third_party/litellm`.
+- [LingoReup Desktop](https://github.com/huuhoa143/LingoReupDesktopApp) — the Electron + sidecar shell and the release / signing / notarisation pipeline in `desktop/` were adapted from it (same author).
+- [manaflow-ai/cmux](https://github.com/manaflow-ai/cmux) — origin of the build → sign → notarise → staple release pattern that pipeline follows.
+
 ## Legal & community
 
 - [Privacy policy](PRIVACY.md#english) — what the app sends, what it stores, how to delete it

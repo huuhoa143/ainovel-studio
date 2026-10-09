@@ -36,6 +36,18 @@ Acknowledgements
 The initial Vietnamese translation memory was based on kentjuno/ainovel-cli
 (https://github.com/kentjuno/ainovel-cli) at commit 68eb92d.
 
+Reference projects (ideas and patterns studied; no code copied unless noted):
+
+  voocel/agentcore  https://github.com/voocel/agentcore
+    Agent runtime used by the engine (a Go module dependency; its license is
+    listed in THIRD_PARTY_NOTICES.md).
+  LingoReup Desktop  https://github.com/huuhoa143/LingoReupDesktopApp
+    The Electron sidecar shell, release, signing and notarisation pipeline in
+    desktop/ was adapted from LingoReup's desktop app by the same author.
+  manaflow-ai/cmux  https://github.com/manaflow-ai/cmux
+    Origin of the inline build -> sign -> notarise -> staple release pattern
+    that the LingoReup pipeline (and therefore desktop/scripts) follows.
+
 The packaged desktop application also bundles third-party components (Go
 modules, npm packages, fonts, Electron and Chromium), each under its own
 license. Their notices are listed in THIRD_PARTY_NOTICES.md, which is

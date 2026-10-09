@@ -15,7 +15,7 @@ cảnh báo nào ngoài SmartScreen một lần trên Windows.
 
 | Mục | Chốt |
 |---|---|
-| Khung | Electron + Electron Forge + Vite, giống lingoreup (`/Users/robin/Personal/reclip/VideoCaptionerSystem/lingoreup`) |
+| Khung | Electron + Electron Forge + Vite, giống lingoreup (`~/Personal/reclip/VideoCaptionerSystem/lingoreup`) |
 | Nền tảng | macOS arm64 + x64 (DMG + ZIP), Windows x64 (NSIS). Không Linux |
 | Ký | macOS: `Developer ID Application: Chien Bui Minh (CCQUC3AGRH)`, notarize bằng keychain profile `LINGOREUP_NOTARIZE`. Windows: chưa ký |
 | Code | `desktop/` trong repo này. Dùng `npm` (giống `web/`), không pnpm |

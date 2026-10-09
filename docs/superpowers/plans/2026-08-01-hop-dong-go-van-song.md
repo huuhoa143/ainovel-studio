@@ -1509,7 +1509,7 @@ Expected: `PASS`
 
 Run: `cd web && npx tsc --noEmit`
 Expected: 0 lỗi. Nếu `node_modules` thiếu trong worktree:
-`ln -s /Users/robin/Personal/ainovel-cli/web/node_modules web/node_modules`
+`ln -s ~/Personal/ainovel-cli/web/node_modules web/node_modules`
 
 - [x] **Step 5: Commit**
 

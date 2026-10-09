@@ -1952,8 +1952,8 @@ thật là Task 16 và **không** thay được bằng cái này.
 | tương phản AA | **219 phần tử đo được · 0 vi phạm** ở 1440; **263 · 0** ở 390. Thấp nhất 4,66:1 |
 
 Ảnh chụp:
-`/Users/robin/Personal/reclip/VideoCaptionerSystem/.playwright-mcp/buonglai-1440.png` ·
-`/Users/robin/Personal/reclip/VideoCaptionerSystem/.playwright-mcp/buonglai-390.png` ·
+`~/Personal/reclip/VideoCaptionerSystem/.playwright-mcp/buonglai-1440.png` ·
+`~/Personal/reclip/VideoCaptionerSystem/.playwright-mcp/buonglai-390.png` ·
 `…/buonglai-1440-ngucanh.png` (cột phải ở chế độ chi tiết chương).
 
 **Phép đo tương phản đầu tiên của tôi VÔ GIÁ TRỊ, và đó là bài học đáng ghi nhất của mục

@@ -648,6 +648,13 @@ Phần fork thêm vào so với upstream:
 
 Bản dịch ban đầu tham khảo [kentjuno/ainovel-cli](https://github.com/kentjuno/ainovel-cli) tại commit `68eb92d` — cảm ơn công sức việt hóa của họ.
 
+### Dự án tham khảo
+
+- [voocel/agentcore](https://github.com/voocel/agentcore) — runtime tác tử mà engine dùng (thư viện phụ thuộc).
+- [voocel/litellm](https://github.com/voocel/litellm) — lớp gọi nhà cung cấp model; bản sửa nằm ở `third_party/litellm`.
+- [LingoReup Desktop](https://github.com/huuhoa143/LingoReupDesktopApp) — vỏ Electron + sidecar và quy trình phát hành, ký, notarize trong `desktop/` được chuyển thể từ đây (cùng tác giả).
+- [manaflow-ai/cmux](https://github.com/manaflow-ai/cmux) — gốc của mẫu phát hành build → ký → notarize → staple mà quy trình trên theo.
+
 ## Pháp lý & cộng đồng
 
 - [Chính sách quyền riêng tư](PRIVACY.md) — app gửi gì ra mạng, lưu gì trên máy, xóa thế nào

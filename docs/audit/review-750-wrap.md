@@ -283,7 +283,7 @@ không phải một dòng lỗi.
 Overlay không sửa file nào trong repo:
 
 ```bash
-cd /Users/robin/Personal/ainovel-cli
+cd ~/Personal/ainovel-cli
 python3 - <<'EOF'
 import json, os, subprocess
 root = os.getcwd()
