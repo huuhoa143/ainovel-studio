@@ -1,18 +1,18 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 
 import { BangChuong, GhiChuChiPhi } from '@/components/BangChuong';
-import { KeoBan, KeoTruc } from '@/components/KeoBan';
 import { MucXem } from '@/components/MucXem';
 import { DongSuKien, NhatKy } from '@/components/NhatKy';
 import { OCanThiep } from '@/components/OCanThiep';
 import { Truc } from '@/components/Truc';
+import { TD } from '@/lib/chu/tien-do';
 import { useVuaCoTin } from '@/lib/dauDoi';
-import { useCoBan } from '@/lib/keoBan';
 import { so } from '@/lib/dinhdang';
 import type { Khu } from '@/lib/khu';
-import { CHU, GIAI_THICH, nhanPhamViXem, nhanPhase } from '@/lib/nhan';
+import { phatHienKet } from '@/lib/loiLlm';
+import { CHU, GIAI_THICH, nhanPhamViXem, nhanPhase, DH } from '@/lib/nhan';
 import {
   type MucXem as Muc,
   type PhamVi,
@@ -22,17 +22,18 @@ import {
   vieccTonBiAn,
 } from '@/lib/phamVi';
 import { mayDangChay } from '@/lib/song';
-import type { Snapshot } from '@/lib/types';
+import type { ChapterRow, Snapshot } from '@/lib/types';
 import type { CongDoanSong } from '@/lib/useStudio';
 import type { BoDemVan } from '@/lib/vanSong';
 
 import { CuaNghiemThu } from './CuaNghiemThu';
 import { DaiTrangThai } from './DaiTrangThai';
+import { PhienNay, TheDangLam } from './TheDangLam';
 import { VanSong } from './VanSong';
 import { ViecTiepTheo } from './ViecTiepTheo';
 
 /**
- * BUỒNG LÁI — bề mặt `?khu=dong-san-xuat`.
+ * BUỒNG LÁI — bề mặt `?khu=dong-san-xuat`, tên hiển thị "Tiến độ".
  *
  * # Vì sao ĐỔI dải chứ không hiện cả hai
  *
@@ -45,87 +46,34 @@ import { ViecTiepTheo } from './ViecTiepTheo';
  * hai là hai lượt chạy — tiền đôi vì một chi tiết giao diện. Đó là lý do `ViecTiepTheo` chỉ
  * điều hướng chứ không chạy engine, và là lý do nó biến mất hẳn khi máy đang chạy.
  *
- * # Vì sao cả thân `Canvas` chuyển vào đây
+ * # Bố cục: một thẻ điểm nhấn, rồi các thẻ bằng chứng
  *
- * `page.tsx` đã 509 dòng và giữ hai việc khác hẳn nhau: định tuyến mười sáu khu, và dựng bề
- * mặt của MỘT khu. Bề mặt đó là bề mặt lớn nhất và là bề mặt đang được dựng lại, nên nó tiếp
- * tục phình trong khi mười lăm khu kia đứng yên. Sau bước này `page.tsx` chỉ còn định tuyến.
+ * Bản trước là một khung đứng yên chia bốn ô bằng ba thanh kéo. Nó giải đúng bài toán chiều
+ * cao, nhưng mọi ô cùng sức nặng nên mắt không biết bắt đầu từ đâu, và ô rỗng vẫn giữ nguyên
+ * diện tích của nó. Bản này đi theo mẫu `.impeccable/mocks/huong2.png`:
  *
- * # Cấu trúc: hai khối, và khối dưới là BÀN CHIA Ô
+ *   ┌──────────────────────────────────────┬───────────────┐
+ *   │ ĐANG LÀM — trạng thái · chương ·     │ Phiên này     │   ← điểm nhấn
+ *   │ năm bước · trục toàn truyện          │ (khóa–giá trị)│
+ *   ├──────────────────────────────────────┴───────────────┤
+ *   │ Văn đang viết — khối serif khi có chữ, một dòng khi chưa │
+ *   ├──────────────────────────┬───────────────────────────┤
+ *   │ Chương gần đây           │ Diễn biến                 │   ← bằng chứng
+ *   ├──────────────────────────┴───────────────────────────┤
+ *   │ Nhật ký quyết định                                   │
+ *   └──────────────────────────────────────────────────────┘
+ *     Góp ý — ghim đáy, không cuộn đi mất
  *
- * `.bltren` (đầu trang · dải · cảnh báo) cao theo nội dung; `.blgiua` nhận phần cao còn lại
- * và chia làm ba hàng: trục sản xuất · bàn · ô can thiệp.
+ * Trang cuộn được; chỉ ô góp ý ghim đáy. Mỗi thẻ có trần chiều cao riêng và tự cuộn bên
+ * trong, nên không thẻ nào đẩy được thẻ khác ra khỏi tầm mắt — và thẻ rỗng thu về đúng chiều
+ * cao câu nói của nó thay vì giữ một khoảng trắng lớn.
  *
- * Bọc ba khối trên vào `.bltren` chứ không để chúng làm ba hàng của lưới: khối cảnh báo là
- * CÓ ĐIỀU KIỆN, nên với một lưới khai cứng số hàng thì cuốn có cảnh báo và cuốn không có
- * cảnh báo sẽ đọc lệch nhau một hàng — hàng `1fr` rơi vào khối cảnh báo và cột giữa bị đẩy
- * xuống một hàng ngầm định. Dải quyết định của cửa nghiệm thu là khối CÓ ĐIỀU KIỆN thứ hai
- * của `.bltren`, và nó vào được đúng nhờ luật đó.
- *
- * # Vì sao BÀN CHIA Ô thay cho lưới bốn hàng
- *
- * Bản trước xếp BỐN vùng lên MỘT trục dọc: trục · văn sống · một khu cuộn chứa ba mục nối
- * đuôi · ô can thiệp. ĐO ĐƯỢC ở 1512×900 (canvas 1026×709, cột giữa 574px):
- *
- *   trục sản xuất  120px, cần 169px  → 71%, ba lane bị cắt và phải cuộn trong khe của nó
- *   văn sống       250px, cần ∞
- *   khu cuộn       125px, cần 2.666px → 4,7%
- *   ô can thiệp     79px, cần  79px  → vừa
- *
- * Trong khe 125px ấy: dòng sự kiện cao 98px, bảng chương bắt đầu ở offset 98 và cao 1.951px
- * nên hiện ĐÚNG 0 hàng, nhật ký phán quyết bắt đầu ở offset 2.049 nên không bao giờ tới.
- * Người dùng nói nguyên văn: *"Dòng sự kiện và Chương đang bị ở dưới dẫn đến rất ít khi
- * scroll xuống"*.
- *
- * Đây KHÔNG phải lỗi tỉ lệ, và đó là điều quan trọng nhất ở đây: chia lại bốn hàng theo cách
- * nào cũng vẫn là bốn vùng trên một trục dọc. Cột giữa là một hình CHỮ NHẬT NẰM NGANG
- * (1026×574) đang bị dùng như một cột dọc — và 1026px cho một cột chữ mono 12px là 120 ký tự
- * một dòng, rộng hơn khổ đọc 74ch mà chính DESIGN.md đặt ra. Bề rộng thừa là thứ trả tiền
- * cho chiều cao thiếu.
- *
- * Nên hai hàng giữa gộp lại thành một bàn 2×2, và CẢ HAI trục của bàn đều mang nghĩa:
- *
- *      trục ngang = HÌNH DẠNG nội dung        trục dọc = THỜI GIAN
- *      ┌────────────────────────┬──────────────────────┐
- *      │ Máy đang nói           │ Dòng sự kiện         │  đang xảy ra
- *      ├────────────────────────┼──────────────────────┤
- *      │ Chương                 │ Nhật ký phán quyết   │  đã ghi vào store
- *      └────────────────────────┴──────────────────────┘
- *        văn xuôi + bảng          dòng có mốc giờ
- *        (cần bề rộng)            (hẹp tự nhiên)
- *
- * Thứ tự quét mắt trùng thứ tự ba câu hỏi của PRODUCT.md: trên-trái trả lời "dây chuyền còn
- * chạy đúng không", dưới-trái trả lời "chất lượng có tuột không", cột phải là bằng chứng của
- * cả hai. Đo lại sau khi đổi: 100% · 2% · 54% · 6% · 8% — bốn vùng đọc được cùng lúc thay vì
- * hai vùng và hai con số không.
- *
- * Một phương án ba cột đã được dựng và LOẠI (`docs/design/explorations/buong-lai/`): ở 1026px
- * nó cho ba khe 380/265/380, và cả ba đều dưới sàn — mỗi `summary` của dòng sự kiện xuống ba
- * dòng, bảng chương mất hai cột cuối. Cột hẹp đi thì khối chữ CAO LÊN, nên hẹp không đổi lấy
- * gọn, nó đổi lấy tệ hơn.
- *
- * # Vì sao dải quyết định đứng TRÊN dải trạng thái
- *
- * Thứ tự ở đây là nội dung, không phải trang trí: "dây chuyền đang chờ BẠN" là một VIỆC PHẢI
- * LÀM, còn "dây chuyền đang làm gì" là tin để ngó. Một dải nói việc phải làm mà đứng dưới một
- * dải nói tình hình là đảo đúng thứ tự người vận hành cần đọc.
- *
- * Nó ăn thêm chiều cao của `.bltren`, và mọi khối `auto` ở đây đã bị nén để nhường chỗ cho khu
- * văn sống (xem chú thích cạnh `grid-template-rows` của `.blgiua`). Đổi đó chấp nhận được vì
- * dải chỉ hiện khi engine ĐANG ĐỨNG CHỜ — tức đúng lúc không có chữ nào chảy để mà xem.
- *
- * # Chỗ lệch khỏi spec §7.2, ghi ra để người sau khỏi tưởng là quên
- *
- * Spec vẽ dải trạng thái trải qua CẢ cột phải (`areas: 'rail band band'`), tức nó là một ô
- * của lưới ứng dụng chứ không của bề mặt. Ở đây dải nằm TRONG buồng lái nên nó chỉ trải hết
- * bề rộng cột giữa. Đưa nó lên tầng `.khung` đòi `page.tsx` phải tự biết bề mặt nào có dải —
- * tức trả lại cho `page.tsx` đúng việc bước này vừa lấy đi, và tách luật đổi dải ra khỏi
- * component mang luật đó.
+ * Thứ tự DOM là thứ tự đọc: cửa duyệt (việc PHẢI làm) → cảnh báo → thẻ đang làm → bằng chứng.
+ * "Dây chuyền đang chờ BẠN" đứng trước "dây chuyền đang làm gì".
  */
 export function BuongLai({
   snapshot,
   tacPham,
-  choGhi,
   chuongChon,
   onChonChuong,
   onChonKhu,
@@ -139,8 +87,6 @@ export function BuongLai({
 }: {
   snapshot: Snapshot;
   tacPham: string | undefined;
-  /** undefined = chưa biết (đang hỏi `/api/config`) — xem `useMay`. Dải quyết định đọc nó. */
-  choGhi: boolean | undefined;
   chuongChon: number | undefined;
   onChonChuong: (n: number) => void;
   onChonKhu: (k: Khu) => void;
@@ -164,18 +110,9 @@ export function BuongLai({
   onDoi: () => void;
   suKien: Parameters<typeof DongSuKien>[0]['suKien'];
   /**
-   * Công đoạn suy từ dòng SSE.
-   *
-   * Hôm nay không ai đọc nó trên đường này: `ViecTiepTheo` chỉ dùng `song` bên trong khối
-   * `DangLam`, mà khối đó chỉ vẽ khi `dangChay` — tức đúng ca dải này KHÔNG hiện. Luật đổi
-   * dải làm `DangLam` không tới được TỪ ĐÂY, và việc của nó ("ai · bước nào · chương nào")
-   * giờ do `DaiTrangThai` làm, đầy đủ hơn.
-   *
-   * Vẫn giữ, và đây là quyết định có lý do chứ không phải quán tính: `ViecTiepTheo` đổi
-   * CẢ câu trạng thái lẫn khối `DangLam` theo `dangChay`, nên bỏ riêng `DangLam` để lại một
-   * component phản ứng nửa vời với chính cờ của nó. Thay vì thế, hợp đồng của `ViecTiepTheo`
-   * được canh ở ranh giới CỦA NÓ (`ViecTiepTheo.test.tsx`) — nhánh đó có bài kiểm, chỉ là
-   * hôm nay không có người gọi nào đi vào.
+   * Công đoạn suy từ dòng SSE. Thẻ "đang làm" đọc nó để biết bước NÀO đang chạy — thứ
+   * `transport.last_step` không biết (nó chỉ biết bước vừa xong). `ViecTiepTheo` cũng nhận
+   * nó, dù nhánh dùng nó (`DangLam`) chỉ vẽ khi máy chạy, tức đúng ca dải đó không hiện.
    */
   song: CongDoanSong | undefined;
   /** Chữ model đang sinh ra. Đường riêng, không đi qua `suKien` — xem lib/dongSuKien.ts. */
@@ -187,43 +124,27 @@ export function BuongLai({
   const canhBao = snapshot.warnings ?? [];
 
   /**
-   * Bốn cờ "ô này đang có tin", lái viền chạy của bàn.
+   * Bốn cờ "thẻ này đang có tin", bật một chấm vàng cạnh tiêu đề thẻ.
    *
-   * Mỗi ô đọc một NGUỒN KHÁC nhau, và đó là cả điểm của cụm này: một cờ chung suy từ
-   * `dangChay` sẽ cho bốn ô cùng chạy viền suốt lúc engine bật, tức bốn viền chạy nói đúng
-   * một điều mà thanh transport đã nói rồi. Cái người vận hành cần biết là ô NÀO vừa động —
-   * để mắt đi thẳng tới đó thay vì quét cả bốn.
+   * Mỗi thẻ đọc một NGUỒN KHÁC nhau, và đó là cả điểm của cụm này: một cờ chung suy từ
+   * `dangChay` sẽ cho bốn thẻ cùng nhấp suốt lúc engine bật, tức nói đúng một điều mà thanh
+   * dưới đã nói rồi. Cái người vận hành cần biết là thẻ NÀO vừa động.
    *
-   * Giá trị truyền vào phải đổi ĐÚNG lúc có tin thật, không đổi theo nhịp nạp:
-   *
-   *   · văn sống  — `vanSong` là object mới ở mỗi mẩu chữ (`themChu` trả bản sao), nên
-   *                 chính nó là tín hiệu. Nhịp delta trung vị 2ms; `useVuaCoTin` gom cả
-   *                 tràng thành một cửa sổ, xem chú thích của nó.
+   *   · văn sống  — `vanSong` là object mới ở mỗi mẩu chữ, nên chính nó là tín hiệu.
    *   · sự kiện   — `seq` của mục MỚI NHẤT, không phải `suKien.length`: danh sách bị kẹp ở
-   *                 `GIU_SU_KIEN = 40`, nên khi đã đầy thì độ dài đứng im mãi mãi trong
-   *                 khi sự kiện vẫn về. Một cờ đọc độ dài sẽ chết đúng lúc dây chuyền bận
-   *                 nhất.
-   *   · chương    — `vuaChot` của họ 09, tập chương VỪA chuyển sang `done`. Không đọc
-   *                 `snapshot.chapters`: mảng đó được thay nguyên cụm mỗi 1,5s dù không ô
-   *                 nào đổi, nên nó là nhịp NẠP chứ không phải tin. Dùng `vuaChot` còn cho
-   *                 ô bảng nhập vào đúng dàn đồng thanh của họ 10 — vạch trên lane, chip ở
-   *                 rail, tiến độ ở thanh trên, và giờ là viền của ô bảng, cùng một sự kiện.
-   *   · phán quyết — chữ ký hai đầu cộng độ dài. Hai đầu chứ không một, vì hợp đồng không
-   *                 hứa thứ tự: log mọc ở đầu hay ở cuối đều làm chữ ký này đổi.
+   *                 `GIU_SU_KIEN = 40`, nên khi đã đầy thì độ dài đứng im mãi mãi.
+   *   · chương    — `vuaChot` của họ 09, không phải `snapshot.chapters` (mảng đó được thay
+   *                 nguyên cụm mỗi 1,5s dù không ô nào đổi — nhịp NẠP, không phải tin).
+   *   · quyết định — chữ ký hai đầu cộng độ dài, vì hợp đồng không hứa thứ tự.
    */
-  /**
-   * Cỡ bàn do người dùng kéo, cộng phần tử bàn để hai thanh chia đo lên nó.
-   *
-   * `ref` chứ không truy vấn DOM bằng selector: buồng lái có ĐÚNG một `.blsan`, nhưng bộ kiểm
-   * dựng nhiều bản cùng lúc trong một `document`, và `querySelector` ở đó bắt phải bản của
-   * bài trước.
-   */
-  const banRef = useRef<HTMLDivElement>(null);
-  const giuaRef = useRef<HTMLDivElement>(null);
-  const { co, datCo, datLai } = useCoBan();
-
   const dsPhanQuyet = snapshot.decisions ?? [];
   const oSongVanSong = useVuaCoTin(vanSong);
+  // Tên nhà cung cấp để câu lỗi nói đúng nơi hỏng ("lingoreup không còn model…").
+  const ncc = snapshot.transport.last_call?.provider;
+  const ket = dangChay ? phatHienKet(suKien, { ncc }) : undefined;
+  // Lượt rỗng (mở lượt rồi lỗi, chưa sinh chữ nào) không phải "văn" — đếm nó là vẽ một khung
+  // "Đoạn viết gần nhất" trống trơn lúc máy nghỉ.
+  const coChu = vanSong.luot.some((l) => l.chu.trim().length > 0);
   const oSongSuKien = useVuaCoTin(suKien[0]?.seq ?? 0);
   const oSongChuong = vuaChot.size > 0;
   const oSongNhatKy = useVuaCoTin(
@@ -242,201 +163,219 @@ export function BuongLai({
   const hang = locHang(snapshot.chapters, pv);
   const an = soHangAn(snapshot.chapters, pv);
   const ton = vieccTonBiAn(snapshot.chapters, pv);
+  const [moHet, datMoHet] = useState(false);
+  const bang = bangGon(hang, chuongChon, moHet);
 
   return (
     <main className="canvas buonglai" id="dong-san-xuat">
-      <div className="bltren">
-        <div className="head">
-          <h1>{CHU.dongSanXuat}</h1>
-          <span className="sub">{motTa(snapshot)}</span>
-          {phanTang ? (
-            <MucXem timeline={snapshot.timeline} hienTai={muc} onChon={setMucMuon} />
-          ) : null}
-        </div>
-
-        {/* Dải quyết định đứng TRƯỚC cả hai dải kia: nó là tin cấp cao hơn — "dây chuyền đang
-            chờ BẠN" đứng trước "dây chuyền đang làm gì". Nó tự trả `null` khi không có cửa nào
-            chờ, nên ở đây không có điều kiện nào: luật "cửa nào là cửa đang chờ" chỉ có MỘT chỗ
-            giữ (`lib/nghiemThu.ts`), và người nối dây không có cơ hội tính sai nó. */}
-        <CuaNghiemThu
-          advance={snapshot.advance}
-          runtime={snapshot.runtime}
-          tacPham={tacPham}
-          choGhi={choGhi}
-          dangChay={dangChay}
-          onDoi={onDoi}
-        />
-
-        {/* Dải đứng NGAY dưới đầu trang, trên cả cảnh báo dữ liệu lệch.
-            Hai loại tin khác nhau: dải này trả lời "máy đang làm gì" (lúc chạy) hoặc "giờ
-            tôi làm gì" (lúc nghỉ), còn cảnh báo trả lời "cái gì đang không ổn". Câu thứ
-            nhất là câu người dùng mang theo lúc mở trang, nên nó đứng trước — và một cuốn
-            có cảnh báo thì dải vẫn nói được việc tiếp theo. */}
-        {dangChay ? (
-          <DaiTrangThai snapshot={snapshot} />
-        ) : (
-          <ViecTiepTheo
-            snapshot={snapshot}
-            dangChay={dangChay}
-            song={song}
-            onChonKhu={onChonKhu}
-            onDocChuong={onDocChuong}
-          />
-        )}
-
-        {/* Dữ liệu lệch là tin vận hành, không phải chi tiết nội bộ — hiện ngay
-            dưới đầu trang thay vì nuốt đi. */}
-        {canhBao.length > 0 ? (
-          <section className="canhbao" aria-label={GIAI_THICH.duLieuLech}>
-            <h2>
-              <span aria-hidden="true">■</span>
-              {GIAI_THICH.duLieuLech} · {canhBao.length}
-            </h2>
-            <ul>
-              {canhBao.map((c, i) => (
-                <li key={i}>{c}</li>
-              ))}
-            </ul>
-          </section>
+      <div className="head">
+        <h1>{DH.tienDo}</h1>
+        <span className="sub">{motTa(snapshot)}</span>
+        {phanTang ? (
+          <MucXem timeline={snapshot.timeline} hienTai={muc} onChon={setMucMuon} />
         ) : null}
       </div>
 
-      <div
-        className="blgiua"
-        ref={giuaRef}
-        style={
-          (co.truc !== undefined ? { '--bl-truc': `${co.truc}px` } : undefined) as
-            | React.CSSProperties
-            | undefined
-        }
-      >
-        {/* Hàng 1 — dải trục mảnh, TRẢI hết bề rộng bàn. TUI không có nó; giữ vì một cuốn 113
-            chương cần thấy hình dạng cả cuốn trong một cái nhìn (spec §7.2). Trải hết bề rộng
-            chứ không vào một ô của bàn: nó là thứ DUY NHẤT ở đây nói về cả tác phẩm, và một
-            trục bị bó vào nửa bề rộng thì mất chính cái nó vẽ ra. Tiêu đề đứng CẠNH trục chứ
-            không trên nó: hàng này cao có hạn, không đủ chỗ cho hai dòng. */}
-        <div className="bltruc">
-          <h2>{CHU.trucSanXuat}</h2>
-          <Truc
-            timeline={snapshot.timeline}
-            capabilities={snapshot.capabilities}
-            chuongChon={chuongChon}
-            onChonChuong={onChonChuong}
-            vuaChot={vuaChot}
+      <div className="tdCuon">
+        <div className="tdTrang">
+          {/* Cửa duyệt đứng TRƯỚC mọi thứ: "dây chuyền đang chờ BẠN" là một việc phải làm.
+              Nó tự trả `null` khi không có cửa nào chờ, nên ở đây không có điều kiện nào:
+              luật "cửa nào là cửa đang chờ" chỉ có MỘT chỗ giữ (`lib/nghiemThu.ts`). */}
+          <CuaNghiemThu
+            advance={snapshot.advance}
+            runtime={snapshot.runtime}
+            stop={snapshot.stop}
+            tacPham={tacPham}
+            soChuongXong={snapshot.book.completed_chapters}
+            onDoi={onDoi}
           />
-        </div>
 
-        {/* Thanh chia thứ ba, giữa trục và bàn. Đứng ngay sau trục trong DOM vì đó đúng là
-            ranh giới nó chia — thứ tự Tab đi qua nó ở đúng chỗ mắt thấy nó. */}
-        <KeoTruc giuaRef={giuaRef} co={co} datCo={datCo} datLai={datLai} />
+          {/* Dữ liệu lệch là tin vận hành, không phải chi tiết nội bộ — hiện ra, không nuốt.
+              Gọn về một dòng có số đếm; danh sách mở ra khi cần, vì một tệp bản thảo thiếu
+              không được phép đẩy cả màn xuống. */}
+          {canhBao.length > 0 ? (
+            <details className="canhbao" aria-label={GIAI_THICH.duLieuLech}>
+              <summary>
+                <span className="ky" aria-hidden="true">
+                  ■
+                </span>
+                <span className="cbCau">{TD.canhBao(canhBao.length)}</span>
+                <span className="cbMo">{TD.xemCanhBao}</span>
+              </summary>
+              <ul>
+                {canhBao.map((c, i) => (
+                  <li key={i}>{c}</li>
+                ))}
+              </ul>
+            </details>
+          ) : null}
 
-        {/* Hàng 2 — BÀN CHIA Ô. Bốn ô cùng một khuôn `.blo`: đầu ô cố định, thân ô tự cuộn.
-            Xem sơ đồ và phép đo ở chú thích đầu tệp.
-
-            Thứ tự DOM là thứ tự ĐỌC, không phải thứ tự vẽ: trên-trái → trên-phải → dưới-trái
-            → dưới-phải. Lưới đặt chúng đúng chỗ bằng `grid-area`, nên thứ tự Tab và thứ tự
-            trình đọc màn hình trùng thứ tự mắt — và khi bàn gập về một cột ở canvas hẹp thì
-            không có gì phải sắp lại. */}
-        <div
-          className="blsan"
-          ref={banRef}
-          // Hai biến này là cỡ NGƯỜI DÙNG đã kéo. Vắng mặt (chưa kéo bao giờ) thì `var()`
-          // trong `globals.css` rơi về mặc định của bố cục — nên bàn chưa-kéo và bàn
-          // đã-đặt-lại đi qua đúng một đường, không có nhánh nào riêng.
-          style={
-            {
-              ...(co.cot !== undefined ? { '--bl-phai': `${co.cot}%` } : null),
-              ...(co.hang !== undefined ? { '--bl-tren': `${co.hang}fr` } : null),
-            } as React.CSSProperties
-          }
-        >
-          <KeoBan banRef={banRef} co={co} datCo={datCo} datLai={datLai} />
-          {/* Ô 1 · trên-trái — khu văn sống. `.vansong` tự mang đầu ô (`.vshead`) và thân ô
-              (`.vsthan`) từ trước, nên nó KHÔNG được bọc thêm một `.blodau` nữa; CSS cho nó
-              `display: contents` để hai khối ấy làm hai hàng của chính ô. */}
-          <div className={`blo blo-song${oSongVanSong ? ' dangSong' : ''}`}>
-            <VanSong boDem={vanSong} dangChay={dangChay} />
+          <div className="tdHangDau">
+            <TheDangLam
+              snapshot={snapshot}
+              song={song}
+              dangChay={dangChay}
+              ket={ket}
+              suKien={suKien}
+              onChonKhu={onChonKhu}
+              viec={
+                dangChay ? null : (
+                  <ViecTiepTheo
+                    snapshot={snapshot}
+                    dangChay={dangChay}
+                    song={song}
+                    onChonKhu={onChonKhu}
+                    onDocChuong={onDocChuong}
+                  />
+                )
+              }
+              truc={
+                <Truc
+                  timeline={snapshot.timeline}
+                  capabilities={snapshot.capabilities}
+                  chuongChon={chuongChon}
+                  onChonChuong={onChonChuong}
+                  vuaChot={vuaChot}
+                  dangChay={dangChay}
+                />
+              }
+              chiTiet={dangChay ? <DaiTrangThai snapshot={snapshot} /> : null}
+            />
+            <PhienNay snapshot={snapshot} />
           </div>
 
-          {/* Ô 2 · trên-phải — dòng sự kiện.
-              `id` để dải việc tiếp theo cuộn tới được — xem `DangLam` trong ViecTiepTheo.tsx. */}
-          <section
-            className={`blo blo-sukien${oSongSuKien ? ' dangSong' : ''}`}
-            id="dong-su-kien"
+          {/* Văn đang viết: khối đọc được khi có chữ, MỘT dòng gợi ý khi máy chạy mà chưa có
+              chữ. Lúc nghỉ và bộ đệm rỗng thì không vẽ gì: thẻ đang làm đã nói "bấm Viết tiếp",
+              một dải gạch đứt nhắc lại câu đó chỉ là thêm một thứ để đọc. */}
+          {dangChay || coChu ? (
+          <div
+            className={`tdVan${coChu ? '' : ' rong'}${
+              oSongVanSong ? ' dangSong' : ''
+            }`}
           >
-            <div className="blodau">
-              <h2>
-                Dòng sự kiện · <span className="phu">trực tiếp từ engine</span>
-              </h2>
-              {/* Số đếm là MẪU SỐ của thứ đang cuộn bên dưới, cùng luật với dải tổng của màn
-                  Quản lý: một ô cao 174px chứa nhiều hơn thế phải nói ra còn bao nhiêu nữa.
-                  `GIU_SU_KIEN` là 40, nên con số này có trần và không bao giờ là cả lịch sử. */}
-              <span className="dem">{CHU.soDongSuKien(suKien.length)}</span>
-            </div>
-            <div className="blothan">
-              <DongSuKien suKien={suKien} dangChay={dangChay} />
-            </div>
-          </section>
+            <VanSong boDem={vanSong} dangChay={dangChay} />
+          </div>
+          ) : null}
 
-          {/* Ô 3 · dưới-trái — bảng chương. Ô rộng vì bảng có sáu cột và cột "Tiêu đề" mang
-              tên chương tiếng Việt; ở dưới ~450px nó ngắt hai dòng ở mọi hàng. */}
-          <section className={`blo blo-chuong${oSongChuong ? ' dangSong' : ''}`}>
-            <div className="blodau">
-              <h2>{tieuDeBang(pv)}</h2>
-              <span className="dem">{CHU.soChuongTrongBang(hang.length)}</span>
-            </div>
-            <div className="blothan">
-              <BangChuong
-                rows={hang}
-                capabilities={snapshot.capabilities}
-                chuongChon={chuongChon}
-                onChon={onChonChuong}
-                dangChay={mayDangChay(snapshot)}
-                khiTrong={
-                  snapshot.chapters.length > 0 ? GIAI_THICH.bangTrongPhamVi : undefined
-                }
-              />
-              <NgoaiPhamVi pv={pv} an={an} ton={ton} onBoLoc={() => setMucMuon('chuong')} />
-              <GhiChuChiPhi capabilities={snapshot.capabilities} />
-            </div>
-          </section>
+          <div className="tdLuoi">
+            {/* Chương mới nhất đứng trên: ở một cuốn 700 chương, thứ người dùng cần là mấy
+                chương vừa xong, không phải chương 1. Chương đang viết và cần viết lại thì
+                LUÔN hiện dù nằm ở đâu — việc tồn không được rơi khỏi tầm mắt vì một phép cắt. */}
+            <section className={`the tdO tdO-chuong${oSongChuong ? ' dangSong' : ''}`}>
+              <div className="tdODau">
+                <h2>{tieuDeBang(pv)}</h2>
+                <span className="dem">{CHU.soChuongTrongBang(hang.length)}</span>
+              </div>
+              <div className="tdOThan">
+                <BangChuong
+                  rows={bang.hien}
+                  capabilities={snapshot.capabilities}
+                  chuongChon={chuongChon}
+                  onChon={onChonChuong}
+                  dangChay={mayDangChay(snapshot)}
+                  khiTrong={
+                    snapshot.chapters.length > 0 ? GIAI_THICH.bangTrongPhamVi : undefined
+                  }
+                />
+                {bang.conAn > 0 || moHet ? (
+                  <button
+                    type="button"
+                    className="tdThem"
+                    aria-expanded={moHet}
+                    onClick={() => datMoHet((v) => !v)}
+                  >
+                    {moHet ? TD.thuGon : TD.hienThem(bang.conAn)}
+                  </button>
+                ) : null}
+                <NgoaiPhamVi pv={pv} an={an} ton={ton} onBoLoc={() => setMucMuon('chuong')} />
+                <GhiChuChiPhi capabilities={snapshot.capabilities} />
+              </div>
+            </section>
 
-          {/* Ô 4 · dưới-phải — nhật ký phán quyết. */}
+            {/* `id` để dải việc tiếp theo cuộn tới được — xem `DangLam` trong ViecTiepTheo.tsx. */}
+            <section
+              className={`the tdO tdO-sukien${oSongSuKien ? ' dangSong' : ''}`}
+              id="dong-su-kien"
+            >
+              <div className="tdODau">
+                <h2>{DH.dongSuKien}</h2>
+                <span className="dem">{CHU.soDongSuKien(suKien.length)}</span>
+              </div>
+              <div className="tdOThan">
+                <DongSuKien suKien={suKien} dangChay={dangChay} ncc={ncc} />
+              </div>
+            </section>
+          </div>
+
           <section
-            className={`blo blo-nhatky${oSongNhatKy ? ' dangSong' : ''}`}
+            className={`the tdO tdO-nhatky${oSongNhatKy ? ' dangSong' : ''}`}
             id="nhat-ky-phan-quyet"
           >
-            <div className="blodau">
+            <div className="tdODau">
               <h2>
-                {CHU.nhatKyPhanQuyet} · <span className="phu">Arbiter</span>
+                {DH.nhatKy} <span className="phu">{DH.nhatKyPhu}</span>
               </h2>
-              <span className="dem">
-                {CHU.soPhanQuyet(snapshot.decisions?.length ?? 0)}
-              </span>
+              <span className="dem">{CHU.soPhanQuyet(dsPhanQuyet.length)}</span>
             </div>
-            <div className="blothan">
+            <div className="tdOThan">
               <NhatKy decisions={snapshot.decisions} />
             </div>
           </section>
         </div>
+      </div>
 
-        {/* Hàng 3 — ô can thiệp ghim đáy, đúng chỗ dòng nhập của TUI. Nó KHÔNG cuộn đi mất:
-            can thiệp là việc người vận hành làm giữa lúc đang đọc chữ chảy, và bắt họ cuộn
-            đi tìm ô nhập là bắt họ rời mắt khỏi thứ họ đang can thiệp vào. */}
-        <div className="blcanthiep">
-          <h2>
-            {CHU.canThiep} · <span className="phu">nói vào dây chuyền đang chạy</span>
-          </h2>
-          <OCanThiep
-            capabilities={snapshot.capabilities}
-            tacPham={tacPham}
-            dangChay={dangChay}
-            onDoi={onDoi}
-          />
-        </div>
+      {/* Ô góp ý ghim đáy, đúng chỗ dòng nhập của TUI. Nó KHÔNG cuộn đi mất: góp ý là việc
+          người vận hành làm giữa lúc đang đọc chữ chảy. */}
+      <div className="blcanthiep">
+        <h2 className="td-an">{DH.gopY}</h2>
+        <OCanThiep
+          tacPham={tacPham}
+          dangChay={dangChay}
+          daXong={snapshot.book.phase === 'complete'}
+          onDoi={onDoi}
+        />
+        {/* Góp ý là một câu; bàn hướng là một cuộc trò chuyện nhiều lượt về chặng tiếp — và nó
+            TẠM DỪNG truyện trong lúc bàn, nên chú giải nói ra điều đó trước khi bấm. Truyện đã
+            kết thì không còn chặng nào để bàn (server từ chối), nên không mời. */}
+        {snapshot.book.phase !== 'complete' ? (
+          <button
+            type="button"
+            className="nutPhu blBanHuong"
+            title={TD.banHuongGiai}
+            onClick={() => onChonKhu('ban-huong')}
+          >
+            {TD.banHuong}
+          </button>
+        ) : null}
       </div>
     </main>
   );
+}
+
+/** Bảng chương mặc định hiện chừng này hàng mới nhất. */
+const GIOI_BANG = 8;
+
+/**
+ * Hàng nào của bảng được hiện: mới nhất trước, gọn về `GIOI_BANG` hàng — cộng mọi chương
+ * đang viết, cần viết lại, hoặc đang được chọn, dù chúng nằm ở đâu. Cắt im lặng một chương
+ * chờ viết lại là đúng lỗi mà Rail và bộ chọn mức xem đã phải tránh.
+ */
+function bangGon(
+  hang: ChapterRow[],
+  chuongChon: number | undefined,
+  moHet: boolean,
+): { hien: ChapterRow[]; conAn: number } {
+  const moi = [...hang].sort((a, b) => b.chapter - a.chapter);
+  // Thừa một hai hàng thì hiện luôn: một nút "hiện thêm 1 chương" tốn đúng chỗ của hàng đó.
+  if (moHet || moi.length <= GIOI_BANG + 2) return { hien: moi, conAn: 0 };
+  const hien = moi.filter(
+    (r, i) =>
+      i < GIOI_BANG ||
+      r.stage === 'rewrite' ||
+      r.stage === 'drafting' ||
+      r.chapter === chuongChon,
+  );
+  return { hien, conAn: moi.length - hien.length };
 }
 
 /** "Trấn Yêu Ký · đang viết · 300 chương · 6 tập" — chỉ nói điều biết được. */
@@ -466,9 +405,9 @@ function motTa(snap: Snapshot): string {
  */
 function tieuDeBang(pv: PhamVi): string {
   if (pv.index === undefined || pv.from === undefined || pv.to === undefined) {
-    return `${CHU.chuong} · mọi chương có dấu vết sản xuất`;
+    return DH.chuongGanDay;
   }
-  return `${CHU.chuong} trong ${nhanPhamViXem(pv.muc, pv.index)} · ${pv.from}–${pv.to}`;
+  return DH.chuongTrong(nhanPhamViXem(pv.muc, pv.index), pv.from, pv.to);
 }
 
 /**

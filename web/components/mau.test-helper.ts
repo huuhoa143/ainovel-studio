@@ -61,7 +61,6 @@ export function snap(p: Partial<Snapshot>): Snapshot {
       per_chapter_duration: false,
       per_chapter_cost: false,
       layered_outline: false,
-      steer: true,
     },
     timeline: { volumes: null, arcs: null, chapters: [] },
     // Năm trường sống mặc định là `null` — tức ca engine ĐÓNG. Đó là mặc định đúng cho một

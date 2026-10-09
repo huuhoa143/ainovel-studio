@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Hardened runtime: V8 cần JIT và vùng nhớ thực thi không ký (đúng hai
+         quyền mà @electron/notarize và mẫu entitlements.mac.plist của
+         electron-builder yêu cầu). Không thêm gì khác: mọi mã trong gói do
+         sign-bundle.sh ký cùng một Team ID nên không cần
+         disable-library-validation, và allow-dyld-environment-variables chỉ mở
+         đường cho DYLD_INSERT_LIBRARIES. Smoke chạy trên bản ĐÃ ký trước khi
+         phát hành, nên thiếu quyền nào app sẽ không qua được smoke. -->
+    <key>com.apple.security.cs.allow-jit</key>
+    <true/>
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+    <true/>
+</dict>
+</plist>

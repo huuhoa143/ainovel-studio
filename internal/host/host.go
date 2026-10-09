@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
@@ -21,7 +20,6 @@ import (
 	"github.com/huuhoa143/ainovel-studio/internal/bootstrap"
 	"github.com/huuhoa143/ainovel-studio/internal/domain"
 	"github.com/huuhoa143/ainovel-studio/internal/flow"
-	"github.com/huuhoa143/ainovel-studio/internal/host/exp"
 	"github.com/huuhoa143/ainovel-studio/internal/host/imp"
 	"github.com/huuhoa143/ainovel-studio/internal/host/sim"
 	"github.com/huuhoa143/ainovel-studio/internal/i18n"
@@ -56,6 +54,9 @@ type Host struct {
 	events   chan Event
 	streamCh chan string
 	done     chan struct{}
+
+	// lanDung giữ lần dừng gần nhất và lỗi gần nhất — khóa riêng (xem lan_dung.go).
+	lanDung lanDungState
 
 	mu         sync.Mutex
 	lifecycle  lifecycle
@@ -95,16 +96,15 @@ func New(cfg bootstrap.Config, bundle assets.Bundle) (*Host, error) {
 	slog.Info(i18n.F("启动"), "module", "boot", "provider", cfg.Provider, "model", cfg.ModelName, "output", cfg.OutputDir)
 
 	// 起后台 goroutine 从 OpenRouter 刷新模型元数据（窗口/价格），磁盘缓存 24h。
-	modelreg.StartPricingRefresh(modelreg.DefaultRegistry(), bootstrap.DefaultConfigDir())
+	modelreg.StartPricingRefresh(modelreg.DefaultRegistry(), cfg.UserDir())
 
 	store := storepkg.NewStore(cfg.OutputDir)
 	if err := store.Init(); err != nil {
 		return nil, fmt.Errorf("init store: %w", err)
 	}
-	// 文件级写锁：store 的 WithWriteLock 只是进程内 mutex，跨进程零保护。
-	// 现在有三条写入路径同时存在（TUI / headless / web studio），两个进程同时写
-	// meta/run_meta.json 会静默丢数据——无错误、无日志。这里是五个 host.New 调用点
-	// 都必经的唯一位置，所以锁放在这里而不是各入口。Close 里释放。
+	// Khóa mức tệp: WithWriteLock của store chỉ là mutex trong process. Hai process cùng
+	// ghi meta/run_meta.json (hai bản app, hoặc studio cùng eval) mất dữ liệu trong im lặng.
+	// Mọi chỗ dựng Host đều qua đây nên khóa đặt ở đây chứ không ở từng lối vào. Close trả.
 	if err := store.Khoa(); err != nil {
 		return nil, err
 	}
@@ -170,17 +170,17 @@ func New(cfg bootstrap.Config, bundle assets.Bundle) (*Host, error) {
 		thinkingApplier: applyThinking,
 		askUser:         askUser,
 		writerRestore:   restore,
-		userRules:       userrules.NewService(store, models.Default, rules.DefaultOptions()),
+		userRules:       userrules.NewService(store, models.Default, nguonLuat(cfg)),
 		usage:           usage,
 		usageCancel:     usageCancel,
-		configPath:      bootstrap.EffectiveConfigPath(),
+		configPath:      cfg.ConfigPath,
 		events:          make(chan Event, 100),
 		streamCh:        make(chan string, 256),
 		done:            make(chan struct{}, 4),
 		lifecycle:       lifecycleIdle,
 	}
 	h.runCtx, h.runCancel = context.WithCancel(context.Background())
-	h.observer = newObserver(store, h.emitEvent, h.emitDelta, h.emitClear)
+	h.observer = newObserver(store, h.phatSuKien, h.emitDelta, h.emitClear)
 	// 宿主侧 Arbiter 与 Worker 共用同一条 ToolProgress → observer → 工作台链路。
 	h.runCtx = agentcore.WithToolProgress(h.runCtx, h.observer.workerProgress)
 	if cfg.Notify.IsEnabled() {
@@ -189,7 +189,7 @@ func New(cfg bootstrap.Config, bundle assets.Bundle) (*Host, error) {
 	// 预算哨兵:Engine 在每轮循环边界直接调用 HandleBoundary(不再经事件订阅)。
 	if sentinel := NewBudgetSentinel(cfg.Budget,
 		func() float64 { c, _, _, _, _ := usage.Totals(); return c },
-		func(reason string) { h.abortWithEvent(reason, "error") },
+		func(reason string) { h.abortWithEvent(reason, "error", DungNganSach) },
 		func(level, summary string) {
 			h.emitEvent(Event{Time: time.Now(), Category: "SYSTEM", Summary: summary, Level: level})
 			h.notifier.Send(notify.Notification{Kind: notify.KindBudget, Level: level, Title: i18n.F("ainovel: 预算"), Body: summary})
@@ -207,7 +207,7 @@ func New(cfg bootstrap.Config, bundle assets.Bundle) (*Host, error) {
 	// 统一前进闸门：执行一次性 hold，并阻止 review 模式下无许可的新章。
 	h.gate = NewChapterAdvanceGate(store,
 		func(reason string) {
-			h.abortWithEvent(reason, "info")
+			h.abortWithEvent(reason, "info", DungCuaDuyet)
 			h.notifier.Send(notify.Notification{Kind: notify.KindAdvanceGate, Level: "info", Title: i18n.F("ainovel: 等待验收"), Body: reason})
 		},
 		func(level, summary string) {
@@ -251,13 +251,19 @@ func New(cfg bootstrap.Config, bundle assets.Bundle) (*Host, error) {
 		notify: func(kind, level, title, body string) {
 			h.notifier.Send(notify.Notification{Kind: kind, Level: level, Title: title, Body: body})
 		},
-		onPause: func(summary string) { h.abortWithEvent(summary, "warn") },
+		onPause: func(summary string) { h.abortWithEvent(summary, "warn", DungTuKet) },
 		onDone:  h.runEnded,
 	}
 
 	// 构造成功，锁的所有权交给 Host，由 Close 释放。
 	locked = false
 	return h, nil
+}
+
+// nguonLuat là nguồn tệp luật của cuốn đang mở: tầng chung cạnh tệp cấu hình, tầng riêng trong
+// thư mục truyện.
+func nguonLuat(cfg bootstrap.Config) rules.LoadOptions {
+	return rules.OptionsFor(cfg.UserDir(), cfg.OutputDir)
 }
 
 // ── 生命周期 ──
@@ -273,7 +279,7 @@ func (h *Host) PrepareUserRules(rawPrompt string) error {
 	if err := h.refuseNewBookOverExisting(); err != nil {
 		return err
 	}
-	svc := userrules.NewService(h.store, h.models.Default, rules.DefaultOptions())
+	svc := userrules.NewService(h.store, h.models.Default, nguonLuat(h.cfg))
 	snap, err := svc.Build(context.Background(), rawPrompt)
 	if err != nil {
 		return fmt.Errorf(i18n.F("用户规则快照落盘失败，无法继续: %w"), err)
@@ -285,7 +291,7 @@ func (h *Host) PrepareUserRules(rawPrompt string) error {
 // ensureUserRules 在恢复路径确保快照存在；缺失时按
 // system_defaults + rules 文件生成。
 func (h *Host) ensureUserRules() {
-	svc := userrules.NewService(h.store, h.models.Default, rules.DefaultOptions())
+	svc := userrules.NewService(h.store, h.models.Default, nguonLuat(h.cfg))
 	snap, err := svc.GetOrBuild(context.Background())
 	if err != nil {
 		slog.Warn(i18n.F("用户规则快照读取/生成失败，运行时将退到内置默认"), "module", "rules", "err", err)
@@ -422,7 +428,7 @@ func (h *Host) startEngine(initial *flow.Instruction) bool {
 	}
 	if active && !done {
 		h.emitEvent(Event{Time: time.Now(), Category: "SYSTEM", Level: "warn",
-			Summary: i18n.F("存在未完成的外部小说导入，请先执行 /import 恢复完成后再继续创作")})
+			Summary: i18n.F("存在未完成的外部小说导入，请先在「Nhập truyện có sẵn」点「Tiếp tục nhập」完成后再继续创作")})
 		return false
 	}
 	h.mu.Lock()
@@ -448,6 +454,7 @@ func (h *Host) startEngine(initial *flow.Instruction) bool {
 		h.lifecycle = previous
 		return false
 	}
+	h.xoaLanDung()
 	return true
 }
 
@@ -787,13 +794,13 @@ func (h *Host) AdvanceOneChapter() error {
 	running, cocreating, ex := h.lifecycle == lifecycleRunning, h.cocreating, h.exclusive
 	h.mu.Unlock()
 	if running || h.engine.isRunning() {
-		return errors.New(i18n.F("创作仍在运行或正在完成暂停，请稍后再执行 /next"))
+		return errors.New(i18n.F("创作仍在运行或正在完成暂停，请稍后再点「Duyệt, viết chương …」"))
 	}
 	if cocreating {
 		return errors.New(i18n.F("阶段共创进行中，请先结束共创"))
 	}
 	if ex != "" {
-		return fmt.Errorf(i18n.F("%s进行中，请先完成后再执行 /next"), ex)
+		return fmt.Errorf(i18n.F("%s进行中，请先完成后再点「Duyệt, viết chương …」"), ex)
 	}
 	meta, err := h.store.RunMeta.Load()
 	if err != nil {
@@ -803,7 +810,7 @@ func (h *Host) AdvanceOneChapter() error {
 		return errors.New(i18n.F("RunMeta 未初始化"))
 	}
 	if meta.AdvanceMode != domain.ChapterAdvanceReview {
-		return errors.New(i18n.F("/next 仅用于逐章验收模式，请先执行 /review on"))
+		return errors.New(i18n.F("「Duyệt, viết chương …」仅用于逐章验收模式，请先在「Cách viết」选「Từng chương」"))
 	}
 	if meta.AdvanceHold != nil {
 		return fmt.Errorf(i18n.F("仍有一次性暂停意图待处理（%s），请先恢复或完成当前干预"), meta.AdvanceHold.Reason)
@@ -834,7 +841,7 @@ func (h *Host) AdvanceOneChapter() error {
 	h.refreshWriterRestore()
 	if !h.startEngine(nil) {
 		// 许可按章节号持久化且同目标幂等，调用方稍后重试不会重复授权。
-		return errors.New(i18n.F("章节许可已保存，但 Engine 仍在完成上一轮停止；请稍后重试 /next"))
+		return errors.New(i18n.F("章节许可已保存，但 Engine 仍在完成上一轮停止；请稍后再点「Duyệt, viết chương …」"))
 	}
 	return nil
 }
@@ -854,16 +861,17 @@ func (h *Host) Steer(text string) error {
 
 // Abort 暂停当前引擎循环。
 func (h *Host) Abort() bool {
-	return h.abortWithEvent(i18n.F("用户手动暂停当前创作"), "warn")
+	return h.abortWithEvent(i18n.F("用户手动暂停当前创作"), "warn", DungNguoiDung)
 }
 
 // abortWithEvent 以指定原因事件执行暂停。预算停机与手动暂停共用同一停机机制，
 // 仅事件文案不同（预算停机=用户预先签署的 Abort 指令，语义等同手动暂停）。
-func (h *Host) abortWithEvent(summary, level string) bool {
+func (h *Host) abortWithEvent(summary, level, kind string) bool {
 	h.mu.Lock()
 	running := h.lifecycle == lifecycleRunning
 	if running {
 		h.lifecycle = lifecyclePaused
+		h.ghiLanDung(kind, summary)
 	}
 	cancelExclusive := h.exclusiveCancel
 	h.mu.Unlock()
@@ -872,14 +880,14 @@ func (h *Host) abortWithEvent(summary, level string) bool {
 		// 失败事件，observer 凭此标志识别为 abort 衍生噪声并抑制。
 		h.observer.setAborting(true)
 		h.engine.abort()
-		h.emitEvent(Event{Time: time.Now(), Category: "SYSTEM", Summary: summary, Level: level})
+		h.emitEvent(Event{Time: time.Now(), Category: "SYSTEM", Summary: summary, Level: level, Kind: KindDung(kind)})
 		return true
 	}
 	// Engine 未运行但独占作业（导入等）在跑：它同样在烧钱，预算硬停/手动暂停必须
 	// 能停掉它——否则预算政策对导入形同虚设（docs/import-pipeline.md §13.1）。
 	if cancelExclusive != nil {
 		cancelExclusive()
-		h.emitEvent(Event{Time: time.Now(), Category: "SYSTEM", Summary: summary, Level: level})
+		h.emitEvent(Event{Time: time.Now(), Category: "SYSTEM", Summary: summary, Level: level, Kind: KindDung(kind)})
 		return true
 	}
 	return false
@@ -962,6 +970,10 @@ func (h *Host) runEnded() {
 		})
 	} else {
 		wasRunning := h.lifecycle == lifecycleRunning
+		// Dừng theo lệnh: lifecycle đã là paused từ lúc bấm, nhưng snapshot báo "pausing" tới
+		// khi goroutine thoát (xem Snapshot). Phát một sự kiện để giao diện nạp lại và thấy
+		// "đã dừng" ngay, thay vì kẹt "đang dừng…" tới sự kiện ngẫu nhiên kế tiếp.
+		daDungHan := h.lifecycle == lifecyclePaused
 		if wasRunning {
 			h.lifecycle = lifecycleIdle
 		}
@@ -973,7 +985,7 @@ func (h *Host) runEnded() {
 		}
 		h.mu.Unlock()
 		if wasRunning {
-			summary := fmt.Sprintf(i18n.F("引擎停止 (已完成 %d 章)"), completed)
+			summary := summaryDung(completed)
 			slog.Warn(summary, "module", "host")
 			h.emitEvent(Event{Time: time.Now(), Category: "SYSTEM", Summary: summary, Level: "warn"})
 			// Ở nhánh này summary KHÔNG chứa tên sách, nên chèn ở đây — thông báo
@@ -982,6 +994,22 @@ func (h *Host) runEnded() {
 				Kind: notify.KindRunEnd, Level: "warn", Title: i18n.F("ainovel: 创作停止"),
 				Body: h.runEndBody(bocTenSach(name, summary)),
 			})
+		}
+		if wasRunning {
+			// Vòng engine tự kết thúc mà không ai bấm dừng và truyện chưa xong: đó cũng là một
+			// lần dừng cần nói lý do, không phải một lần "tạm dừng" bình thường.
+			h.ghiLanDung(DungTuKet, summaryDung(completed))
+		}
+		if daDungHan {
+			// Chỉ mời "bấm Tiếp tục viết" khi người dùng tự dừng. Engine tự dừng vì lỗi thì lý
+			// do đã phát ngay trước đó, và câu mời ấy sẽ là mời đâm lại vào đúng bức tường đó.
+			if n := h.LanDung(); n != nil && n.Kind == DungNguoiDung {
+				h.emitEvent(Event{Time: time.Now(), Category: "SYSTEM", Level: "info",
+					Summary: i18n.F("已暂停，可随时继续创作")})
+			} else {
+				h.emitEvent(Event{Time: time.Now(), Category: "SYSTEM", Level: "info",
+					Summary: i18n.F("引擎已完全停止")})
+			}
 		}
 	}
 
@@ -1045,11 +1073,29 @@ func (h *Host) AskUser() *tools.AskUserTool { return h.askUser }
 
 // ── 事件发射 ──
 
+// emitEvent là đường phát của host và engine: lên log, lên kênh TUI, và — với sự kiện SYSTEM /
+// ERROR — vào runtime queue mà studio web đọc.
+//
+// Trước đây chỉ có `phatSuKien`, tức sự kiện của host chưa bao giờ tới được web: "Người dùng tạm
+// dừng", "Đã dừng hẳn", lý do bế tắc, chạm ngân sách, cập nhật luật viết… chỉ nằm trong log. Đo
+// được trên truyện thật: bấm Tạm dừng, snapshot nạp lại lúc engine còn đang thoát ("pausing"), rồi
+// không còn sự kiện nào kích nạp lại — thanh điều khiển kẹt "Đang dừng…" mãi dù engine đã dừng
+// từ lâu. Observer KHÔNG đi đường này (xem newObserver): nó tự ghi sự kiện của mình, đi qua đây
+// nữa là ghi trùng.
 func (h *Host) emitEvent(ev Event) {
+	h.phatSuKien(ev)
+	if (ev.Category == "SYSTEM" || ev.Category == "ERROR") && h.observer != nil {
+		h.observer.persistEvent(ev)
+	}
+}
+
+// phatSuKien: log + kênh TUI, không ghi runtime queue. Đường của observer.
+func (h *Host) phatSuKien(ev Event) {
 	// 退出期 Close() 可能已 close(h.events)，此时并发 emit 的通道发送会 panic
 	// （select/default 挡不住关通道发送）。emitEvent 是所有事件的唯一漏斗，在此兜住
 	// 竞态即可覆盖引擎/asyncWG 之外的同步 emit 者（Abort/abortWithEvent、预算哨兵等）。
 	defer func() { recover() }()
+	h.nhoLoi(ev)
 	// 所有事件的唯一 slog 入口。observer 翻译的 agentcore 事件和 Host 自发的
 	// SYSTEM 事件（Start/Abort/Resume…）都在这里落日志，避免 ESC abort 与外部
 	// 终止在 tui.log 上无法区分。
@@ -1110,9 +1156,24 @@ func (h *Host) emitClear() {
 
 // ── Snapshot (TUI 状态聚合) ──
 
+// trangThaiBaoRa là RuntimeState mà snapshot nói ra ngoài.
+//
+// "paused" chỉ đúng khi goroutine engine cũ đã thoát hẳn. `abortWithEvent` đặt paused NGAY lúc
+// nhận lệnh rồi mới hủy context; trong lúc goroutine còn chạy defer thoát, `startEngine` từ chối
+// mọi lượt khởi động (`engine.isRunning()`). Báo "paused" trong khoảng đó là mời người dùng bấm
+// một nút chắc chắn bị từ chối — đo được: "Engine đang hoàn tất lần dừng trước". Cùng phép thử
+// với cửa khởi động, nên trạng thái nói ra và cửa không lệch nhau.
+func trangThaiBaoRa(state lifecycle, engineRunning bool) string {
+	if state == lifecyclePaused && engineRunning {
+		return "pausing"
+	}
+	return string(state)
+}
+
 func (h *Host) Snapshot() UISnapshot {
 	h.mu.Lock()
 	state := h.lifecycle
+	runtimeState := trangThaiBaoRa(state, h.engine.isRunning())
 	provider, model, _ := h.models.CurrentSelection("default")
 	modelWindow, _ := h.cfg.ResolveContextWindow(provider, model)
 	thinkingLevel := h.cfg.ResolveReasoningEffort("default")
@@ -1162,7 +1223,8 @@ func (h *Host) Snapshot() UISnapshot {
 		ModelContextWindow:     modelWindow,
 		ThinkingLevel:          thinkingLevel,
 		Style:                  style,
-		RuntimeState:           string(state),
+		RuntimeState:           runtimeState,
+		StopNote:               h.LanDung(),
 		IsRunning:              state == lifecycleRunning,
 		TotalInputTokens:       tokIn,
 		TotalOutputTokens:      tokOut,
@@ -1362,7 +1424,7 @@ func deriveStatusLabel(s UISnapshot) string {
 // cung cấp khỏi nó là cắt ngang engine đang sống. Xóa khỏi cấu hình nghĩa là "đừng dùng nó
 // cho lượt sau", không phải "giết lượt đang chạy".
 func (h *Host) napLaiNhaCungCap() {
-	cfg, err := bootstrap.LoadConfig()
+	cfg, err := bootstrap.LoadConfig(h.configPath)
 	if err != nil {
 		// Nói ra chứ không nuốt: một tệp cấu hình sai cú pháp làm MỌI lượt nạp lại thành
 		// không-làm-gì, và triệu chứng ở đầu kia là "đổi khóa rồi mà vẫn lỗi" — đúng câu đã
@@ -1427,11 +1489,25 @@ func (h *Host) SwitchModel(role, provider, model string) error {
 		h.cfg.Roles[role] = rc
 	}
 	// 换模型不改动已存的推理强度意图：只在下发时按新模型能力钳制。
-	if h.configPath != "" {
-		if err := bootstrap.SaveConfig(h.configPath, h.cfg); err != nil {
-			slog.Warn(i18n.F("保存配置失败"), "module", "host", "err", err)
+	//
+	// VÁ đúng trường vừa đổi trong tệp, không ghi lại `h.cfg`. `h.cfg` là ảnh chụp từ lúc mở
+	// engine (đã điền mặc định): ghi nó là đè mất mặc định/vai mà studio vừa lưu sau đó. Đo
+	// được: đổi mặc định sang kiraai ở màn cấu hình, rồi đổi model Biên tập viên ở phiên đang
+	// mở — tệp quay về mặc định cũ.
+	h.vaTepCauHinh(func(c *bootstrap.Config) {
+		if role == "" || role == "default" {
+			c.Provider = provider
+			c.ModelName = model
+			return
 		}
-	}
+		if c.Roles == nil {
+			c.Roles = make(map[string]bootstrap.RoleConfig)
+		}
+		rc := c.Roles[role] // giữ fallbacks / reasoning_effort đang có trong TỆP
+		rc.Provider = provider
+		rc.Model = model
+		c.Roles[role] = rc
+	})
 	h.applyThinkingLocked(role)
 	// 切到未登记模型时打一行 warn，提示用户走了 128k 兜底——长篇容易被提前压缩。
 	logRole := role
@@ -1451,6 +1527,94 @@ func (h *Host) SwitchModel(role, provider, model string) error {
 		Level:    "info",
 	})
 	return nil
+}
+
+// vaTepCauHinh vá tệp cấu hình đích bằng `sua`. Người gọi phải đang giữ `h.mu`.
+func (h *Host) vaTepCauHinh(sua func(*bootstrap.Config)) {
+	if h.configPath == "" {
+		return
+	}
+	if err := bootstrap.PatchConfigFile(h.configPath, sua); err != nil {
+		slog.Warn(i18n.F("保存配置失败"), "module", "host", "err", err)
+	}
+}
+
+// ApplyConfigFromDisk nạp lại cấu hình model từ đĩa vào engine ĐANG MỞ — nút "Áp dụng ngay".
+//
+// Đổi model ở màn cấu hình ghi tệp, còn engine giữ ảnh chụp lúc mở. Trước đây cách duy nhất
+// để phiên đang mở nhận thay đổi là đóng rồi mở lại. Hàm này dựng một ModelSet mới từ
+// `LoadConfig` rồi `ApplyPrepared` — cùng cơ chế `ConfigureModels` đã dùng — nên Worker và
+// Arbiter dùng client mới từ lượt gọi kế tiếp. Không ghi tệp nào: nguồn đã là tệp.
+//
+// Chỉ áp phần MODEL (provider/model mặc định, vai, độ suy luận, danh mục nhà cung cấp). Kiểu
+// văn nạp vào bundle lúc mở engine, nên nó vẫn cần mở lại phiên.
+func (h *Host) ApplyConfigFromDisk() error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	cfg, err := bootstrap.LoadConfig(h.configPath)
+	if err != nil {
+		return err
+	}
+	ung := ghepModelTuTep(h.cfg, cfg)
+	if err := ung.ValidateBase(); err != nil {
+		return err
+	}
+	ms, err := bootstrap.NewModelSet(ung)
+	if err != nil {
+		return fmt.Errorf(i18n.F("创建模型客户端失败: %w"), err)
+	}
+	h.models.ApplyPrepared(ms)
+	h.cfg = ung
+	h.applyThinkingLocked("default")
+	h.emitEvent(Event{
+		Time:     time.Now(),
+		Category: "SYSTEM",
+		Summary:  fmt.Sprintf(i18n.F("模型已切换：%s → %s/%s"), "default", ung.Provider, ung.ModelName),
+		Level:    "info",
+	})
+	return nil
+}
+
+// ghepModelTuTep là MỘT phép ghép phần model của tệp vào cấu hình phiên — dùng chung cho
+// ApplyConfigFromDisk (áp dụng) và ModelConfigInSync (hỏi "áp dụng có đổi gì không"), để câu
+// trả lời của câu hỏi luôn đúng với việc nút áp dụng sẽ làm.
+func ghepModelTuTep(cur, tep bootstrap.Config) bootstrap.Config {
+	ung := bootstrap.CloneConfig(cur)
+	ung.Provider = tep.Provider
+	ung.ModelName = tep.ModelName
+	ung.ReasoningEffort = tep.ReasoningEffort
+	ung.Providers = tep.Providers
+	ung.Roles = tep.Roles
+	ung.FillDefaults()
+	return ung
+}
+
+// ModelConfigInSync cho biết phần MODEL của phiên đang mở có khớp tệp cấu hình hiện tại không
+// — tức bấm "áp dụng ngay" lúc này có đổi được gì không.
+//
+// Studio cần câu này để chỉ báo "phiên đang dùng thiết lập cũ" khi nó THẬT SỰ cũ. Đo được: dải
+// cảnh báo hiện cho mọi phiên đang mở, kể cả khi phiên và tệp cùng là lingo2·auto, và bấm áp
+// dụng xong dải vẫn nằm đó — người dùng hỏi "bấm mà không mất, có thiếu logic gì không".
+func (h *Host) ModelConfigInSync() (bool, error) {
+	cfg, err := bootstrap.LoadConfig(h.configPath)
+	if err != nil {
+		return false, err
+	}
+	h.mu.Lock()
+	cur := bootstrap.CloneConfig(h.cfg)
+	h.mu.Unlock()
+	return phanModel(ghepModelTuTep(cur, cfg)) == phanModel(cur), nil
+}
+
+// phanModel tuần tự hóa đúng các trường mà ghepModelTuTep đụng tới. JSON của map có khóa đã
+// sắp xếp, nên hai cấu hình bằng nhau cho ra cùng một chuỗi.
+func phanModel(c bootstrap.Config) string {
+	b, _ := json.Marshal(struct {
+		Provider, ModelName, ReasoningEffort string
+		Providers                            any
+		Roles                                any
+	}{c.Provider, c.ModelName, c.ReasoningEffort, c.Providers, c.Roles})
+	return string(b)
 }
 
 // concreteThinkingRoles 是可应用推理强度的具体角色（与 agents.ApplyThinking 路由一致）。
@@ -1517,11 +1681,24 @@ func (h *Host) SetRoleThinking(role, level string) error {
 		rc.ReasoningEffort = string(parsed)
 		h.cfg.Roles[role] = rc
 	}
-	if h.configPath != "" {
-		if err := bootstrap.SaveConfig(h.configPath, h.cfg); err != nil {
-			slog.Warn(i18n.F("保存配置失败"), "module", "host", "err", err)
+	// Cùng luật với SwitchModel: vá đúng một trường, không ghi lại ảnh chụp đã trộn.
+	h.vaTepCauHinh(func(c *bootstrap.Config) {
+		if role == "" || role == "default" {
+			c.ReasoningEffort = string(parsed)
+			return
 		}
-	}
+		if c.Roles == nil {
+			c.Roles = make(map[string]bootstrap.RoleConfig)
+		}
+		rc := c.Roles[role]
+		rc.ReasoningEffort = string(parsed)
+		if rc.IsEffortOnly() && rc.ReasoningEffort == "" {
+			// Bỏ ghi đè cuối cùng của một vai thừa hưởng: xóa hẳn mục, đừng để lại `{}`.
+			delete(c.Roles, role)
+			return
+		}
+		c.Roles[role] = rc
+	})
 
 	// 联动 live：具体角色直接应用；default 则遍历各具体角色按 ResolveReasoningEffort 重新应用
 	// （已被角色级覆盖的保留自身，未覆盖的吃上新默认）。
@@ -1544,20 +1721,24 @@ func (h *Host) SetRoleThinking(role, level string) error {
 	return nil
 }
 
-// ── 事件回放 ──
-
-func (h *Host) ReplayQueue(afterSeq int64) ([]domain.RuntimeQueueItem, error) {
-	if h.store == nil || h.store.Runtime == nil {
-		return nil, nil
-	}
-	return h.store.Runtime.LoadQueueAfter(afterSeq)
-}
-
 // ── 共创 ──
 
 // CoCreateStream 冷启动共创：从零澄清需求，产出整本书的创作指令。
-func (h *Host) CoCreateStream(ctx context.Context, history []CoCreateMessage, onProgress func(kind, text string)) (CoCreateReply, error) {
-	return coCreateStream(ctx, h.models, h.store.Sessions, coCreateSystemPrompt(), history, onProgress)
+//
+// Không phải phương thức của Host: lúc này CHƯA có cuốn sách nào — không thư mục, không khóa
+// truyện, không engine. Chỉ cần cấu hình (để dựng model set qua đúng `NewModelSet` mà engine
+// dùng, nên luật chọn model không có bản sao thứ hai). Không ghi nhật ký phiên: không có thư
+// mục sách nào để ghi vào.
+func CoCreateStream(ctx context.Context, cfg bootstrap.Config, history []CoCreateMessage, onProgress func(kind, text string)) (CoCreateReply, error) {
+	cfg.FillDefaults()
+	if err := cfg.ValidateBase(); err != nil {
+		return CoCreateReply{}, err
+	}
+	models, err := bootstrap.NewModelSet(cfg)
+	if err != nil {
+		return CoCreateReply{}, fmt.Errorf(i18n.F("创建模型客户端失败: %w"), err)
+	}
+	return coCreateStream(ctx, models, nil, coCreateSystemPrompt(), history, onProgress)
 }
 
 // StageCoCreateStream 阶段共创：在已写内容的基础上规划后续方向。
@@ -1592,7 +1773,7 @@ func (h *Host) PauseForCoCreate() bool {
 	// 运行中复用 abortWithEvent 停机（running→paused + setAborting + Abort + 事件），与手动
 	// 暂停同序、不另抄一遍；已停止（idle/paused）只置标记，规划完经 Continue 续跑。
 	if running {
-		h.abortWithEvent(i18n.F("进入阶段共创，创作已暂停"), "info")
+		h.abortWithEvent(i18n.F("进入阶段共创，创作已暂停"), "info", DungNguoiDung)
 	} else {
 		h.emitEvent(Event{Time: time.Now(), Category: "SYSTEM", Summary: i18n.F("进入阶段共创"), Level: "info"})
 	}
@@ -1627,15 +1808,17 @@ func (h *Host) ResumeFromCoCreate(draft string) error {
 }
 
 // CancelCoCreate 放弃阶段共创：清占用标记，保持暂停态（用户可在输入框继续或重启 Resume）。
-func (h *Host) CancelCoCreate() {
+// 返回是否真的退出了一次共创；不在共创中时为 no-op，返回 false。
+func (h *Host) CancelCoCreate() bool {
 	h.mu.Lock()
 	if !h.cocreating {
 		h.mu.Unlock()
-		return
+		return false
 	}
 	h.cocreating = false
 	h.mu.Unlock()
 	h.emitEvent(Event{Time: time.Now(), Category: "SYSTEM", Summary: i18n.F("已退出阶段共创，创作保持暂停（可在输入框继续）"), Level: "info"})
+	return true
 }
 
 // ── 工具 ──
@@ -1652,6 +1835,26 @@ func truncate(s string, maxRunes int) string {
 		return s
 	}
 	return string(runes[:maxRunes]) + "..."
+}
+
+// ErrDangBan 标记 Host 此刻有别的作业占着（创作运行中、共创中、导入/仿写进行中），
+// 请求本身没错，稍后重试即可。只用于 errors.Is 判别；给用户看的是被包裹的具体原因。
+var ErrDangBan = errors.New("host busy")
+
+// dangBan 让具体原因作为错误文本，同时 errors.Is(err, ErrDangBan) 成立。
+type dangBan struct{ err error }
+
+func (e dangBan) Error() string   { return e.err.Error() }
+func (e dangBan) Unwrap() []error { return []error{ErrDangBan, e.err} }
+
+// DiscardImport 放弃未完成或已损坏的导入工作区，解除对普通创作的门禁（见 imp.Discard）。
+// 与导入/创作互斥：任何作业在跑时返回包裹 ErrDangBan 的错误，不动磁盘。
+func (h *Host) DiscardImport() (bool, error) {
+	if err := h.acquireExclusive(i18n.F("放弃导入")); err != nil {
+		return false, dangBan{err}
+	}
+	defer h.releaseExclusive()
+	return imp.Discard(h.store)
 }
 
 // ImportFrom 启动一次外部小说语义编译导入：ingest → segment → analyze → synthesize → publish。
@@ -1693,12 +1896,6 @@ func (h *Host) ImportFrom(ctx context.Context, opts imp.Options) (<-chan imp.Eve
 		return nil, err
 	}
 	return h.superviseImport(ch, opts), nil
-}
-
-// ImportResumeHint 返回未完成导入的一行提示（无则空串），供 TUI 启动时主动告知（RFC §18.2）。
-// 只在启动时调用一次：内部会重算工作区各工件的 InputDigest，不适合放进快照轮询。
-func (h *Host) ImportResumeHint() string {
-	return imp.ResumeSummary(h.store)
 }
 
 // importCaller 解析一个导入语义函数的模型档位（RFC §13.1）：roles 配置存在 import_<fn>
@@ -1743,20 +1940,9 @@ func (h *Host) importModelRuntime(role string, model agentcore.ChatModel) imp.Mo
 	return rt
 }
 
-// Simulate 读取 simulate 目录并生成或增量更新仿写画像。
-func (h *Host) Simulate(ctx context.Context) (<-chan sim.Event, error) {
-	wd, err := os.Getwd()
-	if err != nil {
-		return nil, fmt.Errorf("get working dir: %w", err)
-	}
-	return h.SimulateFrom(ctx, filepath.Join(wd, "simulate"))
-}
-
-// SimulateFrom 与 Simulate 相同，但语料目录由调用方给出。
+// SimulateFrom 读取语料目录并生成或增量更新仿写画像。
 //
-// web studio 需要它：语料是用户上传的，落在一个每次请求独立的临时目录，
-// 而不是进程 CWD 下的固定 ./simulate。Simulate 保留原签名并委托到这里，
-// 所以 TUI 调用点一个字都不用改。
+// 语料是用户上传的，落在每次请求独立的临时目录，所以目录由调用方给出。
 func (h *Host) SimulateFrom(ctx context.Context, sourceDir string) (<-chan sim.Event, error) {
 	if err := h.acquireExclusive(i18n.F("生成仿写画像")); err != nil {
 		return nil, err
@@ -1942,7 +2128,7 @@ func (h *Host) continueAfterImport(opts imp.Options) bool {
 	}
 	if meta.AdvanceMode != domain.ChapterAdvanceAuto {
 		h.emitEvent(Event{Time: time.Now(), Category: "SYSTEM", Level: "info",
-			Summary: i18n.F("导入完成；当前为逐章验收模式，输入继续或 /next 接力续写")})
+			Summary: i18n.F("导入完成；当前为逐章验收模式，在「Góp ý」输入要求，或点「Duyệt, viết chương …」续写")})
 		return false
 	}
 	h.emitEvent(Event{Time: time.Now(), Category: "SYSTEM", Level: "info", Summary: i18n.F("导入完成，自动接力续写")})
@@ -1952,13 +2138,4 @@ func (h *Host) continueAfterImport(opts imp.Options) bool {
 		return false
 	}
 	return true
-}
-
-// Export 导出已完成章节为外部文件（当前仅支持 TXT）。
-//
-// 与 ImportFrom 不同：导出是只读操作（不动 Progress / Checkpoint），
-// 因此**不要求 Engine 停机**——写作中途也可以随时导出"现阶段成品"。
-// 只读到 Progress.CompletedChapters + 章节终稿 + 大纲 + premise 的一致快照。
-func (h *Host) Export(ctx context.Context, opts exp.Options) (*exp.Result, error) {
-	return exp.Run(ctx, exp.Deps{Store: h.store}, opts)
 }

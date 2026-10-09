@@ -3,6 +3,7 @@ package store
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/huuhoa143/ainovel-studio/internal/domain"
@@ -24,6 +25,45 @@ func setupLayered(t *testing.T, volumes []domain.VolumeOutline) *Store {
 		t.Fatalf("SetLayered: %v", err)
 	}
 	return s
+}
+
+func TestSaveLayeredOutlineRebuildsFlatProjection(t *testing.T) {
+	s := NewStore(t.TempDir())
+	if err := s.Init(); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	if err := s.Outline.SaveOutline([]domain.OutlineEntry{{Chapter: 1, Title: "陈旧标题"}}); err != nil {
+		t.Fatalf("SaveOutline: %v", err)
+	}
+
+	volumes := []domain.VolumeOutline{{
+		Index: 1, Title: "第一卷", Theme: "启程",
+		Arcs: []domain.ArcOutline{{
+			Index: 1, Title: "第一弧", Goal: "进入新世界",
+			Chapters: []domain.OutlineEntry{
+				{Chapter: 99, Title: "新一", CoreEvent: "启程", Hook: "发现"},
+				{Chapter: 100, Title: "新二", CoreEvent: "深入", Hook: "危机"},
+			},
+		}},
+	}}
+	if err := s.Outline.SaveLayeredOutline(volumes); err != nil {
+		t.Fatalf("SaveLayeredOutline: %v", err)
+	}
+
+	flat, err := s.Outline.LoadOutline()
+	if err != nil {
+		t.Fatalf("LoadOutline: %v", err)
+	}
+	if len(flat) != 2 || flat[0].Chapter != 1 || flat[0].Title != "新一" || flat[1].Chapter != 2 || flat[1].Title != "新二" {
+		t.Fatalf("flat projection = %+v", flat)
+	}
+	markdown, err := os.ReadFile(filepath.Join(s.Dir(), "outline.md"))
+	if err != nil {
+		t.Fatalf("read outline.md: %v", err)
+	}
+	if !strings.Contains(string(markdown), "新一") || strings.Contains(string(markdown), "陈旧标题") {
+		t.Fatalf("outline.md 未同步重建:\n%s", markdown)
+	}
 }
 
 func TestCheckArcBoundaryNeedsNewVolume(t *testing.T) {

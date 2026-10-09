@@ -1,10 +1,6 @@
 package host
 
-import (
-	"time"
-
-	"github.com/huuhoa143/ainovel-studio/internal/domain"
-)
+import "time"
 
 // Event 是 TUI 消费的结构化事件。
 //
@@ -60,7 +56,8 @@ type UISnapshot struct {
 	ModelContextWindow   int // 当前默认模型的上下文窗口（随 /model 切换实时解析）
 	ThinkingLevel        string
 	Style                string
-	RuntimeState         string // idle / running / pausing / paused / completed
+	RuntimeState         string    // idle / running / pausing / paused / completed
+	StopNote             *StopNote // lần dừng gần nhất; nil khi đang chạy hoặc chưa dừng (xem lan_dung.go)
 	StatusLabel          string
 	Phase                string
 	Flow                 string
@@ -151,6 +148,7 @@ type AgentSnapshot struct {
 	TaskKind  string
 	Summary   string
 	Tool      string
+	Chapter   int // tham số chapter của lượt gọi công cụ đang chạy; 0 = không nói tới chương nào
 	Turn      int
 	Context   AgentContextSnapshot
 	UpdatedAt time.Time
@@ -208,14 +206,4 @@ type CoCreateReply struct {
 	Ready       bool
 	Suggestions []string
 	Raw         string
-}
-
-// ReplayDeltaText 从运行时队列项中提取可回放的流式文本。
-func ReplayDeltaText(item domain.RuntimeQueueItem) string {
-	if payload, ok := item.Payload.(map[string]any); ok {
-		if text, ok := payload["delta"].(string); ok {
-			return text
-		}
-	}
-	return ""
 }

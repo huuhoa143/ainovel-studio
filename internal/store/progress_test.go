@@ -62,6 +62,26 @@ func TestUpdatePhaseRejectsRegression(t *testing.T) {
 	}
 }
 
+func TestAdvancePhaseKeepsLaterPhase(t *testing.T) {
+	dir := t.TempDir()
+	store := NewStore(dir)
+	_ = store.Progress.Init("test", 10)
+
+	if err := store.Progress.UpdatePhase(domain.PhaseOutline); err != nil {
+		t.Fatalf("UpdatePhase outline: %v", err)
+	}
+	if err := store.Progress.AdvancePhase(domain.PhasePremise); err != nil {
+		t.Fatalf("AdvancePhase premise: %v", err)
+	}
+	p, err := store.Progress.Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if p.Phase != domain.PhaseOutline {
+		t.Fatalf("phase = %s, want outline", p.Phase)
+	}
+}
+
 func TestStartChapter(t *testing.T) {
 	dir := t.TempDir()
 	store := NewStore(dir)

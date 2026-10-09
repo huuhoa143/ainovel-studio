@@ -152,43 +152,6 @@ func TestGuidanceChangeInvalidatesSegmentation(t *testing.T) {
 	}
 }
 
-// TestResumeSummary 守护 §18.2 启动提示：无工作区返回空串；停在半路时给出阶段化描述，
-// 使用户不必等到创作被门禁拒绝才发现这本书停在导入半路。
-func TestResumeSummary(t *testing.T) {
-	dir := t.TempDir()
-	st := store.NewStore(dir)
-	if err := st.Init(); err != nil {
-		t.Fatal(err)
-	}
-	if got := ResumeSummary(st); got != "" {
-		t.Fatalf("无导入工作区应返回空串，得 %q", got)
-	}
-	src := filepath.Join(dir, "book.txt")
-	if err := os.WriteFile(src, []byte("第一章\n正文\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	ws, _, err := Ingest(dir, src, Intent{})
-	if err != nil {
-		t.Fatalf("Ingest: %v", err)
-	}
-	if got := ResumeSummary(st); !strings.Contains(got, "尚未完成切分") {
-		t.Fatalf("刚建区应提示未完成切分，得 %q", got)
-	}
-	// 切分+确认就绪、分析 0/1 → 提示分析进度。
-	norm, _ := ws.LoadSource()
-	seg := Segmentation{Chapters: []ChapterSpan{{Number: 1, Title: "第一章", Start: 0, End: len(norm)}}}
-	if err := writeArtifact(ws, fileSegmentation, segmentInputDigest(Digest(norm), "", segmentPromptVersion), seg); err != nil {
-		t.Fatal(err)
-	}
-	raw, _ := ws.readBytes(fileSegmentation)
-	if err := writeArtifact(ws, fileConfirmation, Digest(raw), Confirmation{Method: confirmMethodAuto, Chapters: 1}); err != nil {
-		t.Fatal(err)
-	}
-	if got := ResumeSummary(st); !strings.Contains(got, "已分析 0/1 章") {
-		t.Fatalf("应提示分析进度，得 %q", got)
-	}
-}
-
 // TestResumeStatusPublishedIsTerminal 守护发布终态（实测事故）：书已全量发布后，
 // segmentPromptVersion 升级使工作区切分工件失鲜，ResumeStatus 不得据此把书判回
 // "导入半路"——否则 startEngine 跨重启门禁会永久拒启已发布书的续写。
@@ -228,9 +191,6 @@ func TestResumeStatusPublishedIsTerminal(t *testing.T) {
 	}
 	if active, done, err := ResumeStatus(st); err != nil || !active || !done {
 		t.Fatalf("已发布书应判导入完成（active=%v done=%v）", active, done)
-	}
-	if got := ResumeSummary(st); got != "" {
-		t.Fatalf("已发布书不应提示未完成导入，得 %q", got)
 	}
 }
 

@@ -15,12 +15,6 @@ import (
 // ExportRelPath 是脱敏诊断文件相对 output 目录的固定位置（覆盖式一份）。
 const ExportRelPath = "meta/diag-export.md"
 
-// Export 完整诊断 + 渲染 + 落盘，返回写出的绝对路径。供 headless / 外部调用。
-func Export(s *store.Store) (string, error) {
-	rep, rc := Diagnose(s)
-	return WriteExport(s, rep, rc)
-}
-
 // WriteExport 把已算好的 Report + RuntimeCapture 渲染落盘，不重复抓取。
 // 供 /diag 命令复用 Diagnose 的结果。
 func WriteExport(s *store.Store, rep Report, rc RuntimeCapture) (string, error) {

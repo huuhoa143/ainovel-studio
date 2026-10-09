@@ -73,13 +73,11 @@ func (s *OutlineStore) GetChapterOutline(chapter int) (*domain.OutlineEntry, err
 	return nil, fmt.Errorf("chapter %d not found in outline", chapter)
 }
 
-// SaveLayeredOutline 保存分层大纲（长篇模式，原子写入）。
+// SaveLayeredOutline 以分层大纲为唯一来源，保存分层视图并同步重建扁平派生视图。
+// 调用方不需要、也不应再单独维护 outline.json/outline.md。
 func (s *OutlineStore) SaveLayeredOutline(volumes []domain.VolumeOutline) error {
 	return s.io.WithWriteLock(func() error {
-		if err := s.io.WriteJSONUnlocked("layered_outline.json", volumes); err != nil {
-			return err
-		}
-		return s.io.WriteMarkdownUnlocked("layered_outline.md", renderLayeredOutline(volumes))
+		return s.saveLayeredViewsUnlocked(volumes)
 	})
 }
 

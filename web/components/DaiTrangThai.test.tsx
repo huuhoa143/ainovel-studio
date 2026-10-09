@@ -21,10 +21,30 @@ test('vẽ cây vai với công cụ và số lượt', () => {
 
   // `Writer` chứ không phải `writer`: tên bốn tác tử của PRODUCT.md đi qua `nhanVai` như mọi
   // chỗ khác trên trang — xem "chỗ kế hoạch sai" trong nhật ký thi hành.
-  expect(screen.getByText(/Writer/)).toBeDefined();
-  expect(screen.getByText(/draft_chapter/)).toBeDefined();
+  expect(screen.getByText(/Người viết/)).toBeDefined();
+  // Tên công cụ đi qua cùng bảng dịch với Diễn biến; nguyên văn ở `title`.
+  expect(screen.getByText(/Viết nháp chương/)).toBeDefined();
+  expect(screen.getByTitle('draft_chapter')).toBeDefined();
   expect(screen.getByText(/7/)).toBeDefined();
-  expect(screen.getByText(/architect_long/)).toBeDefined();
+  // Vai RẢNH không còn được in thành "chờ: …" — ở chặng viết, Kiến trúc sư rảnh vì đã xong
+  // việc, và "chờ: Kiến trúc sư" dưới Người viết đọc như Người viết đang đợi.
+  expect(screen.queryByText(/Kiến trúc sư/)).toBeNull();
+  expect(screen.queryByText(/architect_long/)).toBeNull();
+});
+
+test('việc giao nội bộ "engine → architect_short (…)" đọc thành câu, nguyên văn ở title', () => {
+  const tho = 'engine → architect_short (Hãy xây dựng một truyện ngắn g...)';
+  render(
+    <DaiTrangThai
+      snapshot={snap({
+        agents: [{ role: 'architect_short', state: 'working', task: tho, depth: 0 }],
+        idle_agents: [],
+      })}
+    />,
+  );
+  const viec = screen.getByText('Điều phối giao việc cho Kiến trúc sư');
+  expect(viec.getAttribute('title')).toBe(tho);
+  expect(screen.getByText('Kiến trúc sư')).toBeDefined();
 });
 
 test('ngữ cảnh null hiện dấu KHÔNG ĐO ĐƯỢC, không phải thước 0%', () => {
@@ -120,19 +140,16 @@ test('vai null nói KHÔNG ĐO ĐƯỢC; vai [] nói chưa có vai — hai câu 
   expect(o().textContent).not.toContain(CHU.khongDoDuoc);
 });
 
-test('vai chờ null nói không đo được; vai chờ [] thì không vẽ dòng nào', () => {
-  // Nhánh `null` của `idle_agents` cũng không có bài nào giữ (đã thử đột biến: bỏ hẳn nó vẫn
-  // xanh). Bỏ nó đi thì lúc engine đóng, chỗ trống ở dòng "chờ" đọc thành "đã đo, không ai
-  // chờ" — một câu studio không có quyền nói.
-  const { container, rerender } = render(
-    <DaiTrangThai snapshot={snap({ agents: [], idle_agents: null })} />,
-  );
-
-  expect(container.querySelector('.dtcho')!.textContent).toContain(CHU.khongDoDuoc);
-
-  rerender(<DaiTrangThai snapshot={snap({ agents: [], idle_agents: [] })} />);
-
-  expect(container.querySelector('.dtcho')).toBeNull();
+test('không còn dòng "chờ: …" dù engine có báo vai rảnh hay không', () => {
+  // `idle_agents` là các vai đã xong việc hoặc chưa tới lượt — in chúng thành "chờ" là nói sai
+  // quan hệ giữa các vai. Cả ba ca (null, [], có tên) đều không vẽ dòng nào.
+  for (const idle of [null, [], ['architect_short']] as const) {
+    const { container, unmount } = render(
+      <DaiTrangThai snapshot={snap({ agents: [], idle_agents: idle as string[] | null })} />,
+    );
+    expect(container.querySelector('.dtcho')).toBeNull();
+    unmount();
+  }
 });
 
 test('lượt 0 vẫn hiện — đó là lượt đầu tiên, không phải vắng', () => {

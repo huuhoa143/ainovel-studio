@@ -1,5 +1,7 @@
 # Thiết kế cache prompt: phối hợp ba tầng litellm / agentcore / ainovel
 
+> **2026-10-08 — chỉ còn app desktop.** TUI và headless đã gỡ. Chỗ nào bên dưới nhắc panel cache của TUI là mô tả lúc viết; thiết kế cache không đổi.
+
 > Bài này là một tài liệu giảng giải: giới thiệu cách chúng tôi thiết kế cache prompt LLM
 > (prompt caching) đầu-cuối trên ba repo phối hợp, gồm nguyên lý thiết kế, ca tra lỗi thật và các vị trí mã nguồn đối chiếu được.
 >

@@ -258,17 +258,25 @@ func (k *kichBan) writer(c call) reply {
 	}
 }
 
-func (k *kichBan) editor(_ call) reply {
+// reChuongDuyet bắt số chương trong task duyệt toàn cục ("save_review scope=global, chapter=N").
+var reChuongDuyet = regexp.MustCompile(`chapter=(\d+)`)
+
+func (k *kichBan) editor(c call) reply {
 	k.mu.Lock()
 	k.soLanDuyet++
 	k.mu.Unlock()
+	// Chương được duyệt lấy từ chính task mà Route phái xuống ("… chapter=N)"): sách 6
+	// chương có HAI lượt duyệt — mốc ReviewInterval (chương 5) và lượt chấm cuối trước khi
+	// kết truyện (chương 6). Cắm cứng chương 5 thì lượt cuối không bao giờ được ghi nhận.
+	chuongDuyet := domain.ReviewInterval
+	if m := reChuongDuyet.FindStringSubmatch(c.LastUser); m != nil {
+		fmt.Sscanf(m[1], "%d", &chuongDuyet)
+	}
 	chieu := func(ten string, diem int, loi string) map[string]any {
 		return map[string]any{"dimension": ten, "score": diem, "comment": loi}
 	}
-	// Cửa duyệt toàn cục mở sau chương thứ ReviewInterval, nên chương được duyệt
-	// là chương 5, không phải chương cuối sách.
 	return toolReply("save_review", map[string]any{
-		"chapter": domain.ReviewInterval, "scope": "global",
+		"chapter": chuongDuyet, "scope": "global",
 		"dimensions": []map[string]any{
 			chieu("consistency", 86, "Mạch nhân quả liền (dẫn: chương 3 giải thích hõm đá)"),
 			chieu("character", 84, "Giọng ông Thản giữ nguyên (dẫn: thoại chương 1 và 5)"),
@@ -284,10 +292,9 @@ func (k *kichBan) editor(_ call) reply {
 	})
 }
 
-// architect chỉ được gọi ở sách KHÔNG phân tầng khi dàn ý cạn mà sách chưa
-// hoàn thành. Với sách 6 chương/dàn ý 6 chương thì commit_chapter tự chốt hoàn
-// thành (applyCompletion), nên nhánh này lẽ ra không chạy — nó có ở đây để nếu
-// engine đi lối khác thì test vẫn tiến được và soLanKienTruc nói ra sự thật đó.
+// architect được gọi ở sách KHÔNG phân tầng khi dàn ý đã cạn: commit chương cuối
+// KHÔNG tự chốt hoàn thành nữa mà đợi lượt chấm cuối, rồi Route quy tắc 12 giao cho
+// Kiến trúc sư kết truyện bằng save_foundation(complete_book).
 func (k *kichBan) architect(_ call) reply {
 	k.mu.Lock()
 	k.soLanKienTruc++
@@ -409,7 +416,7 @@ func chayMotSach(t *testing.T, noiDung func(ch int) string) *lanChay {
 
 func TestVongDoiSachTiengViet(t *testing.T) {
 	lan := chayMotSach(t, nil)
-	dir, st, h, kb, events := lan.dir, lan.store, lan.host, lan.kichBan, lan.events
+	dir, st, kb, events := lan.dir, lan.store, lan.kichBan, lan.events
 
 	// ── 1. Vòng đời đi hết ──
 	progress, err := st.Progress.Load()
@@ -422,14 +429,16 @@ func TestVongDoiSachTiengViet(t *testing.T) {
 	if len(progress.CompletedChapters) != soChuong {
 		t.Fatalf("phải hoàn thành %d chương, thực tế %v", soChuong, progress.CompletedChapters)
 	}
-	if kb.soLanDuyet != 1 {
-		t.Errorf("cửa duyệt toàn cục (ReviewInterval=%d) phải mở đúng 1 lần, thực tế %d lần "+
-			"(0 = editor chưa hề được phái; >1 = duyệt lặp vì HasGlobalReview không được ghi nhận)",
-			domain.ReviewInterval, kb.soLanDuyet)
+	// Hai lượt duyệt: mốc ReviewInterval (chương 5) và lượt chấm cuối (chương 6) trước khi
+	// kết truyện. 1 = lượt cuối không chạy (truyện đóng mà chưa chấm); >2 = duyệt lặp vì
+	// HasGlobalReview không được ghi nhận.
+	if kb.soLanDuyet != 2 {
+		t.Errorf("phải có đúng 2 lượt duyệt toàn cục (chương %d và lượt chấm cuối chương %d), thực tế %d lần",
+			domain.ReviewInterval, soChuong, kb.soLanDuyet)
 	}
-	if kb.soLanKienTruc != 0 {
-		t.Errorf("sách không phân tầng phải tự chốt hoàn thành ở commit_chapter, "+
-			"không cần architect; thực tế architect được phái %d lần", kb.soLanKienTruc)
+	// Chấm xong thì dàn ý đã cạn: Route quy tắc 12 giao Kiến trúc sư kết truyện, đúng 1 lần.
+	if kb.soLanKienTruc != 1 {
+		t.Errorf("sau lượt chấm cuối, Kiến trúc sư phải được phái đúng 1 lần để kết truyện; thực tế %d lần", kb.soLanKienTruc)
 	}
 	// Cửa duyệt phải nằm ĐÚNG giữa chương 5 và chương 6. Nếu nó mở sau khi sách
 	// đã hoàn thành thì con số soLanDuyet vẫn bằng 1 mà cơ chế thực chất đã chết.
@@ -510,7 +519,7 @@ func TestVongDoiSachTiengViet(t *testing.T) {
 
 	// ── 4. Xuất bản thảo ──
 	out := filepath.Join(dir, "ban-thao.txt")
-	res, err := h.Export(context.Background(), exp.Options{OutPath: out, Overwrite: true})
+	res, err := exp.Run(context.Background(), exp.Deps{Store: st}, exp.Options{OutPath: out, Overwrite: true})
 	if err != nil {
 		t.Fatalf("Export: %v", err)
 	}

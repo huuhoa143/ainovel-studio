@@ -37,9 +37,13 @@ import (
 //	có trong danh sách → tên model có thật
 //
 // Ba câu hỏi ấy là toàn bộ những gì hỏng ở lượt vừa rồi, và trả lời chúng miễn phí.
+//
+// Câu thứ tư — model có gọi công cụ được không — thì `/models` không trả lời được, và nó đã
+// làm hỏng một lượt thật (xem cong_cu.go). Nên `?tools=1` xin thêm đúng MỘT lượt chat tí hon;
+// nút Kiểm tra gửi cờ đó, bộ chọn model nạp danh sách thì không.
 func (s *server) handleLietKeModel(w http.ResponseWriter, r *http.Request) {
-	duong := bootstrap.EffectiveConfigPath()
-	cfg, err := bootstrap.LoadConfigFile(duong)
+	// Cùng nguồn với `GET /api/config`, để thẻ và nút Kiểm tra không bao giờ trả lời khác nhau.
+	cfg, err := s.may.napCauHinh()
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, fmt.Errorf("đọc cấu hình: %w", err))
 		return
@@ -58,13 +62,77 @@ func (s *server) handleLietKeModel(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusNotFound, fmt.Errorf("không có nhà cung cấp %q trong cấu hình", ten))
 		return
 	}
-	if strings.TrimSpace(pc.APIKey) == "" {
+	var kiem *yeuCauCongCu
+	if q := r.URL.Query(); q.Get("tools") == "1" {
+		model := strings.TrimSpace(q.Get("model"))
+		if model == "" {
+			model = modelDangDungO(&cfg, ten, pc)
+		}
+		kiem = &yeuCauCongCu{model: model}
+	}
+	lietKeTheo(w, r, ten, pc, kiem)
+}
+
+// handleThuKetNoi — POST /api/models/try
+//
+// Kiểm một nhà cung cấp ĐANG GÕ, trước khi lưu. Biểu mẫu thêm/sửa cần trả lời "khóa này,
+// địa chỉ này có sống không, phục vụ model nào" TRƯỚC khi người dùng bấm Lưu — nếu không, bước
+// chọn model không có gì để chọn, và lưu một khóa sai là đổi cấu hình thật chỉ để thử.
+//
+// Thân: {name, type?, base_url?, api_key?}. Trường vắng lấy từ mục đã lưu cùng tên (nên khi
+// sửa, không gõ lại khóa vẫn kiểm được bằng khóa cũ). Không ghi gì.
+func (s *server) handleThuKetNoi(w http.ResponseWriter, r *http.Request) {
+	var than struct {
+		Ten     string  `json:"name"`
+		Loai    *string `json:"type,omitempty"`
+		BaseURL *string `json:"base_url,omitempty"`
+		APIKey  *string `json:"api_key,omitempty"`
+		// Keyless như ô cùng tên của biểu mẫu: nhà cung cấp không cần khóa API. nil = theo mục đã lưu.
+		Keyless *bool `json:"keyless,omitempty"`
+		// Model để thử gọi công cụ. Vắng thì thử `auto` nếu nhà cung cấp có, không thì báo
+		// "chưa kiểm" — xem `lietKeTheo`.
+		Model string `json:"model,omitempty"`
+		Tools bool   `json:"tools,omitempty"`
+	}
+	if err := docThan(r, &than); err != nil {
+		writeErr(w, http.StatusBadRequest, err)
+		return
+	}
+	ten := strings.TrimSpace(than.Ten)
+	var pc bootstrap.ProviderConfig
+	if cfg, err := s.may.napCauHinh(); err == nil && ten != "" {
+		pc = cfg.Providers[ten]
+	}
+	if than.Loai != nil {
+		pc.Type = strings.TrimSpace(*than.Loai)
+	}
+	if than.BaseURL != nil {
+		pc.BaseURL = strings.TrimSpace(*than.BaseURL)
+	}
+	if than.APIKey != nil {
+		pc.APIKey = *than.APIKey
+	}
+	if than.Keyless != nil {
+		pc.Keyless = *than.Keyless
+	}
+	var kiem *yeuCauCongCu
+	if than.Tools {
+		kiem = &yeuCauCongCu{model: strings.TrimSpace(than.Model)}
+	}
+	lietKeTheo(w, r, ten, pc, kiem)
+}
+
+// lietKeTheo hỏi danh sách model của một nhà cung cấp đã dựng sẵn cấu hình.
+//
+// `kiem` khác nil thì sau khi liệt kê xong còn thử MỘT lượt gọi công cụ — xem `thuGoiCongCu`.
+func lietKeTheo(w http.ResponseWriter, r *http.Request, ten string, pc bootstrap.ProviderConfig, kiem *yeuCauCongCu) {
+	if strings.TrimSpace(pc.APIKey) == "" && !bootstrap.KhongCanKhoa(ten, pc) {
 		writeErr(w, http.StatusBadRequest, fmt.Errorf(
-			"nhà cung cấp %q chưa có khóa API — đặt khóa rồi mới hỏi được danh sách model", ten))
+			"nhà cung cấp %q chưa có khóa API — nhập khóa rồi mới hỏi được danh sách model", ten))
 		return
 	}
 
-	duongModel, dat, err := diaChiLietKe(pc)
+	duongModel, dat, err := diaChiLietKe(ten, pc)
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, err)
 		return
@@ -175,7 +243,7 @@ func (s *server) handleLietKeModel(w http.ResponseWriter, r *http.Request) {
 	}
 	sort.Strings(ds)
 
-	writeJSON(w, map[string]any{
+	ra := map[string]any{
 		// `windows` đi RIÊNG khỏi `models` chứ không gộp thành mảng đối tượng: `models` đang
 		// nạp thẳng vào `datalist` của giao diện, và đổi hình dạng của nó là bắt mọi chỗ đọc
 		// phải sửa theo cho một thông tin mà phần lớn trong số đó không cần.
@@ -183,7 +251,15 @@ func (s *server) handleLietKeModel(w http.ResponseWriter, r *http.Request) {
 		"provider": ten,
 		"models":   ds,
 		"count":    len(ds),
-	})
+	}
+	if kiem != nil {
+		model := kiem.model
+		if model == "" && ten2["auto"] {
+			model = "auto"
+		}
+		ra["tools"] = thuGoiCongCu(r.Context(), ten, pc, model)
+	}
+	writeJSON(w, ra)
 }
 
 // soMem đọc một con số từ JSON thô, và trả 0 thay vì LỖI khi hình dạng không phải số.
@@ -239,11 +315,18 @@ func cuaTrongNang(raw json.RawMessage) int {
 //
 // Trả lỗi tường minh cho giao thức chưa dựng, thay vì đoán một đường dẫn rồi để người dùng
 // nhận một lỗi 404 khó hiểu từ phía nhà cung cấp.
-func diaChiLietKe(pc bootstrap.ProviderConfig) (string, func(*http.Request), error) {
+func diaChiLietKe(ten string, pc bootstrap.ProviderConfig) (string, func(*http.Request), error) {
 	goc := strings.TrimRight(strings.TrimSpace(pc.BaseURL), "/")
 	loai := strings.ToLower(strings.TrimSpace(pc.Type))
 	if loai == "" {
-		loai = "openai"
+		// Mục không khai type suy giao thức theo TÊN — đúng luật engine dùng
+		// (`ProviderConfig.ProviderType`). Rơi thẳng về openai thì nút Kiểm tra của mục
+		// `anthropic` do TUI tạo hỏi nhầm cổng và báo 401 cho một khóa đang sống.
+		if t, err := pc.ProviderType(ten); err == nil {
+			loai = strings.ToLower(t)
+		} else {
+			loai = "openai"
+		}
 	}
 
 	switch loai {
@@ -252,14 +335,17 @@ func diaChiLietKe(pc bootstrap.ProviderConfig) (string, func(*http.Request), err
 			goc = "https://api.openai.com/v1"
 		}
 		return goc + "/models", func(r *http.Request) {
-			r.Header.Set("Authorization", "Bearer "+pc.APIKey)
+			if pc.APIKey != "" {
+				r.Header.Set("Authorization", "Bearer "+pc.APIKey)
+			}
 		}, nil
 
 	case "anthropic":
 		if goc == "" {
 			goc = "https://api.anthropic.com/v1"
 		}
-		return goc + "/models", func(r *http.Request) {
+		// Anthropic mặc định trả 20 mục mỗi trang; xin trang lớn nhất để danh sách đủ.
+		return goc + "/models?limit=1000", func(r *http.Request) {
 			r.Header.Set("x-api-key", pc.APIKey)
 			r.Header.Set("anthropic-version", "2023-06-01")
 		}, nil
@@ -268,7 +354,8 @@ func diaChiLietKe(pc bootstrap.ProviderConfig) (string, func(*http.Request), err
 		if goc == "" {
 			goc = "https://generativelanguage.googleapis.com/v1beta"
 		}
-		return goc + "/models", func(r *http.Request) {
+		// Gemini mặc định 50 mục mỗi trang.
+		return goc + "/models?pageSize=1000", func(r *http.Request) {
 			r.Header.Set("x-goog-api-key", pc.APIKey)
 		}, nil
 

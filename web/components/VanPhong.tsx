@@ -5,7 +5,7 @@ import { CHU, GIAI_THICH, nhanTinhTrangLuat } from '@/lib/nhan';
 import type { ArcStyle, CharacterVoice, UserStyle } from '@/lib/types';
 import { useHoSo } from '@/lib/useHoSo';
 
-import { HoSoKhung, tinhTrangNguon } from './HoSoKhung';
+import { HoSoKhung, VongTen, tinhTrangNguon } from './HoSoKhung';
 
 /**
  * Văn phong: engine đang viết theo luật gì.
@@ -45,9 +45,9 @@ export function VanPhong({ tacPham }: { tacPham: string | undefined }) {
   const canhBao = tai.du?.warnings ?? null;
 
   return (
-    <HoSoKhung tieuDe={CHU.vanPhong} motTa={tt ? undefined : motTa(arc, khai)}>
+    <HoSoKhung tieuDe={CHU.vanPhong} motTa={tt ? undefined : motTa(arc, khai)} lop="tg tgVanPhong">
       {tt ?? (
-        <>
+        <div className="tgThan">
           {/* Một nguồn hỏng mà nguồn kia còn đọc được thì server trả 200 kèm
               `warnings` — nên ca "đọc được mà hỏng" KHÔNG đi qua nhánh lỗi fetch,
               và nếu chỉ bắt lỗi fetch thì nó biến mất không dấu vết. */}
@@ -74,14 +74,12 @@ export function VanPhong({ tacPham }: { tacPham: string | undefined }) {
             </section>
           ) : (
             <>
-              <section className="sect">
-                <p className="trongSect">{GIAI_THICH.vanPhongHaiNguon}</p>
-              </section>
+              <p className="tgChuThich tgVpGioiThieu">{GIAI_THICH.vanPhongHaiNguon}</p>
               <KhoiKhai khai={khai} />
               <KhoiChung arc={arc} />
             </>
           )}
-        </>
+        </div>
       )}
     </HoSoKhung>
   );
@@ -91,7 +89,7 @@ export function VanPhong({ tacPham }: { tacPham: string | undefined }) {
 function KhoiKhai({ khai }: { khai: UserStyle | null }) {
   if (khai === null) {
     return (
-      <section className="sect">
+      <section className="sect tgVpThe">
         <h2>{CHU.luatDaKhai}</h2>
         <p className="trongSect">
           {GIAI_THICH.nguonChuaGhi(
@@ -117,9 +115,10 @@ function KhoiKhai({ khai }: { khai: UserStyle | null }) {
     !khai.genre;
 
   return (
-    <section className="sect">
+    <section className="sect tgVpThe">
       <h2>
-        {CHU.luatDaKhai} · <span className="phu">{CHU.chiThi}</span>
+        {CHU.luatDaKhai}
+        <span className="vien">{CHU.chiThi}</span>
       </h2>
       <p className="steerhint">{GIAI_THICH.vanPhongNguonKhai}</p>
 
@@ -206,7 +205,7 @@ function KhoiKhai({ khai }: { khai: UserStyle | null }) {
           {khai.preferences ? (
             <div className="vpnhom">
               <h3>{CHU.uaThich}</h3>
-              <p className="vpvan">{khai.preferences}</p>
+              <VanUaThich chu={khai.preferences} />
             </div>
           ) : null}
 
@@ -238,7 +237,7 @@ function KhoiKhai({ khai }: { khai: UserStyle | null }) {
 function KhoiChung({ arc }: { arc: ArcStyle | null }) {
   if (arc === null) {
     return (
-      <section className="sect">
+      <section className="sect tgVpThe">
         <h2>{CHU.editorChungRa}</h2>
         <p className="trongSect">
           {GIAI_THICH.nguonChuaGhi(
@@ -256,9 +255,10 @@ function KhoiChung({ arc }: { arc: ArcStyle | null }) {
   const rong = loiKe.length === 0 && giong.length === 0 && cam.length === 0;
 
   return (
-    <section className="sect">
+    <section className="sect tgVpThe">
       <h2>
-        {CHU.editorChungRa} · <span className="phu">{CHU.moTa}</span>
+        {CHU.editorChungRa}
+        <span className="vien">{CHU.moTa}</span>
         {/* `volume === 0` nghĩa là chưa gắn được tập/cung, nên nhãn phẳng chỉ có
             cung. Kiểm `> 0`, không kiểm falsy — cùng luật, chỉ khác chỗ: ở đây 0
             THẬT SỰ là "không biết", và server đã nói vậy ở model.go:272. */}
@@ -332,11 +332,48 @@ function KhoiChung({ arc }: { arc: ArcStyle | null }) {
   );
 }
 
+/**
+ * Chữ "Nên dùng" là markdown thô của người dùng (`## [startup_prompt]` rồi đoạn văn).
+ * Tiêu đề thành nhãn nhỏ, ngoặc vuông bỏ đi — để lại `##` giữa văn là rác markdown, cùng lỗi
+ * đã sửa ở tiền đề.
+ */
+function VanUaThich({ chu }: { chu: string }) {
+  const khoi: { tieuDe?: string; doan: string[] }[] = [];
+  let hien: { tieuDe?: string; doan: string[] } = { doan: [] };
+  khoi.push(hien);
+  for (const dong of chu.split('\n')) {
+    const tieuDe = dong.match(/^\s*#{1,6}\s+(.*\S)\s*$/);
+    if (tieuDe) {
+      hien = { tieuDe: tieuDe[1]!.replace(/^\[(.*)\]$/, '$1').replace(/_/g, ' '), doan: [] };
+      khoi.push(hien);
+    } else if (dong.trim()) {
+      hien.doan.push(dong.trim());
+    }
+  }
+  return (
+    <>
+      {khoi
+        .filter((k) => k.tieuDe || k.doan.length > 0)
+        .map((k, i) => (
+          <div className="vpvan" key={i}>
+            {k.tieuDe ? <span className="tgNhanPhu m">{k.tieuDe}</span> : null}
+            {k.doan.map((d, j) => (
+              <p key={j}>{d}</p>
+            ))}
+          </div>
+        ))}
+    </>
+  );
+}
+
 function MotGiong({ g }: { g: CharacterVoice }) {
   const luat = g.rules ?? [];
   return (
     <li>
-      <h4>{g.name}</h4>
+      <h4>
+        <VongTen ten={g.name} />
+        {g.name}
+      </h4>
       {luat.length > 0 ? (
         <ul>
           {luat.map((r, i) => (

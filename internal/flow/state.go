@@ -36,9 +36,9 @@ func LoadState(store *storepkg.Store) (State, error) {
 	}
 	s.Progress = progress
 
-	if n := len(progress.CompletedChapters); n > 0 {
-		s.LastCompleted = progress.CompletedChapters[n-1]
-	}
+	// Lấy từ bản gốc (c090029): chương lớn nhất, không phải phần tử cuối — sau khi một
+	// chương được mở lại rồi chốt lần nữa, nó bị nối vào cuối danh sách.
+	s.LastCompleted = progress.LatestCompleted()
 
 	// 弧边界仅在分层模式且有已完成章节时才计算
 	if progress.Layered && s.LastCompleted > 0 {
@@ -69,7 +69,7 @@ func LoadState(store *storepkg.Store) (State, error) {
 
 	// 非分层全局审阅事实:仅在触发点读盘(其余组合 Route 不消费该字段)。
 	if !progress.Layered && s.LastCompleted > 0 {
-		if due, _ := domain.ShouldReview(len(progress.CompletedChapters)); due {
+		if due, _ := domain.ShouldReview(len(progress.CompletedChapters), progress.TotalChapters); due {
 			s.HasGlobalReview, err = store.World.HasGlobalReview(s.LastCompleted)
 			if err != nil {
 				return s, fmt.Errorf("load global review: %w", err)

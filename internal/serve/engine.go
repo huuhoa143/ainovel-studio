@@ -11,8 +11,11 @@ import (
 
 	"github.com/huuhoa143/ainovel-studio/assets"
 	"github.com/huuhoa143/ainovel-studio/internal/bootstrap"
+	"github.com/huuhoa143/ainovel-studio/internal/domain"
 	"github.com/huuhoa143/ainovel-studio/internal/entry/startup"
 	"github.com/huuhoa143/ainovel-studio/internal/host"
+	"github.com/huuhoa143/ainovel-studio/internal/host/imp"
+	"github.com/huuhoa143/ainovel-studio/internal/store"
 )
 
 // Bộ giám sát engine — phần cho phép studio GHI, không chỉ đọc.
@@ -50,11 +53,20 @@ import (
 // cuốn cùng chạy là gấp đôi tiền và gấp đôi RAM, đó là quyết định của người dùng chứ
 // không phải của mã. Map làm cho việc nới ra sau này không phải đổi hình dạng gì.
 type boMay struct {
-	mu       sync.Mutex
-	root     string
-	soToiDa  int
-	dang     map[string]*phienMay
-	napConfg func() (bootstrap.Config, error) // tách ra để test tiêm được
+	mu      sync.Mutex
+	root    string
+	soToiDa int
+	dang    map[string]*phienMay
+	// cauHinh là tệp cấu hình DUY NHẤT của tiến trình (`serve --config`): engine đọc nó mỗi
+	// lần mở, studio đọc và ghi nó ở /api/config.
+	cauHinh string
+
+	// dangTat bật ở đầu dongTatCa và không bao giờ tắt lại. Canh bởi mu.
+	//
+	// Yêu cầu không-SSE được chạy tiếp trong thời hạn tắt êm, và khi quá hạn handler vẫn có
+	// thể đang chạy SAU lúc dongTatCa đã quét xong map. Không có cờ này thì một handler như thế
+	// gọi `mo` là mở một engine MỚI không ai đóng — giữ khóa truyện tới khi process chết.
+	dangTat bool
 }
 
 // mocBayGio là một chỗ duy nhất lấy thời điểm hiện tại trong gói này.
@@ -64,13 +76,23 @@ type boMay struct {
 // là hai mốc lệch nhau mà không ai kiểm.
 func mocBayGio() time.Time { return time.Now() }
 
-func newBoMay(root string) *boMay {
+func newBoMay(root, cauHinh string) *boMay {
 	return &boMay{
-		root:     root,
-		soToiDa:  1,
-		dang:     map[string]*phienMay{},
-		napConfg: bootstrap.LoadConfig,
+		root:    root,
+		soToiDa: 1,
+		dang:    map[string]*phienMay{},
+		cauHinh: cauHinh,
 	}
+}
+
+// napCauHinh đọc tệp cấu hình. Chưa có tệp thì trả cấu hình rỗng, không lỗi: đó là lần mở
+// app đầu tiên, và NeedsSetup sẽ nói phần còn lại.
+func (b *boMay) napCauHinh() (bootstrap.Config, error) {
+	cfg, err := bootstrap.LoadConfig(b.cauHinh)
+	if errors.Is(err, os.ErrNotExist) {
+		return bootstrap.Config{ConfigPath: b.cauHinh}, nil
+	}
+	return cfg, err
 }
 
 // phienMay là một engine đang mở cho một cuốn sách.
@@ -110,8 +132,9 @@ func (p *phienMay) tinhTrang() (loi error, dung bool) {
 }
 
 var (
-	errQuaNhieuMay = errors.New("đã có một tác phẩm đang mở engine; dừng nó trước khi mở cuốn khác")
+	errQuaNhieuMay = errors.New("Studio chỉ viết một truyện mỗi lúc")
 	errChuaMoMay   = errors.New("tác phẩm này chưa mở engine")
+	errDangTat     = errors.New("Studio đang tắt, không mở thêm engine")
 )
 
 // mo mở engine cho một cuốn, hoặc trả lại engine đang mở.
@@ -127,14 +150,19 @@ func (b *boMay) mo(id string) (*phienMay, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
+	if b.dangTat {
+		return nil, errDangTat
+	}
 	if p, ok := b.dang[id]; ok {
 		return p, nil
 	}
 	if len(b.dang) >= b.soToiDa {
-		return nil, errQuaNhieuMay
+		if err := b.nhuongCho(); err != nil {
+			return nil, err
+		}
 	}
 
-	cfg, err := b.napConfg()
+	cfg, err := b.napCauHinh()
 	if err != nil {
 		return nil, fmt.Errorf("đọc cấu hình: %w", err)
 	}
@@ -145,11 +173,9 @@ func (b *boMay) mo(id string) (*phienMay, error) {
 	cfg.OutputDir = dir
 	cfg.FillDefaults()
 
-	bundle := assets.Load(cfg.Style, assets.DefaultLoadOptions(cfg.OutputDir))
-	// host.New lấy khóa tệp của thư mục (store.Khoa) và Close trả lại. Bản đầu của bộ
-	// giám sát này tự lấy khóa riêng, và nó VÔ DỤNG: host.New có năm chỗ gọi, nên khóa
-	// đặt ở serve chỉ chặn được serve tự đụng chính nó — không chặn được TUI hay headless,
-	// tức đúng cái nó tồn tại để chặn.
+	bundle := assets.Load(cfg.Style, assets.DefaultLoadOptions(cfg.OutputDir, cfg.UserDir()))
+	// host.New lấy khóa tệp của thư mục (store.Khoa) và Close trả lại — khóa nằm ở đó chứ
+	// không ở đây để mọi chỗ dựng Host (studio, eval) cùng được canh.
 	eng, err := host.New(cfg, bundle)
 	if err != nil {
 		return nil, err
@@ -168,6 +194,65 @@ func (b *boMay) mo(id string) (*phienMay, error) {
 	return p, nil
 }
 
+// nhuongCho giải phóng suất engine khi nó đang bị một phiên RẢNH giữ. Gọi khi đã giữ b.mu.
+//
+// Đo được trên truyện thật: viết xong một truyện, bấm "Viết truyện mới" thì nhận câu "đã có
+// một tác phẩm đang mở engine; dừng nó trước khi mở cuốn khác" — trong khi cuốn kia đã XONG và
+// không làm gì. Phiên rảnh chỉ còn giữ khóa tệp; đóng nó không mất gì (mọi thứ đã lưu xuống
+// đĩa, mở lại là khôi phục được), nên bắt người dùng đi tìm nút "Đóng phiên" ở cuốn kia là
+// một bước thừa đứng chắn đúng lối vào quan trọng nhất.
+//
+// Chỉ phiên ĐANG BẬN mới được giữ suất: đang chạy / đang dừng dở, hoặc đang chờ người dùng trả
+// lời một câu hỏi — đóng lúc đó là vứt việc đang làm. Ca ấy trả lỗi NÊU TÊN cuốn đang giữ để
+// người dùng biết phải sang đâu.
+func (b *boMay) nhuongCho() error {
+	for id, p := range b.dang {
+		if dangBan(p) {
+			return fmt.Errorf("%w: «%s» đang viết. Tạm dừng nó trước, rồi mở truyện này",
+				errQuaNhieuMay, tenHien(p))
+		}
+		delete(b.dang, id)
+		dongPhien(p)
+		slog.Info("studio đóng phiên rảnh để nhường suất", "module", "serve", "book", id)
+	}
+	return nil
+}
+
+// docMay đọc trạng thái tự khai và tên truyện của một phiên. Biến chứ không gọi thẳng để bài
+// kiểm dựng được ca "phiên bận / phiên rảnh" mà không phải mở một engine thật.
+var docMay = func(p *phienMay) (runtime, ten string) {
+	s := p.eng.Snapshot()
+	return s.RuntimeState, s.NovelName
+}
+
+// daXong: truyện đã kết theo STORE (`Phase == complete`), không theo trạng thái tự khai của
+// engine — engine vừa mở lại sau khi khởi động studio còn báo `idle` cho một truyện đã xong,
+// và đọc trạng thái đó thì nút "Viết thêm" lại rơi về Resume rỗng.
+var daXong = func(p *phienMay) bool {
+	s := p.eng.Snapshot()
+	return s.RuntimeState == "completed" || s.Phase == "complete"
+}
+
+// dongPhien đóng engine của một phiên (trả khóa tệp). Biến vì cùng lý do với `docMay`.
+var dongPhien = func(p *phienMay) { p.eng.Close() }
+
+// dangBan: phiên đang làm việc hoặc đang chờ người dùng — không được đóng ngầm.
+func dangBan(p *phienMay) bool {
+	if p.hoi != nil && p.hoi.dangCho() != nil {
+		return true
+	}
+	rt, _ := docMay(p)
+	return rt == "running" || rt == "pausing"
+}
+
+// tenHien là tên truyện người dùng đọc được, rơi về mã thư mục khi chưa có tên.
+func tenHien(p *phienMay) string {
+	if _, n := docMay(p); strings.TrimSpace(n) != "" {
+		return strings.TrimSpace(n)
+	}
+	return p.id
+}
+
 // dangMo trả phiên đang mở, không tự mở mới.
 //
 // Tách khỏi `mo` vì hai nhóm route có nghĩa khác nhau: can thiệp / dừng chỉ có nghĩa khi
@@ -180,6 +265,28 @@ func (b *boMay) dangMo(id string) (*phienMay, error) {
 		return p, nil
 	}
 	return nil, errChuaMoMay
+}
+
+var errBiGiuNoiKhac = errors.New("tác phẩm đang được một cửa sổ AINovel Studio khác mở — đóng nó rồi thử lại")
+
+// boNhapDo bỏ lượt nhập dở của một cuốn. Engine đang mở thì đi qua Host (nó biết có bước nhập
+// nào đang chạy không); chưa mở thì làm thẳng trên đĩa, giữ b.mu để không ai mở engine chen
+// vào giữa chừng, và từ chối nếu tiến trình khác đang giữ khóa của cuốn.
+func (b *boMay) boNhapDo(id string) (bool, error) {
+	dir, err := (&server{root: b.root}).bookDir(id)
+	if err != nil {
+		return false, err
+	}
+	b.mu.Lock()
+	if p, ok := b.dang[id]; ok {
+		b.mu.Unlock()
+		return p.eng.DiscardImport()
+	}
+	defer b.mu.Unlock()
+	if store.DangCoNguoiGiu(dir) {
+		return false, errBiGiuNoiKhac
+	}
+	return imp.Discard(store.NewStore(dir))
 }
 
 // dong đóng engine và trả khóa.
@@ -200,8 +307,12 @@ func (b *boMay) dong(id string) error {
 }
 
 // dongTatCa dùng lúc tắt server. Trả khóa cho mọi cuốn để lần chạy sau không gặp khóa mồ côi.
+//
+// Bật dangTat CÙNG lượt khóa với lượt chụp danh sách: mọi `mo` sau đó bị từ chối, nên danh sách
+// này là đầy đủ — không engine nào mở chen vào sau lúc quét mà sống sót qua lúc tắt.
 func (b *boMay) dongTatCa() {
 	b.mu.Lock()
+	b.dangTat = true
 	ids := make([]string, 0, len(b.dang))
 	for id := range b.dang {
 		ids = append(ids, id)
@@ -216,7 +327,7 @@ func (b *boMay) dongTatCa() {
 
 // tao bắt đầu một tác phẩm mới từ một câu yêu cầu.
 //
-// Thứ tự ba bước LẤY ĐÚNG từ headless.Run: PrepareQuick → PrepareUserRules → StartPrepared.
+// Thứ tự ba bước: PrepareQuick → PrepareUserRules → StartPrepared.
 // `PrepareUserRules` phải chạy TRƯỚC `StartPrepared` vì nó chốt ảnh chụp luật người dùng
 // cho cả cuốn; đảo thứ tự thì cuốn sách chạy với luật của lần trước.
 func (b *boMay) tao(id, yeuCau string) (*phienMay, error) {
@@ -299,6 +410,12 @@ func (b *boMay) chay(id string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	// Truyện đã XONG thì "chạy" chỉ có một nghĩa: viết thêm. Không mở lại trước thì Resume
+	// không tìm được phiên nào và trả rỗng — đo được: nút "Viết thêm" trên truyện đã xong báo
+	// "không có phiên nào khôi phục được", tức nút mang tên một việc mà không làm được việc đó.
+	if err := moLaiNeuDaXong(p, ""); err != nil {
+		return "", err
+	}
 	nhan, err := p.eng.Resume()
 	if err != nil {
 		return "", err
@@ -323,7 +440,24 @@ func (b *boMay) canThiep(id, chu string) (string, error) {
 	}
 	p, err := b.dangMo(id)
 	if err != nil {
-		return "", err
+		// Engine chưa mở. Hai ca, và chúng khác nhau về NGHĨA chứ không chỉ về trạng thái:
+		//
+		//   · truyện CHƯA kết — câu này là góp ý cho một lượt đang/sắp chạy, mà không có
+		//     lượt nào cả. "Chưa mở engine" là câu trả lời đúng; người dùng bấm Viết tiếp.
+		//   · truyện ĐÃ kết — câu này là HƯỚNG viết thêm, tức một yêu cầu BẮT ĐẦU làm việc
+		//     lại. Đó đúng lớp "tạo / chạy tiếp" mà `mo` phục vụ, không phải lớp "can thiệp
+		//     vào việc đang chạy" mà `dangMo` canh.
+		//
+		// Thiếu vế hai thì cả luồng "Viết thêm" chết: đo được trên truyện thật — bấm nút
+		// "Viết thêm" ở thanh dưới, gõ hướng, gửi, và nhận đúng câu "tác phẩm này chưa mở
+		// engine" mà người dùng không có cách nào làm theo (truyện đã xong thì thanh dưới
+		// KHÔNG còn nút mở phiên nào).
+		if !errors.Is(err, errChuaMoMay) || !b.daKetTrenDia(id) {
+			return "", err
+		}
+		if p, err = b.mo(id); err != nil {
+			return "", err
+		}
 	}
 	if p.eng.Snapshot().IsRunning {
 		if err := p.eng.Steer(chu); err != nil {
@@ -331,12 +465,53 @@ func (b *boMay) canThiep(id, chu string) (string, error) {
 		}
 		return "steer", nil
 	}
+	// Góp ý trên truyện đã xong là HƯỚNG viết thêm: mở lại với câu ấy làm hướng (cùng đường
+	// `Reopen` → `Resume` mà TUI và `/reopen` đi), không đánh thức một lượt trên sách đã kết.
+	if daXong(p) {
+		if err := moLaiNeuDaXong(p, chu); err != nil {
+			return "", err
+		}
+		if _, err := p.eng.Resume(); err != nil {
+			return "", err
+		}
+		p.chayTu = mocBayGio()
+		b.theoDoi(p)
+		return "reopen", nil
+	}
 	if err := p.eng.Continue(chu); err != nil {
 		return "", err
 	}
 	p.chayTu = mocBayGio()
 	b.theoDoi(p)
 	return "continue", nil
+}
+
+// daKetTrenDia: truyện đã kết theo progress.json, đọc KHÔNG cần engine.
+//
+// `daXong` hỏi engine, nên nó không trả lời được câu hỏi "có nên mở engine không" — đó là
+// vòng tròn. Đọc thẳng store là đường duy nhất, và cũng là đường mà `/workshop` đã đi để
+// biết chặng của từng cuốn.
+//
+// Sai thì ngã về false: không chắc truyện đã kết thì không mở engine. Một câu "chưa mở
+// engine" thừa còn hơn một engine mở ra vì đọc hụt một tệp.
+func (b *boMay) daKetTrenDia(id string) bool {
+	st, err := (&server{root: b.root}).openBook(id)
+	if err != nil {
+		return false
+	}
+	p, err := st.Progress.Load()
+	if err != nil || p == nil {
+		return false
+	}
+	return p.Phase == domain.PhaseComplete
+}
+
+// moLaiNeuDaXong mở lại một truyện đã kết để viết thêm; truyện chưa kết thì không làm gì.
+func moLaiNeuDaXong(p *phienMay, huong string) error {
+	if !daXong(p) {
+		return nil
+	}
+	return p.eng.Reopen(huong)
 }
 
 // dung dừng lượt đang chạy. Trả về false khi không có gì để dừng.

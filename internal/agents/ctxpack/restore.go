@@ -46,6 +46,9 @@ const writerSummaryPromptMsgid = `上面的消息是需要摘要的写作对话�
 
 使用以下**精确格式**：
 
+## 当前任务
+[协调器本次下发的任务，原样保留]
+
 ## 当前进度
 [正在写第几章，进行到哪个场景/段落，本章目标字数进展]
 
@@ -81,6 +84,7 @@ const writerSummaryPromptMsgid = `上面的消息是需要摘要的写作对话�
 const writerUpdateSummaryPromptMsgid = `上面的消息是需要合并到已有摘要中的**新对话**。已有摘要在 <previous-summary> 标签中。
 
 更新规则：
+- "当前任务"原样保留，不改写
 - 保留所有仍然有效的角色状态，更新发生变化的
 - 已回收的伏笔移除，新埋的伏笔加入
 - 已修的审稿问题标记为已修或移除，新问题加入
@@ -90,6 +94,7 @@ const writerUpdateSummaryPromptMsgid = `上面的消息是需要合并到已有�
 
 使用与上一次摘要相同的格式：
 
+## 当前任务
 ## 当前进度
 ## 角色即时状态
 ## 活跃伏笔与线索

@@ -25,6 +25,7 @@ import (
 	"github.com/huuhoa143/ainovel-studio/internal/arbiter"
 	"github.com/huuhoa143/ainovel-studio/internal/domain"
 	"github.com/huuhoa143/ainovel-studio/internal/flow"
+	"github.com/huuhoa143/ainovel-studio/internal/i18n"
 	storepkg "github.com/huuhoa143/ainovel-studio/internal/store"
 	"github.com/huuhoa143/ainovel-studio/internal/tools"
 )
@@ -355,7 +356,44 @@ func TestEngine_WritesBookToCompletion(t *testing.T) {
 		MaxTurns:       10,
 		StopAfterTools: []string{"commit_chapter"},
 	}
-	e, events, done := newTestEngine(t, st, subagent.NewRunner(writer), nil)
+	// 写完大纲最后一章不再直接完本：先由 Editor 做终审，再由规划师 complete_book 收官。
+	editor := subagent.Config{
+		Name: "editor", Description: "test editor", SystemPrompt: "test", MaxTurns: 6,
+		Model: &scriptedChatModel{fn: func(msgs []agentcore.Message) agentcore.Message {
+			for _, m := range msgs {
+				if m.Role == agentcore.RoleTool {
+					return testTextMsg("done")
+				}
+			}
+			dims := []map[string]any{}
+			for _, d := range []string{"consistency", "character", "pacing", "continuity", "foreshadow", "hook", "aesthetic"} {
+				dims = append(dims, map[string]any{"dimension": d, "score": 85, "comment": "达标(引用:原文)"})
+			}
+			return testToolCallMsg("save_review", map[string]any{
+				"chapter": 2, "scope": "global", "dimensions": dims, "issues": []map[string]any{},
+				"contract_status": nil, "contract_misses": []string{}, "contract_notes": nil,
+				"verdict": "accept", "summary": "全书终审通过",
+			})
+		}},
+		Tools:          []agentcore.Tool{tools.NewSaveReviewTool(st)},
+		StopAfterTools: []string{"save_review"},
+	}
+	architect := subagent.Config{
+		Name: "architect_long", Description: "test architect", SystemPrompt: "test", MaxTurns: 4,
+		Model: &scriptedChatModel{fn: func(msgs []agentcore.Message) agentcore.Message {
+			for _, m := range msgs {
+				if m.Role == agentcore.RoleTool {
+					return testTextMsg("done")
+				}
+			}
+			return testToolCallMsg("save_foundation", map[string]any{
+				"type": "complete_book", "content": map[string]any{}, "reason": "大纲已写完",
+			})
+		}},
+		Tools:          []agentcore.Tool{tools.NewSaveFoundationTool(st)},
+		StopAfterTools: []string{"save_foundation"},
+	}
+	e, events, done := newTestEngine(t, st, subagent.NewRunner(writer, editor, architect), nil)
 
 	if !e.start(nil) {
 		t.Fatal("engine start")
@@ -367,7 +405,13 @@ func TestEngine_WritesBookToCompletion(t *testing.T) {
 		t.Fatalf("load progress: %v", err)
 	}
 	if progress.Phase != domain.PhaseComplete {
-		t.Fatalf("两章写满应完本, got phase=%s completed=%v", progress.Phase, progress.CompletedChapters)
+		for _, ev := range *events {
+			t.Logf("event %s/%s: %s", ev.Category, ev.Agent, ev.Summary)
+		}
+		t.Fatalf("两章写满并终审后应完本, got phase=%s completed=%v", progress.Phase, progress.CompletedChapters)
+	}
+	if ok, err := st.World.HasGlobalReview(2); err != nil || !ok {
+		t.Fatalf("完本前必须有末章终审 reviews/02-global.json: ok=%v err=%v", ok, err)
 	}
 	if len(progress.CompletedChapters) != 2 {
 		t.Fatalf("应完成 2 章, got %v", progress.CompletedChapters)
@@ -449,6 +493,95 @@ func TestEngine_WorkerFailureConsultsArbiterAndAborts(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("worker_failure 裁定必须落盘: %+v", recs)
+	}
+}
+
+// seedStuckRewrite dựng hiện trường "chương 2 đã xong và đang nằm trong hàng đợi viết lại".
+func seedStuckRewrite(t *testing.T, st *storepkg.Store) {
+	t.Helper()
+	if err := st.Init(); err != nil {
+		t.Fatalf("init: %v", err)
+	}
+	if err := st.Progress.Init("test", 5); err != nil {
+		t.Fatalf("progress: %v", err)
+	}
+	if err := st.Progress.UpdatePhase(domain.PhaseWriting); err != nil {
+		t.Fatalf("phase: %v", err)
+	}
+	if err := st.Progress.MarkChapterComplete(2, 3000, "", ""); err != nil {
+		t.Fatalf("complete: %v", err)
+	}
+	if err := st.Progress.SetPendingRewrites([]int{2}, "评审要求重写"); err != nil {
+		t.Fatalf("pending: %v", err)
+	}
+	if err := st.Progress.SetFlow(domain.FlowRewriting); err != nil {
+		t.Fatalf("flow: %v", err)
+	}
+}
+
+// Chép từ bản gốc (08c13b2, issue #110): khi ngắt vì bế tắc, chương viết lại bị kẹt phải ra
+// khỏi hàng đợi. PendingRewrites nằm trên đĩa; chỉ dừng mà không bỏ ra thì khởi động lại là
+// chạy lại đúng lệnh hỏng, khóa cả cuốn.
+func TestEngine_DeadlockAbortDropsStuckRewrite(t *testing.T) {
+	st := storepkg.NewStore(t.TempDir())
+	seedStuckRewrite(t, st)
+	e, events, _ := newTestEngine(t, st, subagent.NewRunner(), nil)
+
+	inst := &flow.Instruction{Agent: "writer", Task: "重写第 2 章", Chapter: 2}
+	e.lastKey, e.repeats = inst.Agent+"\x00"+inst.Task, deadlockAbortAt-1
+
+	if stop := e.trackDeadlock(context.Background(), &inst); !stop {
+		t.Fatal("ngắt vì bế tắc vẫn phải dừng chờ người")
+	}
+	p, err := st.Progress.Load()
+	if err != nil {
+		t.Fatalf("progress: %v", err)
+	}
+	if len(p.PendingRewrites) != 0 {
+		t.Fatalf("chương kẹt phải ra khỏi hàng đợi: %v", p.PendingRewrites)
+	}
+	if p.Flow != domain.FlowWriting {
+		t.Fatalf("hàng đợi rỗng thì flow phải về writing, đang là %s", p.Flow)
+	}
+	can := fmt.Sprintf(i18n.F("；第 %d 章已移出返工队列(保留上一版终稿),继续创作将从后续章节推进"), 2)
+	var baoRo bool
+	for _, ev := range *events {
+		if strings.Contains(ev.Summary, can) {
+			baoRo = true
+		}
+	}
+	if !baoRo {
+		t.Fatalf("bỏ qua viết lại phải báo rõ cho người dùng: %+v", *events)
+	}
+}
+
+// Bỏ ra khỏi hàng đợi là thao tác phá hủy: chỉ đúng chương đang nằm trong hàng đợi.
+func TestEngine_DropStuckRewriteOnlyTouchesQueuedChapter(t *testing.T) {
+	cases := []struct {
+		name string
+		inst *flow.Instruction
+	}{
+		{"lệnh không phải writer", &flow.Instruction{Agent: "editor", Task: "弧级评审"}},
+		{"lệnh writer không gắn chương", &flow.Instruction{Agent: "writer", Task: "续写"}},
+		{"chương không nằm trong hàng đợi", &flow.Instruction{Agent: "writer", Task: "写第 3 章", Chapter: 3}},
+		{"lệnh rỗng", nil},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			st := storepkg.NewStore(t.TempDir())
+			seedStuckRewrite(t, st)
+			e, _, _ := newTestEngine(t, st, subagent.NewRunner(), nil)
+			if e.dropStuckRewrite(tc.inst) {
+				t.Fatal("không được bỏ ra")
+			}
+			p, err := st.Progress.Load()
+			if err != nil {
+				t.Fatalf("progress: %v", err)
+			}
+			if len(p.PendingRewrites) != 1 || p.PendingRewrites[0] != 2 {
+				t.Fatalf("hàng đợi không được bị đụng: %v", p.PendingRewrites)
+			}
+		})
 	}
 }
 

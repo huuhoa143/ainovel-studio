@@ -14,9 +14,8 @@ import (
 // buildSnapshot đọc store và dựng payload cho bề mặt studio.
 //
 // Chỉ dùng phương thức đọc công khai của store. Không sửa gì, không gọi engine.
-// Nhờ vậy `ainovel serve` chạy song song với engine (TUI hoặc headless) mà không
-// tranh chấp, và fork này không phải chạm vào core — điều quan trọng vì upstream
-// vẫn đang phát triển nhanh và mỗi dòng sửa ở core là một xung đột rebase.
+// Nhờ vậy đọc được cả khi engine của cuốn đang chạy mà không tranh chấp, và fork này
+// không phải chạm vào core — mỗi dòng sửa ở core là một xung đột khi đuổi theo upstream.
 func buildSnapshot(st *store.Store, id string, selected int) (*Snapshot, error) {
 	progress, err := st.Progress.Load()
 	if err != nil {
@@ -27,7 +26,11 @@ func buildSnapshot(st *store.Store, id string, selected int) (*Snapshot, error) 
 	}
 
 	cps := st.Checkpoints.All()
-	cycles := latestChapterCycles(cps)
+	var phienBatDau time.Time
+	if meta, err := st.RunMeta.Load(); err == nil && meta != nil {
+		phienBatDau, _ = time.Parse(time.RFC3339, meta.StartedAt)
+	}
+	cycles := latestChapterCycles(cps, phienBatDau)
 	timeline := buildTimeline(st, progress)
 
 	// Ba cờ dưới suy từ CHÍNH builder mà ba endpoint kia dùng, không từ một phép
@@ -53,16 +56,14 @@ func buildSnapshot(st *store.Store, id string, selected int) (*Snapshot, error) 
 			// lane trên dù có đủ dữ liệu để vẽ. Đã gặp thật lúc thử với dữ liệu
 			// thật: payload có 2 tập, 2 cung, mà capability báo false.
 			LayeredOutline: len(timeline.Volumes) > 0,
-			// Steer do handleStudio đặt: nó phụ thuộc server (có mắc route ghi không), không
-			// phụ thuộc store. Để false ở đây là giá trị khởi tạo, không phải kết luận.
-			Steer:         false,
-			StyleRules:    coVanPhong(styleDoc),
-			CostBreakdown: coChiPhiChiTiet(costDoc),
-			RunSettings:   coCaiDat(settingsDoc),
+			StyleRules:     coVanPhong(styleDoc),
+			CostBreakdown:  coChiPhiChiTiet(costDoc),
+			RunSettings:    coCaiDat(settingsDoc),
 		},
 		Transport: buildTransport(st, progress, cps),
 		Decisions: buildDecisions(st),
 		Warnings:  storeWarnings(st),
+		Import:    trangThaiNhap(st),
 	}
 
 	if selected > 0 {
@@ -83,7 +84,7 @@ func bookFrom(st *store.Store, id string, p *domain.Progress, cps []domain.Check
 		Done:     len(p.CompletedChapters),
 		Total:    p.TotalChapters,
 		Words:    p.TotalWordCount,
-		Activity: activityOf(p, cps),
+		Activity: activityOf(st, p, cps),
 	}
 	if _, last, ok := runSpan(cps); ok {
 		b.UpdatedAt = last.UTC().Format(time.RFC3339)
@@ -108,9 +109,16 @@ func bookFrom(st *store.Store, id string, p *domain.Progress, cps []domain.Check
 // không gán "nguội" cho một bước draft dài đang chạy bình thường.
 const activityIdleAfter = 10 * time.Minute
 
-func activityOf(p *domain.Progress, cps []domain.Checkpoint) string {
+func activityOf(st *store.Store, p *domain.Progress, cps []domain.Checkpoint) string {
 	if p.Phase == domain.PhaseComplete {
 		return "complete"
+	}
+	// Checkpoint mới chỉ là DẤU VẾT của một phiên, không phải bằng chứng phiên còn sống. Đo
+	// được: khởi động lại studio giữa chừng, thẻ ghi "Đang viết · đã chạy 10 phút" và thanh
+	// dưới ghi "đang chạy" ngay cạnh nút "Viết tiếp", trong khi không còn engine nào. Không
+	// process nào giữ khóa thư mục thì không ai đang viết — bất kể checkpoint mới cỡ nào.
+	if !store.DangCoNguoiGiu(st.Dir()) {
+		return "idle"
 	}
 	_, last, ok := runSpan(cps)
 	if !ok || time.Since(last) > activityIdleAfter {
@@ -319,13 +327,17 @@ func buildChapterRows(st *store.Store, p *domain.Progress, cycles map[int]chapte
 	}
 	sort.Ints(chapters)
 
+	// Lỗi đọc thư mục chỉ làm mất dấu "có nhận xét", không đáng làm hỏng cả snapshot.
+	reviewed, _ := st.World.ReviewedChapters()
+
 	rows := make([]ChapterRow, 0, len(chapters))
 	for _, c := range chapters {
 		row := ChapterRow{
-			Chapter: c,
-			Title:   chapterTitle(st, c),
-			Stage:   rowStage(c, p, done, rewrite),
-			Words:   p.ChapterWordCounts[c],
+			Chapter:  c,
+			Title:    chapterTitle(st, c),
+			Stage:    rowStage(c, p, done, rewrite),
+			Words:    p.ChapterWordCounts[c],
+			Reviewed: reviewed[c],
 		}
 		if cyc, ok := cycles[c]; ok {
 			if cyc.Measurable {
@@ -385,12 +397,15 @@ func chapterTitle(st *store.Store, chapter int) string {
 }
 
 func buildTransport(st *store.Store, p *domain.Progress, cps []domain.Checkpoint) Transport {
-	tr := Transport{State: activityOf(p, cps)}
+	tr := Transport{State: activityOf(st, p, cps)}
 
 	if meta, err := st.RunMeta.Load(); err == nil && meta != nil {
 		tr.Model = meta.Model
 	}
 	if usage, err := st.Usage.Load(); err == nil && usage != nil {
+		if lc := usage.LastCall; lc != nil {
+			tr.LastCall = &LuotGoi{Agent: lc.Agent, Provider: lc.Provider, Model: lc.Model, At: lc.At.Format(time.RFC3339)}
+		}
 		tr.CostUSD = usage.Overall.Cost
 		if n := len(p.CompletedChapters); n > 0 && usage.Overall.Cost > 0 {
 			per := usage.Overall.Cost / float64(n)
@@ -398,11 +413,10 @@ func buildTransport(st *store.Store, p *domain.Progress, cps []domain.Checkpoint
 		}
 	}
 
-	if first, last, ok := runSpan(cps); ok {
-		span := last.Sub(first)
-		ms := span.Milliseconds()
+	if lam, ok := thoiGianLam(cps); ok {
+		ms := lam.Milliseconds()
 		tr.ElapsedMs = &ms
-		if perHour, ok := throughput(len(p.CompletedChapters), span); ok {
+		if perHour, ok := throughput(len(p.CompletedChapters), lam); ok {
 			tr.ChaptersPerHour = &perHour
 		}
 	}
@@ -563,6 +577,7 @@ type truongSong struct {
 	Advance           *TienDo
 	Context           *NguCanh
 	Runtime           string
+	Stop              *LanDung
 }
 
 // chieuTruongSong chiếu host.UISnapshot (trạng thái sống của engine đang mở) thành phần
@@ -588,6 +603,10 @@ func chieuTruongSong(snap host.UISnapshot) truongSong {
 			Hold:          snap.HasAdvanceHold,
 			HoldReason:    snap.AdvanceHoldReason,
 		},
+	}
+	// Lần dừng chỉ có nghĩa khi engine KHÔNG chạy: lúc đang chạy nó là chuyện của lượt trước.
+	if n := snap.StopNote; n != nil && snap.RuntimeState != "running" {
+		ra.Stop = &LanDung{At: n.At.Format(time.RFC3339), Kind: n.Kind, Reason: n.Reason, LastError: n.LastError, LastErrorAgent: n.LastErrorAgent}
 	}
 	if snap.InProgressChapter > 0 {
 		n := snap.InProgressChapter
@@ -622,12 +641,13 @@ func anhXaVai(vao []host.AgentSnapshot) (dang []Vai, cho []string) {
 			continue
 		}
 		dang = append(dang, Vai{
-			Role:  a.Name,
-			State: a.State,
-			Tool:  a.Tool,
-			Turn:  a.Turn,
-			Task:  a.Summary,
-			Depth: 0,
+			Role:    a.Name,
+			State:   a.State,
+			Tool:    a.Tool,
+			Chapter: a.Chapter,
+			Turn:    a.Turn,
+			Task:    a.Summary,
+			Depth:   0,
 		})
 	}
 	return dang, cho

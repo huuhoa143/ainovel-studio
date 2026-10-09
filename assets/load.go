@@ -59,17 +59,18 @@ type Bundle struct {
 // 恢复同一本书加载同一份文风。注意与 rules 层不同(rules 的项目级绑定 cwd)。
 type LoadOptions struct {
 	BookStyleDir string // <outputDir>/style
-	HomeStyleDir string // ~/.ainovel/style
+	HomeStyleDir string // <thư mục cấu hình>/style
 }
 
-// DefaultLoadOptions 根据书目录构造生产环境的覆盖来源。
-func DefaultLoadOptions(outputDir string) LoadOptions {
+// DefaultLoadOptions dựng nguồn ghi đè văn phong cho một cuốn: tầng riêng trong thư mục truyện,
+// tầng chung CẠNH tệp cấu hình (`userDir`, xem `bootstrap.Config.UserDir`). Rỗng = bỏ tầng đó.
+func DefaultLoadOptions(outputDir, userDir string) LoadOptions {
 	var opts LoadOptions
 	if outputDir != "" {
 		opts.BookStyleDir = filepath.Join(outputDir, "style")
 	}
-	if home, err := os.UserHomeDir(); err == nil && home != "" {
-		opts.HomeStyleDir = filepath.Join(home, ".ainovel", "style")
+	if userDir != "" {
+		opts.HomeStyleDir = filepath.Join(userDir, "style")
 	}
 	return opts
 }

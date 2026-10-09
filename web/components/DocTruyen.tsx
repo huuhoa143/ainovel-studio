@@ -1,88 +1,206 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { layChuong } from '@/lib/api';
+import { DOC_DUYET } from '@/lib/chu/doc-duyet';
+import { cauChuaCoNhanXet } from '@/lib/nhanXetDinhKy';
 import { soTu } from '@/lib/dinhdang';
-import type { Tone } from '@/lib/nhan';
-import { CHU, GIAI_THICH, TRANG_THAI_CHUONG, nhanKetLuan } from '@/lib/nhan';
-
-import { BanDuyet } from './BanDuyet';
+import type { Khu } from '@/lib/khu';
+import { CHU, GIAI_THICH, kyTheoTone, nhanKetLuan, trangThaiDong } from '@/lib/nhan';
+import { mayDangChay } from '@/lib/song';
 import type { ChapterDetail, ChapterRow, Contract, Review, Snapshot } from '@/lib/types';
 
+import { BanDuyet } from './BanDuyet';
+import { BieuTuong } from './BieuTuong';
+import { MucLucChuong } from './MucLucChuong';
+
+
 /**
- * Bề mặt ĐỌC BẢN THẢO.
+ * Bề mặt ĐỌC TRUYỆN — câu hỏi thứ ba của người vận hành trong PRODUCT.md: "thành quả đọc ra
+ * sao".
  *
- * Đây là câu hỏi thứ ba của người vận hành trong PRODUCT.md — "thành quả đọc ra
- * sao" — và là câu duy nhất mà một thanh tiến độ không trả lời được.
+ * Ba cột: mục lục (nhóm Tập → Hồi, tìm theo số/tên) · khổ đọc · kế hoạch và nhận xét. Cột
+ * phải gập được để đọc tập trung, và lựa chọn đó cùng cỡ chữ, giãn dòng được nhớ trong
+ * localStorage của máy đang xem — đây là sở thích đọc, không phải dữ liệu của truyện.
  *
- * Ba quyết định về hình, tất cả đều có lý do bằng chữ:
- *
- *  1. **Khổ đọc 70ch, line-height 1.80, serif.** Serif là dấu hiệu ngữ nghĩa
- *     (DESIGN.md § Typography): thấy serif là thấy văn của tác phẩm, không phải
- *     chữ của công cụ. 1.80 vì dấu tiếng Việt xếp hai tầng — `ế ộ ữ ỗ` ăn khoảng
- *     trên, dấu nặng ăn khoảng dưới, và ở 1.5 thì dấu huyền dòng dưới chạm dấu
- *     nặng dòng trên. DESIGN.md đặt sàn 1.72 cho văn bản và ≥ 1.78 riêng cho khổ
- *     đọc dài; đây là khổ đọc dài.
- *
- *  2. **Cỡ chữ 14.5px, lớn hơn 13px của trích đoạn trong inspector.** Trích đoạn
- *     là số liệu để tra; đây là chỗ đọc liền mấy nghìn từ. Bước cỡ chữ chính là
- *     chỗ nói ra sự khác nhau đó.
- *
- *  3. **Bản duyệt của Editor nằm BÊN LỀ văn, không nằm ở trang khác.** Đây là
- *     thứ phân biệt studio với một trình đọc truyện: người vận hành đọc để kiểm,
- *     nên dẫn chứng của Editor phải ở ngay cạnh câu bị nêu. Khu lề dùng lại đúng
- *     các lớp của D (`.qcrow`, `.vande`, `.kv`) chứ không bê bố cục sáng của
- *     hướng B/C sang.
+ *  - **Khổ đọc 68ch, serif.** Serif là dấu hiệu ngữ nghĩa: thấy serif là thấy văn của tác
+ *    phẩm. Giãn dòng thấp nhất 1.75 vì dấu tiếng Việt xếp hai tầng — `ế ộ ữ ỗ` ăn khoảng trên,
+ *    dấu nặng ăn khoảng dưới, ở 1.5 thì dấu dòng dưới chạm dấu dòng trên.
+ *  - **Phím ←/→ chuyển chương**, trừ khi đang gõ trong ô nhập.
+ *  - **Chương trước/sau đi theo DANH SÁCH có dấu vết sản xuất, không phải `n ± 1`.** Bảng
+ *    chương có lỗ; nhảy sang `n + 1` có thể rơi vào một chương chưa tồn tại.
  */
 export function DocTruyen({
   snapshot,
   tacPham,
   chuongChon,
   onChonChuong,
+  onChonKhu,
 }: {
   snapshot: Snapshot;
   tacPham: string | undefined;
   chuongChon: number | undefined;
   onChonChuong: (n: number) => void;
+  /** Đổi khu (tùy chọn) — cho lối "Mở trong Nhận xét biên tập" ở cột phải. */
+  onChonKhu?: (k: Khu) => void;
 }) {
   const hang = snapshot.chapters;
+  const doc = useCheDoDoc();
+  const [moMucLuc, setMoMucLuc] = useState(false);
+  const oCuon = useRef<HTMLElement>(null);
+  const oTienDo = useRef<HTMLDivElement>(null);
 
   /**
-   * Vào bề mặt đọc mà chưa chọn chương thì TỰ chọn chương đọc được đầu tiên.
-   *
-   * Bản trước hiện "chưa chọn chương" cộng hai nút điều hướng bị vô hiệu — tức bấm "Bản
-   * thảo" trong rail xong không thấy truyện, và hai nút duy nhất trên bề mặt thì bấm không
-   * ra gì. Người dùng đọc đó là "nút chết", và họ đúng theo nghĩa họ thấy.
-   *
-   * Ưu tiên `done` rồi `rewrite`: đó là hai công đoạn chắc chắn có tệp bản thảo. Nếu không
-   * có chương nào như thế thì KHÔNG chọn gì — lúc đó câu "chưa có chương nào" là sự thật,
-   * và tự mở một chương chưa viết ra là dựng một khổ đọc trống.
+   * Vào bề mặt đọc mà chưa chọn chương thì TỰ chọn chương đọc được đầu tiên — ưu tiên `done`
+   * rồi `rewrite`, hai công đoạn chắc chắn có tệp bản thảo. Không có thì KHÔNG chọn gì: lúc đó
+   * câu "chưa có chương nào" là sự thật, và tự mở một chương chưa viết là dựng một khổ đọc trống.
    */
   useEffect(() => {
     if (chuongChon !== undefined) return;
-    const doc =
+    const dau =
       hang.find((r) => r.stage === 'done') ?? hang.find((r) => r.stage === 'rewrite');
-    if (doc) onChonChuong(doc.chapter);
+    if (dau) onChonChuong(dau.chapter);
     // `hang` đổi mỗi nhịp làm mới snapshot; chỉ `chuongChon` mới là điều kiện thật ở đây.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chuongChon]);
 
+  // Vị trí và chương trước/sau đi theo các chương ĐỌC ĐƯỢC (có bản viết), không theo mọi hàng:
+  // chương mới có kế hoạch cũng có hàng. Đo được trên truyện 3 chương — "Chương thứ 1 trên 2
+  // chương đã có" khi mới xong 1, và nút "chương sau" dẫn vào một chương chưa có chữ nào.
+  const docDuoc = hang.filter((r) => r.stage === 'done' || r.stage === 'rewrite');
+  const i = docDuoc.findIndex((r) => r.chapter === chuongChon);
+  const truoc = i > 0 ? docDuoc[i - 1] : undefined;
+  const sau = i >= 0 && i < docDuoc.length - 1 ? docDuoc[i + 1] : undefined;
+  // Chương ĐANG CHỌN không nằm trong danh sách đọc được — nó mới có kế hoạch. Mục lục vẫn
+  // liệt kê nó (kế hoạch của chương sắp viết là thứ đáng xem), nên vào được ca này là
+  // chuyện thường, không phải sự cố.
+  const ngoaiTam = i < 0 && docDuoc.length > 0;
+  // Chương cuối ĐỌC ĐƯỢC, để mời quay về từ một chương chưa viết.
+  const cuoiDocDuoc = ngoaiTam ? docDuoc[docDuoc.length - 1] : undefined;
+
+  const chon = useCallback(
+    (n: number) => {
+      onChonChuong(n);
+      setMoMucLuc(false);
+    },
+    [onChonChuong],
+  );
+
+  // Tiến độ đọc ghi thẳng vào DOM, không qua state: setState mỗi nhịp cuộn là vẽ lại cả
+  // nghìn đoạn văn mỗi khung hình.
+  const veTienDo = (ti: number) => {
+    const el = oTienDo.current;
+    if (!el) return;
+    el.setAttribute('aria-valuenow', String(Math.round(ti * 100)));
+    const thanh = el.firstElementChild as HTMLElement | null;
+    if (thanh) thanh.style.transform = `scaleX(${ti})`;
+  };
+
+  // Đổi chương thì về đầu trang: đọc tiếp chương mới từ giữa là đọc sai chỗ.
+  useEffect(() => {
+    oCuon.current?.scrollTo?.({ top: 0 });
+    veTienDo(0);
+  }, [chuongChon]);
+
+  useEffect(() => {
+    const phim = (e: KeyboardEvent) => {
+      if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+      if (e.key === 'ArrowLeft' && truoc) {
+        e.preventDefault();
+        chon(truoc.chapter);
+      } else if (e.key === 'ArrowRight' && sau) {
+        e.preventDefault();
+        chon(sau.chapter);
+      }
+    };
+    window.addEventListener('keydown', phim);
+    return () => window.removeEventListener('keydown', phim);
+  }, [truoc, sau, chon]);
+
+  const cuon = () => {
+    const el = oCuon.current;
+    if (!el) return;
+    const max = el.scrollHeight - el.clientHeight;
+    veTienDo(max > 0 ? Math.min(1, el.scrollTop / max) : 0);
+  };
+
+  const lop = ['doclayout', doc.moLe ? 'leMo' : 'leDong', moMucLuc ? 'mlMo' : '']
+    .filter(Boolean)
+    .join(' ');
+
   return (
-    <main className="canvas khudoc" id="doc-ban-thao">
+    <main className="canvas khudoc" id="doc-ban-thao" ref={oCuon} onScroll={cuon}>
       <div className="head">
         <h1>{CHU.docBanThao}</h1>
         <span className="sub">{motTa(snapshot)}</span>
-        <DieuHuong hang={hang} chuongChon={chuongChon} onChon={onChonChuong} />
+        <div className="docCongCu">
+          <button
+            type="button"
+            className="nutPhu docNutMucLuc"
+            aria-expanded={moMucLuc}
+            onClick={() => setMoMucLuc((m) => !m)}
+          >
+            {DOC_DUYET.moMucLuc}
+          </button>
+          <DieuHuong truoc={truoc} sau={sau} onChon={chon} />
+          <CoChu doc={doc} />
+          <button
+            type="button"
+            className={`docNutVuong${doc.moLe ? ' bat' : ''}`}
+            aria-pressed={doc.moLe}
+            aria-label={doc.moLe ? DOC_DUYET.dongBenLe : DOC_DUYET.moBenLe}
+            title={doc.moLe ? DOC_DUYET.dongBenLe : DOC_DUYET.moBenLe}
+            onClick={() => doc.datLe(!doc.moLe)}
+          >
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinejoin="round" aria-hidden="true">
+              <rect x="3.5" y="4.5" width="17" height="15" rx="2.5" />
+              <path d="M14.5 4.5v15" />
+            </svg>
+          </button>
+        </div>
+        <div
+          ref={oTienDo}
+          className="docTienDo"
+          role="progressbar"
+          aria-label={DOC_DUYET.tienDoDoc}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={0}
+        >
+          <span style={{ transform: 'scaleX(0)' }} />
+        </div>
       </div>
 
-      <div className="doclayout">
-        <DanhSachChuong hang={hang} chuongChon={chuongChon} onChon={onChonChuong} />
+      <div className={lop}>
+        <MucLucChuong
+          hang={hang}
+          timeline={snapshot.timeline}
+          chuongChon={chuongChon}
+          onChon={chon}
+          nhan={CHU.chonChuongDeDoc}
+          phu={(r) => <PhuDong r={r} dangChay={mayDangChay(snapshot)} />}
+        />
         {chuongChon ? (
-          <ThanChuong tacPham={tacPham} chuong={chuongChon} />
+          <ThanChuong
+            key={chuongChon}
+            tacPham={tacPham}
+            chuong={chuongChon}
+            doc={doc}
+            sau={sau}
+            quayVe={cuoiDocDuoc}
+            onChon={chon}
+            viTri={i >= 0 ? DOC_DUYET.viTri(i + 1, docDuoc.length) : undefined}
+            chuaCoNhanXet={cauChuaCoNhanXet(snapshot)}
+            onMoNhanXet={onChonKhu ? () => onChonKhu('kiem-dinh') : undefined}
+          />
         ) : (
-          <div className="khoDocWrap">
-            <p className="trongSect">{GIAI_THICH.docChuaChonChuong}</p>
+          <div className="docCot">
+            <p className="docTrong">
+              {hang.length === 0 ? GIAI_THICH.chuaCoChuong : GIAI_THICH.docChuaChonChuong}
+            </p>
           </div>
         )}
       </div>
@@ -90,131 +208,212 @@ export function DocTruyen({
   );
 }
 
-/** "Trấn Yêu Ký · 2 chương đã chốt · 5.803 từ" — chỉ nói điều biết được. */
+/** "Trấn Yêu Ký · 2 chương đã xong · 5.803 từ" — chỉ nói điều biết được. */
 function motTa(snap: Snapshot): string {
   const b = snap.book;
   const phan: string[] = [b.name || b.id];
-  if (b.completed_chapters > 0) phan.push(`${b.completed_chapters} chương đã chốt`);
+  if (b.completed_chapters > 0) phan.push(`${b.completed_chapters} chương đã xong`);
   const tu = soTu(b.total_words);
   if (tu) phan.push(`${tu} từ`);
   return phan.join(' · ');
 }
 
-/* ── điều hướng chương trước / chương sau ─────────────────────────────── */
+/* ── sở thích đọc, nhớ trong localStorage ─────────────────────────────── */
+
+const CO_CHU = [15, 16, 17, 18, 19, 20, 22] as const;
+const GIAN_DONG = [1.75, 1.9, 2.05] as const;
+const KHOA = { co: 'ainovel.doc.coChu', gian: 'ainovel.doc.gianDong', le: 'ainovel.doc.benLe' };
+
+interface CheDoDoc {
+  co: number;
+  gian: number;
+  moLe: boolean;
+  datCo: (px: number) => void;
+  datGian: (i: number) => void;
+  datLe: (mo: boolean) => void;
+}
+
+function docSo(khoa: string): number | undefined {
+  try {
+    const v = window.localStorage.getItem(khoa);
+    return v == null ? undefined : Number(v);
+  } catch {
+    return undefined;
+  }
+}
+
+function ghi(khoa: string, v: string) {
+  try {
+    window.localStorage.setItem(khoa, v);
+  } catch {
+    // Trình duyệt chặn bộ nhớ (chế độ riêng tư): vẫn đổi được trong phiên, chỉ không nhớ.
+  }
+}
 
 /**
- * Chương trước/sau đi theo DANH SÁCH có dấu vết sản xuất, không phải `n ± 1`.
- *
- * Bảng chương của store là hợp của chương đã xong, chương bị trả về và chu kỳ
- * hiện tại — nó có lỗ. Nút "chương sau" nhảy sang `n + 1` sẽ rơi vào một chương
- * chưa tồn tại và bề mặt trả về "chưa có bản thảo", biến một nút điều hướng
- * thành một cái bẫy.
+ * Đọc trong effect, không trong lúc khởi tạo state: trang dựng tĩnh, nên render đầu tiên phải
+ * khớp HTML dựng sẵn — đọc localStorage lúc khởi tạo là lệch hydrate.
  */
-function DieuHuong({
-  hang,
-  chuongChon,
-  onChon,
-}: {
-  hang: ChapterRow[];
-  chuongChon: number | undefined;
-  onChon: (n: number) => void;
-}) {
-  if (hang.length === 0) return null;
-  const i = hang.findIndex((r) => r.chapter === chuongChon);
-  const truoc = i > 0 ? hang[i - 1] : undefined;
-  const sau = i >= 0 && i < hang.length - 1 ? hang[i + 1] : undefined;
+function useCheDoDoc(): CheDoDoc {
+  const [co, setCo] = useState(17);
+  const [gian, setGian] = useState(1);
+  const [moLe, setMoLe] = useState(true);
 
+  useEffect(() => {
+    const c = docSo(KHOA.co);
+    if (c && (CO_CHU as readonly number[]).includes(c)) setCo(c);
+    const g = docSo(KHOA.gian);
+    if (g !== undefined && g >= 0 && g < GIAN_DONG.length) setGian(g);
+    try {
+      const l = window.localStorage.getItem(KHOA.le);
+      if (l === '0') setMoLe(false);
+    } catch {
+      // như trên
+    }
+  }, []);
+
+  return {
+    co,
+    gian,
+    moLe,
+    datCo: (px) => {
+      setCo(px);
+      ghi(KHOA.co, String(px));
+    },
+    datGian: (g) => {
+      setGian(g);
+      ghi(KHOA.gian, String(g));
+    },
+    datLe: (mo) => {
+      setMoLe(mo);
+      ghi(KHOA.le, mo ? '1' : '0');
+    },
+  };
+}
+
+function CoChu({ doc }: { doc: CheDoDoc }) {
+  const vt = CO_CHU.indexOf(doc.co as (typeof CO_CHU)[number]);
+  const nhanGian = DOC_DUYET.gianDongMuc[doc.gian] ?? DOC_DUYET.gianDongMuc[1];
   return (
-    <div className="docnav">
+    <div className="docCoChu" role="group" aria-label={DOC_DUYET.cheDoDoc}>
       <button
         type="button"
-        disabled={!truoc}
-        title={truoc ? `${CHU.chuong} ${truoc.chapter}` : undefined}
-        onClick={() => truoc && onChon(truoc.chapter)}
+        aria-label={DOC_DUYET.nhoChu}
+        title={DOC_DUYET.nhoChu}
+        disabled={vt <= 0}
+        onClick={() => doc.datCo(CO_CHU[vt - 1] ?? doc.co)}
       >
-        <span aria-hidden="true">←</span> {CHU.chuongTruoc}
+        <span className="aNho" aria-hidden="true">A</span>
       </button>
+      <span className="docCoSo" title={DOC_DUYET.coChu(doc.co)}>
+        {doc.co}
+      </span>
       <button
         type="button"
-        disabled={!sau}
-        title={sau ? `${CHU.chuong} ${sau.chapter}` : undefined}
-        onClick={() => sau && onChon(sau.chapter)}
+        aria-label={DOC_DUYET.toChu}
+        title={DOC_DUYET.toChu}
+        disabled={vt >= CO_CHU.length - 1}
+        onClick={() => doc.datCo(CO_CHU[vt + 1] ?? doc.co)}
       >
-        {CHU.chuongSau} <span aria-hidden="true">→</span>
+        <span className="aTo" aria-hidden="true">A</span>
+      </button>
+      <span className="docVach" aria-hidden="true" />
+      <button
+        type="button"
+        className="docGian"
+        aria-label={DOC_DUYET.doiGianDong(nhanGian)}
+        title={DOC_DUYET.doiGianDong(nhanGian)}
+        onClick={() => doc.datGian((doc.gian + 1) % GIAN_DONG.length)}
+      >
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" aria-hidden="true">
+          <path d="M9 6h11M9 12h11M9 18h11" />
+          <path d="m3.5 8 1.5-2 1.5 2M3.5 16l1.5 2 1.5-2M5 6v12" />
+        </svg>
+        <span>{nhanGian}</span>
       </button>
     </div>
   );
 }
 
-/* ── danh sách chương đọc được ────────────────────────────────────────── */
+/* ── điều hướng chương trước / chương sau ─────────────────────────────── */
 
-function DanhSachChuong({
-  hang,
-  chuongChon,
+function DieuHuong({
+  truoc,
+  sau,
   onChon,
 }: {
-  hang: ChapterRow[];
-  chuongChon: number | undefined;
+  truoc: ChapterRow | undefined;
+  sau: ChapterRow | undefined;
   onChon: (n: number) => void;
 }) {
-  const oDs = useRef<HTMLElement>(null);
-
-  // Danh sách này cuộn riêng và có thể dài bằng số chương đã sản xuất.
-  // ĐO ĐƯỢC với tác phẩm 280/300: mở thẳng chương 270 bằng URL thì danh sách vẫn
-  // đứng ở chương 1–23 và chương đang đọc không có trong tầm nhìn — người vận
-  // hành không thấy mình đang ở đâu trong danh sách.
-  // `block: 'nearest'` để nó cuộn khung danh sách, không kéo cả canvas.
-  useEffect(() => {
-    const el = oDs.current?.querySelector('[aria-current="true"]');
-    el?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-  }, [chuongChon]);
-
   return (
-    <nav className="dsChuong" aria-label={CHU.chonChuongDeDoc} ref={oDs}>
-      <h2>{CHU.chonChuongDeDoc}</h2>
-      {hang.length === 0 ? (
-        <p className="trong">{GIAI_THICH.chuaCoChuong}</p>
-      ) : (
-        <ul>
-          {hang.map((r) => {
-            const tt = TRANG_THAI_CHUONG[r.stage];
-            return (
-              <li key={r.chapter}>
-                <button
-                  type="button"
-                  aria-current={r.chapter === chuongChon}
-                  onClick={() => onChon(r.chapter)}
-                  title={`${CHU.chuong} ${r.chapter} · ${tt.nhan}`}
-                >
-                  <span className={`ky ${tt.mau}`} aria-hidden="true">
-                    {tt.ky}
-                  </span>
-                  <span className="so">{r.chapter}</span>
-                  <span className="ten">
-                    {r.title ? r.title : <em>{CHU.chuaDatTieuDe}</em>}
-                  </span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </nav>
+    <div className="docnav" role="group" aria-label={DOC_DUYET.phimTat}>
+      <button
+        type="button"
+        className="docNutVuong"
+        disabled={!truoc}
+        aria-label={CHU.chuongTruoc}
+        title={truoc ? `${CHU.chuongTruoc}: ${DOC_DUYET.tenChuong(truoc.chapter, truoc.title)} (←)` : undefined}
+        onClick={() => truoc && onChon(truoc.chapter)}
+      >
+        <span className="lui">
+          <BieuTuong ten="mui" co={16} />
+        </span>
+      </button>
+      <button
+        type="button"
+        className="docNutVuong"
+        disabled={!sau}
+        aria-label={CHU.chuongSau}
+        title={sau ? `${CHU.chuongSau}: ${DOC_DUYET.tenChuong(sau.chapter, sau.title)} (→)` : undefined}
+        onClick={() => sau && onChon(sau.chapter)}
+      >
+        <BieuTuong ten="mui" co={16} />
+      </button>
+    </div>
   );
 }
 
-/* ── thân chương: văn + bản duyệt bên lề ──────────────────────────────── */
+/** Phần phải của một dòng mục lục: chỉ đánh dấu chương không ở trạng thái thường. */
+function PhuDong({ r, dangChay }: { r: ChapterRow; dangChay: boolean }) {
+  if (r.stage === 'done') return null;
+  const tt = trangThaiDong(r, dangChay);
+  return (
+    <span className={`docCd ${tt.mau}`} title={tt.nhan}>
+      <span aria-hidden="true">{tt.ky}</span>
+      <span className="anNhan">{tt.nhan}</span>
+    </span>
+  );
+}
+
+/* ── thân chương: văn + cột phải ──────────────────────────────────────── */
 
 function ThanChuong({
   tacPham,
   chuong,
+  doc,
+  sau,
+  quayVe,
+  onChon,
+  viTri,
+  chuaCoNhanXet,
+  onMoNhanXet,
 }: {
   tacPham: string | undefined;
   chuong: number;
+  doc: CheDoDoc;
+  sau: ChapterRow | undefined;
+  /** Chương cuối ĐỌC ĐƯỢC, chỉ có khi chương đang mở chưa viết — lối quay về. */
+  quayVe: ChapterRow | undefined;
+  onChon: (n: number) => void;
+  viTri: string | undefined;
+  chuaCoNhanXet: string;
+  onMoNhanXet?: () => void;
 }) {
   const [ct, setCt] = useState<ChapterDetail>();
   const [dangTai, setDangTai] = useState(false);
   const [loi, setLoi] = useState<string>();
+  const [lan, setLan] = useState(0);
 
   useEffect(() => {
     if (!tacPham) return;
@@ -235,86 +434,123 @@ function ThanChuong({
     return () => {
       huy = true;
     };
-  }, [tacPham, chuong]);
+  }, [tacPham, chuong, lan]);
 
+  let than: React.ReactNode;
   if (loi) {
-    return (
-      <div className="khoDocWrap">
-        <p className="loiDoc">{loi}</p>
+    than = (
+      <div className="docTrong docLoi" role="alert">
+        <p className="chinh">{DOC_DUYET.khongMoDuoc}</p>
+        <p>{loi}</p>
+        <button type="button" className="nutPhu" onClick={() => setLan((n) => n + 1)}>
+          {DOC_DUYET.thuLai}
+        </button>
       </div>
     );
-  }
-  if (dangTai || !ct) {
-    return (
-      <div className="khoDocWrap">
-        <p className="trongSect">{CHU.dangTai}</p>
-      </div>
-    );
-  }
+  } else if (dangTai || !ct) {
+    than = <p className="docTrong">{CHU.dangTai}</p>;
+  } else {
+    // Model hay mở chương bằng chính dòng tiêu đề ("Chương 725: …"). Tiêu đề đã in ở đầu
+    // trang, nên dòng đó bị bỏ.
+    const doan = ct.text
+      .replace(/^\s*(?:#+\s*)?Chương\s+\d+\b[^\n]*\n+/i, '')
+      .split(/\n{2,}/)
+      .map((d) => d.replace(/\n/g, ' ').trim())
+      .filter(Boolean);
 
-  const doan = ct.text
-    .split(/\n{2,}/)
-    .map((d) => d.replace(/\n/g, ' ').trim())
-    .filter(Boolean);
+    than = (
+      <article
+        className="khoDoc"
+        style={
+          {
+            '--doc-co': `${doc.co}px`,
+            '--doc-gian': GIAN_DONG[doc.gian],
+          } as React.CSSProperties
+        }
+      >
+        <header className="docDau">
+          <h2>{DOC_DUYET.tenChuong(ct.chapter, ct.title)}</h2>
+          <ChiSoChuong words={ct.words} review={ct.review} viTri={viTri} />
+        </header>
+
+        {doan.length === 0 ? (
+          <p className="docTrong">{GIAI_THICH.chuongTrongStore}</p>
+        ) : (
+          <div className="docVan">
+            {doan.map((d, k) => (
+              <p key={k}>{d}</p>
+            ))}
+          </div>
+        )}
+
+        <footer className="docCuoi">
+          {/* BA ca, không hai — và ca thứ ba là một bề mặt tự mâu thuẫn mà bài kiểm cũ
+              không có. Khi chương đang mở CHƯA VIẾT, `sau` rỗng (nó không nằm trong danh
+              sách đọc được) nên bản trước rơi vào vế "hết chương" và in "Đây là chương mới
+              nhất đã có." ngay dưới dòng "Chương này chưa có nội dung" — hai câu phủ định
+              nhau cách nhau một dòng. Đo được trên truyện thật ở chương 4 mới lên kế hoạch. */}
+          {sau ? (
+            <button type="button" className="docTiep" onClick={() => onChon(sau.chapter)}>
+              <span className="nhan">{DOC_DUYET.chuongSauLa}</span>
+              <span className="ten">{DOC_DUYET.tenChuong(sau.chapter, sau.title)}</span>
+              <span className="mui" aria-hidden="true">
+                <BieuTuong ten="mui" co={18} />
+              </span>
+            </button>
+          ) : quayVe ? (
+            <button type="button" className="docTiep" onClick={() => onChon(quayVe.chapter)}>
+              <span className="nhan">{DOC_DUYET.veChuongDaViet}</span>
+              <span className="ten">{DOC_DUYET.tenChuong(quayVe.chapter, quayVe.title)}</span>
+              <span className="mui" aria-hidden="true">
+                <BieuTuong ten="mui" co={18} />
+              </span>
+            </button>
+          ) : (
+            <p className="docHet">{DOC_DUYET.hetChuong}</p>
+          )}
+          <p className="docPhim">{DOC_DUYET.phimTat}</p>
+        </footer>
+      </article>
+    );
+  }
 
   return (
     <>
-      <div className="khoDocWrap">
-        <article className="khoDoc">
-          <header className="chuongdau">
-            <div className="no">
-              {CHU.chuong} {ct.chapter}
-            </div>
-            <h2>
-              {ct.title ? ct.title : <span className="draft">{CHU.chuaDatTieuDe}</span>}
-            </h2>
-            <ChiSoChuong words={ct.words} review={ct.review} />
-          </header>
-
-          {doan.length === 0 ? (
-            <p className="trongSect">{GIAI_THICH.chuongTrongStore}</p>
-          ) : (
-            doan.map((d, i) => (
-              // `mocua` là lớp ĐẶT TAY cho đúng một đoạn, không bao giờ là bộ
-              // chọn vị trí: `:first-of-type` khớp theo từng phần tử cha nên nó
-              // trúng cả dòng thông tin và từng biến "2.980 từ" thành chữ "2."
-              // khổng lồ.
-              <p key={i} className={i === 0 && moBangChuCai(d) ? 'doan mocua' : 'doan'}>
-                {d}
-              </p>
-            ))
-          )}
-        </article>
-      </div>
-
-      <BenLe contract={ct.contract} review={ct.review} />
+      <div className="docCot">{than}</div>
+      {doc.moLe ? (
+        <BenLe
+          chuaCo={chuaCoNhanXet}
+          contract={ct?.contract}
+          review={ct?.review}
+          sanSang={!!ct}
+          onDong={() => doc.datLe(false)}
+          onMoNhanXet={onMoNhanXet}
+        />
+      ) : null}
     </>
   );
 }
 
-/**
- * Drop cap CHỈ khi đoạn mở đầu bằng một chữ cái.
- *
- * Văn tiếng Việt mở đầu bằng gạch đầu dòng thoại (`— Có người dưới đó`) là
- * chuyện thường, và `::first-letter` lúc đó phóng to dấu gạch ngang thành một
- * vệt đen cao ba dòng. Lỗi này ẩn với mọi chương mở bằng chữ, nên phải chặn từ
- * đầu chứ không chờ gặp.
- */
-function moBangChuCai(d: string): boolean {
-  return /^\p{L}/u.test(d);
-}
-
-function ChiSoChuong({ words, review }: { words: number; review: Review | undefined }) {
+function ChiSoChuong({
+  words,
+  review,
+  viTri,
+}: {
+  words: number;
+  review: Review | undefined;
+  viTri: string | undefined;
+}) {
   const tu = soTu(words);
   const kl = nhanKetLuan(review?.verdict);
-  if (!tu && !kl) return null;
+  // ~300 từ/phút cho văn tiếng Việt đọc lướt-mà-kỹ; làm tròn lên để không hứa "0 phút".
+  const phut = words > 0 ? Math.max(1, Math.round(words / 300)) : 0;
   return (
-    <div className="chiso">
-      {/* "251 từ", không phải "251 số từ": `colSoTu` là nhãn cột của bảng
-          chương ("Số từ"), ghép vào câu thì thành một từ dư. */}
-      {tu ? <span className="m">{tu} từ</span> : null}
+    <div className="docChiSo">
+      {tu ? <span>{DOC_DUYET.tu(tu)}</span> : null}
+      {phut ? <span>{DOC_DUYET.phutDoc(phut)}</span> : null}
+      {viTri ? <span className="anHep">{viTri}</span> : null}
       {kl ? (
-        <span className={`st ${kl.mau}`} title={CHU.banDuyetEditor}>
+        <span className={`vien ${kl.mau === 'muted' ? '' : kl.mau}`} title={CHU.banDuyetEditor}>
           <span className="ky" aria-hidden="true">
             {kyTheoTone(kl.mau)}
           </span>
@@ -326,29 +562,69 @@ function ChiSoChuong({ words, review }: { words: number; review: Review | undefi
 }
 
 /**
- * Khu lề: khế ước chương rồi tới bản duyệt.
+ * Cột phải: kế hoạch chương rồi tới nhận xét.
  *
- * Thứ tự đó không tùy tiện — bản duyệt là phán xét việc chương có làm đúng
- * khế ước hay không, nên đọc khế ước trước thì bản duyệt mới có nghĩa.
+ * Thứ tự đó không tùy tiện — nhận xét là phán xét việc chương có làm đúng kế hoạch hay không,
+ * nên đọc kế hoạch trước thì nhận xét mới có nghĩa.
  */
 function BenLe({
   contract,
   review,
+  chuaCo,
+  sanSang,
+  onDong,
+  onMoNhanXet,
 }: {
   contract: Contract | undefined;
   review: Review | undefined;
+  /** Câu khi chương chưa có nhận xét — nói đúng nhịp chấm định kỳ của truyện này. */
+  chuaCo: string;
+  sanSang: boolean;
+  onDong: () => void;
+  onMoNhanXet?: () => void;
 }) {
   return (
-    <aside className="benle" aria-label={CHU.banDuyetEditor}>
-      {contract ? <KheUoc contract={contract} /> : null}
+    <aside className="docLe" aria-label={DOC_DUYET.benLe}>
+      <div className="docLeDau">
+        <h2>{DOC_DUYET.benLe}</h2>
+        <button
+          type="button"
+          className="docNutVuong"
+          aria-label={DOC_DUYET.dongBenLe}
+          title={DOC_DUYET.dongBenLe}
+          onClick={onDong}
+        >
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" aria-hidden="true">
+            <path d="m6 6 12 12M18 6 6 18" />
+          </svg>
+        </button>
+      </div>
 
-      <h3>{CHU.banDuyetEditor}</h3>
-      {/* `tieuDe={false}`: tiêu đề đã có ngay trên. `le`: cột này 296px, đúng
-          bề rộng mà biến thể `.kvle` được đo cho. */}
-      {review ? (
-        <BanDuyet review={review} le tieuDe={false} />
-      ) : (
-        <p className="trong">{GIAI_THICH.banDuyetChuaCo}</p>
+      {!sanSang ? null : (
+        <>
+          <section className="docLeKhoi">
+            <h3>{CHU.kheUocChuong}</h3>
+            {contract && (contract.core_event || contract.hook || contract.scenes?.length) ? (
+              <KheUoc contract={contract} />
+            ) : (
+              <p className="docLeTrong">{DOC_DUYET.chuaCoKeHoach}</p>
+            )}
+          </section>
+
+          <section className="docLeKhoi">
+            <h3>{CHU.banDuyetEditor}</h3>
+            {review ? (
+              <BanDuyet review={review} le tieuDe={false} />
+            ) : (
+              <p className="docLeTrong">{chuaCo}</p>
+            )}
+            {review && onMoNhanXet ? (
+              <button type="button" className="nutPhu docLeMo" onClick={onMoNhanXet}>
+                {DOC_DUYET.xemNhanXetDay}
+              </button>
+            ) : null}
+          </section>
+        </>
       )}
     </aside>
   );
@@ -357,51 +633,32 @@ function BenLe({
 function KheUoc({ contract }: { contract: Contract }) {
   return (
     <>
-      <h3>{CHU.kheUocChuong}</h3>
-      <dl className="kv kvle">
+      <dl className="docKeHoach">
         {contract.core_event ? (
-          <>
-            <dt title={CHU.sukienTrongTamDay}>{CHU.sukienTrongTam}</dt>
+          <div>
+            <dt title={CHU.sukienTrongTamDay}>{CHU.sukienTrongTamDay}</dt>
             <dd>{contract.core_event}</dd>
-          </>
+          </div>
         ) : null}
         {contract.hook ? (
-          <>
+          <div>
             <dt>{CHU.kieuMocCuoi}</dt>
             <dd>{contract.hook}</dd>
-          </>
+          </div>
         ) : null}
       </dl>
-      {/* Danh sách cảnh PHẢI có nhãn riêng: không có nhãn thì nó nằm ngay dưới
-          "Kiểu móc cuối" và đọc như thể bốn cảnh đó là bốn kiểu móc. */}
+      {/* Danh sách cảnh PHẢI có nhãn riêng: không có nhãn thì nó nằm ngay dưới "Cách kết
+          chương" và đọc như thể bốn cảnh đó là bốn kiểu kết. */}
       {contract.scenes && contract.scenes.length > 0 ? (
         <>
           <h4>{CHU.canhTrongChuong}</h4>
-          <ol className="canh canhle">
-            {contract.scenes.map((c, i) => (
-              <li key={i}>{c}</li>
+          <ol className="docCanh">
+            {contract.scenes.map((c, k) => (
+              <li key={k}>{c}</li>
             ))}
           </ol>
         </>
       ) : null}
     </>
   );
-}
-
-
-/**
- * Ký hiệu đi kèm một kết luận, suy từ tông màu — cùng công thức với Inspector
- * để hai bề mặt không dùng hai bộ ký hiệu cho cùng một kết luận.
- */
-function kyTheoTone(mau: Tone): string {
-  switch (mau) {
-    case 'teal':
-      return '●';
-    case 'red':
-      return '◆';
-    case 'muted':
-      return '○';
-    default:
-      return '■';
-  }
 }

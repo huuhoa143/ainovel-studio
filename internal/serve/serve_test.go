@@ -106,11 +106,6 @@ func TestStudio_KhaiBaoDungKhaNangDuLieu(t *testing.T) {
 	if !snap.Capabilities.PerChapterDuration {
 		t.Error("PerChapterDuration phải là true: suy được từ checkpoint")
 	}
-	// Ghi can thiệp cần engine hợp tác (hai process cùng ghi run_meta.json sẽ
-	// mất dữ liệu), nên phải khai báo false để giao diện vô hiệu hóa ô nhập.
-	if snap.Capabilities.Steer {
-		t.Error("Steer phải là false ở bản chỉ-đọc")
-	}
 }
 
 func TestStudio_KhongCoDuLieuThiBaoRoRang(t *testing.T) {
@@ -280,36 +275,6 @@ func TestJSON_GiuNguyenDauTiengViet(t *testing.T) {
 	// Store là dữ liệu sống; đệm của trình duyệt sẽ hiện tiến độ cũ sau F5.
 	if cc := rec.Header().Get("Cache-Control"); cc != "no-store" {
 		t.Errorf("Cache-Control = %q, muốn no-store", cc)
-	}
-}
-
-// TestWarnIfPublic canh cảnh báo lắng nghe công khai.
-//
-// # Bản trước của bài kiểm này TỰ MÂU THUẪN
-//
-// Nó xếp `:8420` vào nhóm "cục bộ, không nên cảnh báo", rồi ngay dưới đòi cảnh báo cho
-// `0.0.0.0:8420`. Nhưng với `net.Listen` thì hai chuỗi đó là CÙNG MỘT THỨ: host rỗng
-// nghĩa là mọi giao diện. Nên bài kiểm khẳng định hai kết quả trái nhau cho một hành vi,
-// và nó xanh vì `warnIfPublic` có đúng cái lỗi tương ứng (`case "":` trả nil).
-//
-// Chuyện này không chỉ là một cảnh báo bị lọt. Từ khi studio ghi được, cùng phép kiểm đó
-// quyết định có bật đường ghi hay không — tức `--addr :8420` sẽ phơi khóa API và quyền
-// khởi động engine ra toàn mạng. Sửa ở đây, và `laDiaChiCucBo` là chỗ duy nhất còn trả
-// lời câu hỏi này.
-func TestWarnIfPublic(t *testing.T) {
-	for _, addr := range []string{"127.0.0.1:8420", "localhost:8420", "[::1]:8420"} {
-		if err := warnIfPublic(addr); err != nil {
-			t.Errorf("%s là cục bộ, không nên cảnh báo: %v", addr, err)
-		}
-	}
-	// Mở ra mọi giao diện mạng phải được cảnh báo: store chứa toàn văn chưa
-	// phát hành và khóa cấu hình.
-	//
-	// `:8420` nằm ở nhóm này, KHÔNG phải nhóm trên — nó là dạng viết tắt của 0.0.0.0.
-	for _, addr := range []string{"0.0.0.0:8420", ":8420", "[::]:8420", "192.168.1.10:8420"} {
-		if err := warnIfPublic(addr); err == nil {
-			t.Errorf("%s phải bị cảnh báo", addr)
-		}
 	}
 }
 

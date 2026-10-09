@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { expect, test, vi } from 'vitest';
 
 import type { VaiModelDoc } from '@/lib/types';
@@ -26,10 +26,12 @@ const DU: VaiModelDoc = {
 };
 
 const LAY = vi.fn<() => Promise<VaiModelDoc>>(() => Promise.resolve(DU));
+const DOI = vi.fn((_b: string, _s: Record<string, unknown>) => Promise.resolve({ applied: ['model'] }));
 
 vi.mock('@/lib/api', async (goc) => ({
   ...(await goc<typeof import('@/lib/api')>()),
   layVaiModel: () => LAY(),
+  doiVaiModel: (b: string, s: Record<string, unknown>) => DOI(b, s),
 }));
 
 const { LoiApi } = await import('@/lib/api');
@@ -47,15 +49,15 @@ test('nói ra khi model đang chạy đã KHÁC model lúc khởi động', asyn
 
 test('KHÔNG cảnh báo khi hai giá trị còn khớp — cảnh báo thừa là nhiễu', async () => {
   render(<KenhVai tacPham="x" khoiDong="kiraai · kira-mini-1.0" />);
-  await waitFor(() => expect(screen.getByText('Đang chạy với')).toBeDefined());
+  await waitFor(() => expect(screen.getByText('Đang viết bằng')).toBeDefined());
   expect(screen.queryByText(/Đã đổi giữa chừng/)).toBeNull();
 });
 
 test('nói ra rằng lưu ở đây còn GHI VĨNH VIỄN, không chỉ ăn cho lượt này', async () => {
   render(<KenhVai tacPham="x" />);
-  await waitFor(() => expect(screen.getByText('Đang chạy với')).toBeDefined());
+  await waitFor(() => expect(screen.getByText('Đang viết bằng')).toBeDefined());
   expect(
-    screen.getByText(/mặc định cho mọi lượt sau/),
+    screen.getByText(/lưu làm mặc định/),
     'chỉ hứa "ăn ngay" mà giấu vế ghi vĩnh viễn — đúng cách ba dòng ghim lạ ra đời',
   ).toBeDefined();
 });
@@ -68,11 +70,31 @@ test('máy ĐÓNG thì tiêu đề nói đúng trạng thái, không hứa "đan
   LAY.mockRejectedValueOnce(new LoiApi('chưa mở engine', 409));
   render(<KenhVai tacPham="x" khoiDong="openai · cx/gpt-5.5" />);
 
-  await waitFor(() => expect(screen.getByText('Máy đang đóng')).toBeDefined());
+  await waitFor(() => expect(screen.getByText('Phiên đang đóng')).toBeDefined());
   expect(
-    screen.queryByText('Đang chạy với'),
+    screen.queryByText('Đang viết bằng'),
     'máy đã đóng mà tiêu đề vẫn khẳng định có thứ đang chạy',
   ).toBeNull();
   // Và vẫn phải có đường mở máy — ẩn cả khối là bỏ mất lối ra duy nhất.
-  expect(screen.getByRole('button', { name: /Mở máy/ })).toBeDefined();
+  expect(screen.getByRole('button', { name: /Mở sẵn/ })).toBeDefined();
+});
+
+test('đổi model gửi CẢ CẶP chọn từ một danh sách đã nhóm theo nhà cung cấp', async () => {
+  render(<KenhVai tacPham="x" />);
+  await waitFor(() => expect(screen.getByText('Đang viết bằng')).toBeDefined());
+  fireEvent.click(screen.getByRole('button', { name: /Đổi model — Người viết/ }));
+  const nhom = within(screen.getByRole('group', { name: 'openai' }));
+  fireEvent.click(nhom.getByRole('option', { name: /cx\/gpt-5\.5/ }));
+  await waitFor(() => expect(DOI).toHaveBeenCalled());
+  expect(DOI.mock.calls.at(-1)).toEqual(['x', { role: 'writer', provider: 'openai', model: 'cx/gpt-5.5' }]);
+});
+
+test('model không có mức suy luận thật thì KHÔNG vẽ ô chọn rỗng (B12)', async () => {
+  LAY.mockResolvedValueOnce({
+    ...DU,
+    channels: DU.channels.map((k) => ({ ...k, thinking_options: [''] })),
+  });
+  render(<KenhVai tacPham="x" />);
+  await waitFor(() => expect(screen.getByText('Đang viết bằng')).toBeDefined());
+  expect(screen.queryByRole('combobox', { name: /suy luận/ })).toBeNull();
 });

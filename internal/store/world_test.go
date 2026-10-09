@@ -418,3 +418,25 @@ func TestRuleViolationsContract(t *testing.T) {
 		t.Fatalf("无记录章节应返回 nil: %+v", got)
 	}
 }
+
+// Lượt chấm toàn truyện (NN-global.json) cũng đánh dấu chương NN là có nhận xét — nếu không,
+// một truyện ngắn chỉ có lượt chấm cuối sẽ hiện "Nhận xét biên tập 0".
+func TestReviewedChaptersDemCaLuotChamToanTruyen(t *testing.T) {
+	s := newTestStore(t)
+	dir := filepath.Join(s.Dir(), "reviews")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range []string{"02.json", "03-global.json", "ghi-chu.txt"} {
+		if err := os.WriteFile(filepath.Join(dir, f), []byte("{}"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, err := s.World.ReviewedChapters()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got[2] || !got[3] || len(got) != 2 {
+		t.Fatalf("muốn {2,3}, có %v", got)
+	}
+}

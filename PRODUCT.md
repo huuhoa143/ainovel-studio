@@ -6,7 +6,7 @@ product
 
 ## Users
 
-Người vận hành một xưởng sản xuất truyện — thường là một người, có nền kỹ thuật, tự chạy engine Go trên máy mình hoặc trên VPS riêng.
+Một người viết, cài app desktop **AINovel Studio** (macOS hoặc Windows) trên máy mình để nhờ AI viết tiểu thuyết: quản lý nhiều truyện, theo dõi tiến độ, đọc và góp ý. Có thể có nền kỹ thuật, nhưng giao diện không được đòi hỏi điều đó — người dùng nghĩ bằng truyện, chương, nhân vật, không bằng engine, store hay endpoint.
 
 Bối cảnh sử dụng: engine chạy hàng giờ đến hàng ngày mà không cần người trực. Người vận hành không ngồi xem liên tục; họ **quay lại theo chu kỳ** để trả lời ba câu hỏi, theo đúng thứ tự đó:
 
@@ -22,21 +22,25 @@ Việc họ làm trên bề mặt này: tạo tác phẩm mới, chạy và dừ
 
 ainovel biến một câu yêu cầu thành một bộ tiểu thuyết dài hoàn chỉnh bằng tiếng Việt, chạy trọn vẹn không cần người can thiệp. Engine tất định điều phối ba tác tử tự chủ (Architect / Writer / Editor) và gọi Arbiter khi cần phán quyết ngữ nghĩa.
 
-Web studio là **bề mặt duy nhất** của cỗ máy đó: nơi tạo tác phẩm, chạy dây chuyền, giám sát, can thiệp, kiểm soát chất lượng và truy vết quyết định. Nó không nhân bản logic engine — engine chạy trong cùng process và mọi lệnh đi qua `*host.Host`, nên engine vẫn là nguồn sự thật duy nhất.
+Studio bên trong app desktop là **bề mặt duy nhất** của cỗ máy đó: nơi tạo tác phẩm, chạy dây chuyền, giám sát, can thiệp, kiểm soát chất lượng và truy vết quyết định. Không có bản CLI/TUI, không có bản chạy trên web. Studio không nhân bản logic engine — engine chạy trong tiến trình sidecar cùng HTTP API và mọi lệnh đi qua `*host.Host`, nên engine vẫn là nguồn sự thật duy nhất. HTTP API đó cũng là bề mặt điều khiển duy nhất cho agent tự động sau này.
 
-TUI trong terminal vẫn chạy được nhưng đã **đóng băng**: không thêm tính năng mới cho nó nữa.
+Người dùng không cần terminal, không cần cài Go hay Node, không cần biết tệp cấu hình nằm đâu: tải bộ cài, dán khóa API, viết.
 
-Thành công trông như thế này: người vận hành mở studio sau 6 giờ đi vắng và trong vòng 5 giây biết được dây chuyền khỏe hay bệnh, không cần đọc log.
+Thành công trông như thế này: người vận hành mở app sau 6 giờ đi vắng và trong vòng 5 giây biết được dây chuyền khỏe hay bệnh, không cần đọc log.
 
 ## Brand Personality
 
-**Chuyên nghiệp · chính xác · điềm tĩnh.**
+**Rõ ràng · ấm áp · đáng tin.**
 
-Giọng của thiết bị công nghiệp, không phải giọng của trợ lý AI. Nó báo cáo sự thật kèm số đo, không chúc mừng và không xin lỗi. Khi có lỗi thì nói rõ lỗi gì và làm gì tiếp, không làm dịu.
+Giọng của một người biên tập đồng hành, không phải của thiết bị công nghiệp và cũng không phải trợ lý AI nhí nhảnh. Xưng "bạn", câu ngắn, thuần Việt; nói người dùng được gì và nên làm gì tiếp. Vẫn báo sự thật kèm số đo, không chúc mừng sáo rỗng, không emoji, không viết IN HOA để nhấn. Khi có lỗi thì nói rõ lỗi gì và cách xử lý.
 
-Tham chiếu về cảm giác: bàn dựng phim và DAW — thanh transport luôn hiện, dòng sản xuất dạng lane, panel inspector. Người làm nghề đã quen bộ quy ước đó, và nó khớp tự nhiên với domain vì **Tập → Cung → Chương vốn đã là cấp bậc sản xuất**, đúng như Act → Sequence → Shot.
+Bản đầu dùng giọng "xưởng / máy / dây chuyền / nghiệm thu / khế ước" và người dùng chê "thô và khô khan quá". Từ vựng đã chốt lại: Tủ truyện, Viết truyện mới, Tiến độ, Đọc truyện, Nhận xét biên tập, Cần viết lại, Góp ý; vai là Điều phối, Kiến trúc sư, Người viết, Biên tập viên; Tập → Hồi → Chương. Toàn bộ chữ nằm ở `web/lib/nhan.ts`.
 
-Cảm xúc cần đạt: sự tin cậy đến từ độ chính xác. Không phải sự phấn khích đến từ "AI làm được".
+**Chuẩn hình ảnh (người dùng chốt 2026-10-01):** đặt cạnh Linear / Raycast và Arc / Things 3, lấy mức hoàn thiện của chúng làm chuẩn. Có hai giao diện sáng/tối. Bề mặt trung tính; màu chỉ ở bìa truyện, hành động chính và trạng thái. Hai lối từng bị loại: nâu-đen "bảng điều khiển nhà máy" (u ám, không có chất tiểu thuyết) và màu phẳng khối to kiểu poster ("quê").
+
+Tham chiếu bố cục vẫn là bàn dựng phim và DAW — thanh điều khiển luôn hiện ở đáy, tiến độ dạng lane, panel chi tiết bên phải — vì Tập → Hồi → Chương vốn là cấp bậc sản xuất. Nhưng đó là cấu trúc, không phải giọng nói.
+
+Cảm xúc cần đạt: yên tâm và muốn quay lại viết tiếp. Sự tin cậy đến từ độ chính xác, không phải từ sự phấn khích "AI làm được".
 
 ## Anti-references
 

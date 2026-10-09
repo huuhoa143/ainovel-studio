@@ -63,7 +63,11 @@ type UsageTracker struct {
 	// 始终为 nil，所有累计字段全部停在 0。计数器让 UI 能直接告诉用户"是上游不返
 	// usage 不是这边坏了"，而不是死磕缓存面板代码。
 	missingAssistantUsage int
-	loggedMissingUsage    bool // 整个会话只 warn 一次，避免 tui.log 被刷屏
+	loggedMissingUsage    bool
+
+	// lastCall là lượt gọi gần nhất (chỉ đường live Record ghi; replay không ghi). Đi theo
+	// snapshot xuống usage.json để thanh trạng thái nói được "lượt trước" khi engine đã đóng.
+	lastCall *domain.LastCall // 整个会话只 warn 一次，避免 tui.log 被刷屏
 
 	// saveCh 由 Record 在累加后非阻塞触发；autoSaveLoop 监听并按 debounce 落盘。
 	// buffered=1：连续多次 Record 折叠为一次落盘信号；满了直接丢，下个 tick 一并写。
@@ -151,6 +155,34 @@ func (t *UsageTracker) Record(agentName, task string, msg agentcore.AgentMessage
 	t.noteCacheBreak(role, task, *m.Usage)
 	provider, modelName := usageActualModel(m.Usage)
 	t.accumulate(role, provider, modelName, *m.Usage)
+	t.ghiLuotGoi(role, provider, modelName)
+}
+
+// ghiLuotGoi nhớ lượt gọi vừa rồi bằng TÊN cấu hình. Phản hồi chỉ mang loại giao thức, nên
+// tên provider lấy từ ModelSet (vai → cặp đang chọn, hoặc fallback khớp tên model trả về).
+func (t *UsageTracker) ghiLuotGoi(role, giaoThuc, daGoi string) {
+	lc := &domain.LastCall{Agent: role, Provider: giaoThuc, Model: daGoi, At: time.Now()}
+	if t.modelSet != nil {
+		lc.Provider, lc.Model = t.modelSet.CapDaCauHinh(role, daGoi)
+	}
+	t.mu.Lock()
+	t.lastCall = lc
+	t.mu.Unlock()
+	t.notifyDirty()
+}
+
+// LastCall trả bản sao lượt gọi gần nhất, nil khi chưa có.
+func (t *UsageTracker) LastCall() *domain.LastCall {
+	if t == nil {
+		return nil
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.lastCall == nil {
+		return nil
+	}
+	c := *t.lastCall
+	return &c
 }
 
 // noteCacheBreak 是缓存链断裂检测（纯观测，不修复，只在 live Record 路径调用）。
@@ -450,6 +482,10 @@ func (t *UsageTracker) Snapshot() domain.UsageState {
 		PerModel:     make(map[string]domain.AgentUsageTotals, len(t.perModel)),
 		MissingUsage: t.missingAssistantUsage,
 	}
+	if t.lastCall != nil {
+		c := *t.lastCall
+		state.LastCall = &c
+	}
 	for role, v := range t.perAgent {
 		state.PerAgent[role] = totalsSnapshot(v)
 	}
@@ -584,6 +620,10 @@ func (t *UsageTracker) applyState(state domain.UsageState) {
 		}
 	}
 	t.missingAssistantUsage = state.MissingUsage
+	if state.LastCall != nil {
+		c := *state.LastCall
+		t.lastCall = &c
+	}
 }
 
 // totalsSnapshot 把内存 agentTotals 拷贝成可持久化 domain.AgentUsageTotals。

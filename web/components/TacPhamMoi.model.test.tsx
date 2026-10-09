@@ -47,7 +47,7 @@ test('nói đúng model của TỪNG vai, kể cả vai ghim sang nhà cung cấ
 
   // Chờ theo NHÃN, không theo giá trị: giá trị được in thành một chuỗi ghép
   // (`openai · cx/gpt-5.5`), nên tìm đúng `cx/gpt-5.5` sẽ không khớp phần tử nào.
-  await waitFor(() => expect(screen.getByText('Chấp bút')).toBeDefined());
+  await waitFor(() => expect(screen.getByText('Người viết')).toBeDefined());
 
   const doc = (nhan: string) =>
     Array.from(document.querySelectorAll('dt')).find((d) => d.textContent === nhan)?.nextElementSibling
@@ -55,8 +55,8 @@ test('nói đúng model của TỪNG vai, kể cả vai ghim sang nhà cung cấ
 
   // `writer` ghim sang openai; `architect` thừa hưởng mặc định kiraai. Hai giá trị KHÁC nhau —
   // đó là điều kiện để bài kiểm này chứng minh được gì.
-  expect(doc('Chấp bút'), 'vai ghim bị hiện thành nhà cung cấp mặc định').toBe('openai · cx/gpt-5.5');
-  expect(doc('Kiến trúc'), 'vai thừa hưởng phải hiện GIÁ TRỊ thừa hưởng, không phải ô trống').toBe(
+  expect(doc('Người viết'), 'vai ghim bị hiện thành nhà cung cấp mặc định').toBe('openai · cx/gpt-5.5');
+  expect(doc('Kiến trúc sư'), 'vai thừa hưởng phải hiện GIÁ TRỊ thừa hưởng, không phải ô trống').toBe(
     'kiraai · kira-mini-1.0',
   );
 });
@@ -65,7 +65,47 @@ test('có đường đi thẳng sang Cấu hình máy khi model không phải c�
   const CHON = vi.fn();
   render(<TacPhamMoi onXong={() => {}} onChonKhu={CHON} />);
 
-  await waitFor(() => expect(screen.getByRole('button', { name: 'Đổi ở Cấu hình máy' })).toBeDefined());
-  screen.getByRole('button', { name: 'Đổi ở Cấu hình máy' }).click();
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Đổi trong Model & khóa API' })).toBeDefined());
+  screen.getByRole('button', { name: 'Đổi trong Model & khóa API' }).click();
   expect(CHON).toHaveBeenCalledWith('cau-hinh');
+});
+
+test('chip thể loại điền một câu mẫu và tên thư mục; gõ ý riêng thì chip biến mất', async () => {
+  const { fireEvent } = await import('@testing-library/react');
+  const { TU_TRUYEN } = await import('@/lib/chu/tu-truyen');
+  render(<TacPhamMoi onXong={() => {}} />);
+
+  const o = screen.getByRole('textbox', { name: /Bạn muốn viết truyện gì/ }) as HTMLTextAreaElement;
+  const mau = TU_TRUYEN.yTuongMau.find((m) => m.the === 'Trinh thám')!;
+  fireEvent.click(screen.getByRole('button', { name: 'Trinh thám' }));
+  expect(o.value).toBe(mau.cau);
+  // Tên thư mục tự sinh đi theo, nên nút chính bấm được ngay mà không phải mở Tùy chọn.
+  expect(document.querySelector('.tpmTuyChon code')?.textContent).toBe('trinh-tham-dieu-tra-nhip');
+  expect((screen.getByRole('button', { name: /Bắt đầu viết/ }) as HTMLButtonElement).disabled).toBe(false);
+
+  // Chữ của chính người dùng thì không chip nào được đè lên.
+  fireEvent.change(o, { target: { value: 'Ý của tôi' } });
+  expect(screen.queryByRole('button', { name: 'Trinh thám' })).toBeNull();
+});
+
+test('bản nháp đã lưu: cùng bản Bàn ý tưởng thì giữ chữ đã sửa; bản Bàn ý tưởng mới thì bản mới thắng', () => {
+  const luu = (yeuCau: string, tuNhapSan: string) =>
+    localStorage.setItem(
+      'ainovel.tacPhamMoi.banNhap',
+      JSON.stringify({ yeuCau, ten: 'ten-cu', tuDatTen: false, moTuyChon: false, tuNhapSan }),
+    );
+  const oMoTa = () => document.querySelector<HTMLTextAreaElement>('#tpm-y')!.value;
+
+  // Người dùng đã sửa trên bản A rồi sang màn khác: quay về vẫn là chữ đã sửa.
+  luu('bản A, đã sửa thêm', 'bản A');
+  const r1 = render(<TacPhamMoi onXong={() => {}} nhapSan="bản A" />);
+  expect(oMoTa()).toBe('bản A, đã sửa thêm');
+  r1.unmount();
+
+  // Bàn ý tưởng vừa chốt bản B: bản nháp cũ dựng trên A không được đè lên nó.
+  luu('bản A, đã sửa thêm', 'bản A');
+  const r2 = render(<TacPhamMoi onXong={() => {}} nhapSan="bản B" />);
+  expect(oMoTa()).toBe('bản B');
+  r2.unmount();
+  localStorage.clear();
 });

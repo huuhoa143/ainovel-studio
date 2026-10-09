@@ -23,12 +23,12 @@ func TestSSEVanSongKhungDung(t *testing.T) {
 	goc := t.TempDir()
 	newBook(t, goc, "sach", nil)
 
-	may := newBoMay(goc)
+	may := boMayThu(t, goc)
 	van := &dongVan{}
 	may.dang["sach"] = &phienMay{id: "sach", van: van, moLuc: mocBayGio()}
 	van.them("Giọt đầu tiên rơi.")
 
-	srv := &server{root: goc, choGhi: true, may: may}
+	srv := &server{root: goc, may: may}
 	rec := httptest.NewRecorder()
 	r := httptest.NewRequest("GET", "/api/books/sach/events", nil)
 	ctx, huy := contextVoiHanVan(t, 400*time.Millisecond)
@@ -61,13 +61,13 @@ func TestSSEVanSongVaoGiuaLuot(t *testing.T) {
 	goc := t.TempDir()
 	newBook(t, goc, "sach", nil)
 
-	may := newBoMay(goc)
+	may := boMayThu(t, goc)
 	van := &dongVan{}
 	may.dang["sach"] = &phienMay{id: "sach", van: van, moLuc: mocBayGio()}
 	van.them("nửa đầu ")
 	van.them("nửa sau")
 
-	srv := &server{root: goc, choGhi: true, may: may}
+	srv := &server{root: goc, may: may}
 	rec := httptest.NewRecorder()
 	ctx, huy := contextVoiHanVan(t, 400*time.Millisecond)
 	defer huy()
@@ -105,9 +105,9 @@ func TestSSEVanSongKhongCoMayVanChay(t *testing.T) {
 			newBook(t, goc, "sach", nil)
 			var may *boMay
 			if ten == "engine chưa mở" {
-				may = newBoMay(goc)
+				may = boMayThu(t, goc)
 			}
-			srv := &server{root: goc, choGhi: true, may: may}
+			srv := &server{root: goc, may: may}
 			rec := httptest.NewRecorder()
 			ctx, huy := contextVoiHanVan(t, 250*time.Millisecond)
 			defer huy()
@@ -171,11 +171,11 @@ func TestSSEVanSongChayTrongLucDangNoi(t *testing.T) {
 	goc := t.TempDir()
 	newBook(t, goc, "sach", nil)
 
-	may := newBoMay(goc)
+	may := boMayThu(t, goc)
 	van := &dongVan{}
 	may.dang["sach"] = &phienMay{id: "sach", van: van, moLuc: mocBayGio()}
 
-	srv := &server{root: goc, choGhi: true, may: may}
+	srv := &server{root: goc, may: may}
 	rec := httptest.NewRecorder()
 	ctx, huy := contextVoiHanVan(t, 700*time.Millisecond)
 	defer huy()
@@ -232,11 +232,11 @@ func TestSSEVanSongToiTrongVaiChucMili(t *testing.T) {
 	goc := t.TempDir()
 	newBook(t, goc, "sach", nil)
 
-	may := newBoMay(goc)
+	may := boMayThu(t, goc)
 	van := &dongVan{}
 	may.dang["sach"] = &phienMay{id: "sach", van: van, moLuc: mocBayGio()}
 
-	ts := httptest.NewServer((&server{root: goc, choGhi: true, may: may}).routes())
+	ts := httptest.NewServer((&server{root: goc, may: may}).routes())
 	defer ts.Close()
 
 	resp, err := http.Get(ts.URL + "/api/books/sach/events")
@@ -287,4 +287,67 @@ func TestSSEVanSongToiTrongVaiChucMili(t *testing.T) {
 	case <-time.After(3 * time.Second):
 		t.Fatal("mẩu không bao giờ tới")
 	}
+}
+
+// TestSSEVanSongEngineMoSauKhiNoi canh lỗi ĐO ĐƯỢC trên truyện thật (dong-ho-qua-lac,
+// 2026-10-02): trang mở lúc engine CHƯA mở, người dùng bấm Viết tiếp, engine mở với bộ đệm
+// mới — và khung "AI đang viết" trống suốt ba chương, vì kết nối SSE chỉ tra bộ đệm một lần
+// lúc nối. Kết nối đang mở phải tự nhận bộ đệm của phiên vừa mở, và cả phiên MỞ LẠI sau đó.
+func TestSSEVanSongEngineMoSauKhiNoi(t *testing.T) {
+	goc := t.TempDir()
+	newBook(t, goc, "sach", nil)
+	may := boMayThu(t, goc)
+	srv := httptest.NewServer((&server{root: goc, may: may}).routes())
+	defer srv.Close()
+
+	ctx, huy := context.WithTimeout(context.Background(), 6*time.Second)
+	defer huy()
+	req, _ := http.NewRequestWithContext(ctx, "GET", srv.URL+"/api/books/sach/events", nil)
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+
+	dong := make(chan string, 64)
+	go func() {
+		sc := bufio.NewScanner(res.Body)
+		for sc.Scan() {
+			dong <- sc.Text()
+		}
+		close(dong)
+	}()
+	cho := func(muon string) {
+		t.Helper()
+		for {
+			select {
+			case l, ok := <-dong:
+				if !ok {
+					t.Fatalf("stream đóng trước khi thấy %q", muon)
+				}
+				if strings.Contains(l, muon) {
+					return
+				}
+			case <-ctx.Done():
+				t.Fatalf("hết giờ chờ %q — kết nối không nhận bộ đệm của phiên vừa mở", muon)
+			}
+		}
+	}
+
+	// Engine mở SAU khi kết nối đã nối.
+	time.Sleep(150 * time.Millisecond)
+	van := &dongVan{}
+	may.mu.Lock()
+	may.dang["sach"] = &phienMay{id: "sach", van: van, moLuc: mocBayGio()}
+	may.mu.Unlock()
+	van.them("Chương một bắt đầu.")
+	cho(`"text":"Chương một bắt đầu."`)
+
+	// Đóng rồi mở lại phiên: bộ đệm mới, kết nối cũ vẫn phải theo kịp.
+	van2 := &dongVan{}
+	may.mu.Lock()
+	may.dang["sach"] = &phienMay{id: "sach", van: van2, moLuc: mocBayGio()}
+	may.mu.Unlock()
+	van2.them("Phiên mới.")
+	cho(`"text":"Phiên mới."`)
 }

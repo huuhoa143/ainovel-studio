@@ -1,41 +1,30 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, expect, test, vi } from 'vitest';
 
+import { LoiApi } from '@/lib/api';
+import { CH } from '@/lib/chu/cau-hinh';
 import type { CauHinhDoc } from '@/lib/types';
 
 /**
- * Nút "Kiểm tra" trên từng thẻ nhà cung cấp.
+ * Danh sách nhà cung cấp: kiểm tra kết nối, thêm, xóa.
  *
- * # Vì sao ba bài kiểm này, không phải một
+ * # Ba chỗ hỏng ÂM THẦM của nút Kiểm tra
  *
- * Chức năng có ba chỗ hỏng mà `tsc` không thấy, và cả ba đều hỏng ÂM THẦM — nút vẫn bấm
- * được, vẫn hiện một câu trả lời, chỉ là câu trả lời nói về chuyện khác:
+ *   1. Hỏi nhầm nhà cung cấp — mọi dòng đi kiểm cái đang làm mặc định, và dòng `kiraai` báo
+ *      xanh nhờ khóa của nơi khác.
+ *   2. Lỗi tràn sang dòng khác — 401 của `kiraai` dán lên `openai` đang khỏe.
+ *   3. Bấm được khi chưa có khóa — một nút luôn trả lỗi đọc thành "nhà cung cấp hỏng".
  *
- *   1. Hỏi nhầm nhà cung cấp. Truyền `du.provider` thay cho `n.name` là mọi thẻ đều đi kiểm
- *      cái đang làm mặc định. Thẻ `kiraai` sẽ báo xanh nhờ khóa của `openai` — đúng ngược
- *      mục đích của cả nút, và trên màn hình không có gì tố cáo.
- *   2. Lỗi tràn sang thẻ khác. Đây là lý do `useModelNapVe` phải nhớ lỗi THEO nhà cung cấp:
- *      bản trước giữ một `loi` cho cả hook, đủ dùng khi màn chỉ hỏi một chỗ, nhưng ở đây nó
- *      dán 401 của `kiraai` lên thẻ `openai` đang khỏe.
- *   3. Nút bấm được khi chưa có khóa. Server từ chối đúng ca này, nên hậu quả chỉ là một nút
- *      luôn trả lỗi — mà một nút luôn trả lỗi thì người dùng đọc thành "nhà cung cấp hỏng".
+ * Cộng hai lỗi của bản trước: Xóa không hỏi (khóa mất hẳn, không xem lại được), và sửa một
+ * nhà cung cấp xong màn hình vẫn khoe kết quả kiểm của địa chỉ CŨ.
  */
 
-const LIET_KE = vi.fn<(p: string) => Promise<{ provider: string; models: string[]; count: number }>>();
-
-const LUU_CAU_HINH = vi.fn((_than?: Record<string, unknown>) =>
-  Promise.resolve({ saved: true, path: '', reopen_to_apply: [] }),
-);
-
-/** Bật ở hai bài kiểm ca "mọi vai thừa hưởng" — trạng thái mà người dùng vấp. */
-let KHONG_GHIM = false;
-
-vi.mock('@/lib/api', async (goc) => ({
-  ...(await goc<typeof import('@/lib/api')>()),
-  layCauHinh: () => Promise.resolve(KHONG_GHIM ? { ...CAU_HINH, roles: undefined } : CAU_HINH),
-  lietKeModel: (p: string) => LIET_KE(p),
-  luuCauHinh: (...a: unknown[]) => LUU_CAU_HINH(...(a as [])),
-}));
+const LIET_KE = vi.fn<
+  (p: string) => Promise<{ provider: string; models: string[]; count: number; tools?: unknown }>
+>();
+// Tùy chọn của lượt hỏi, tách khỏi LIET_KE để các bài cũ (`toHaveBeenCalledWith('kiraai')`) giữ nguyên.
+const TUY_CHON = vi.fn();
+const LUU = vi.fn((_than?: Record<string, unknown>) => Promise.resolve({ saved: true, path: '', reopen_to_apply: [] }));
 
 const CAU_HINH: CauHinhDoc = {
   needs_setup: false,
@@ -45,10 +34,10 @@ const CAU_HINH: CauHinhDoc = {
   style: '',
   styles: [],
   role_names: ['default', 'architect', 'writer', 'editor'],
-  // `writer` ĐẶT RIÊNG ở `openai`, ba vai kia thừa hưởng mặc định. Đây là điều kiện để đổi
-  // mặc định trở thành một CÂU HỎI — không có nó thì mọi lượt đổi đều ghi thẳng, và bộ kiểm
-  // không chạm được vào hộp chuyển dây chuyền.
-  roles: { writer: { provider: 'openai', model: 'cx/gpt-5.5' } },
+  roles: {
+    writer: { provider: 'kiraai', model: 'kira-mini-1.0', fallbacks: [{ provider: 'openai', model: 'cx/gpt-5.5' }] },
+    editor: { provider: 'openai', model: 'cx/gpt-5.5', fallbacks: [{ provider: 'kiraai', model: 'kira-1.0' }] },
+  },
   providers: [
     {
       name: 'openai',
@@ -64,395 +53,218 @@ const CAU_HINH: CauHinhDoc = {
       base_url: 'https://kiraai.example/api/v1',
       api_key_set: true,
       api_key_masked: 'kira…e42',
-      // HAI tên, và chỉ một trong hai có thật ở phía nhà cung cấp (xem `LIET_KE` của bài
-      // kiểm "khai lạ"). Khai một tên là dữ liệu mẫu quá nghèo để phân biệt "lọc đúng" với
-      // "nêu tất": đo bằng đột biến, gỡ sạch `.filter` vẫn xanh khi chỉ có một tên.
+      // HAI tên, chỉ một có thật ở nhà cung cấp — đủ để phân biệt "lọc đúng" với "nêu tất".
       models: [{ name: 'kira-mini-1.0' }, { name: 'kira-1.0' }],
     },
-    {
-      name: 'chuaCoKhoa',
-      type: 'openai',
-      base_url: 'https://x.example/v1',
-      api_key_set: false,
-      models: [],
-    },
+    { name: 'chuaCoKhoa', type: 'openai', base_url: 'https://x.example/v1', api_key_set: false, models: [] },
   ],
-  presets: [],
+  presets: [{ name: 'openrouter', label: 'OpenRouter', type: 'openai', base_url: 'https://openrouter.ai/api/v1' }],
   engine_open: [],
 };
 
+vi.mock('@/lib/api', async (goc) => ({
+  ...(await goc<typeof import('@/lib/api')>()),
+  layCauHinh: () => Promise.resolve(CAU_HINH),
+  lietKeModel: (p: string, o?: unknown) => {
+    TUY_CHON(o);
+    return LIET_KE(p);
+  },
+  luuCauHinh: (...a: unknown[]) => LUU(...(a as [])),
+}));
+
 const { CauHinhXuong } = await import('./CauHinhXuong');
 
-/**
- * Thẻ của một nhà cung cấp, tìm theo tên IN TRÊN THẺ.
- *
- * Không dùng `getByText(ten)`: tên nhà cung cấp còn xuất hiện trong ô chọn của khối Mặc
- * định, nên truy vấn phẳng khớp nhiều phần tử và ngã ngay ở bước tìm.
- */
-function theCua(ten: string): HTMLElement {
+function dongCua(ten: string): HTMLElement {
   const the = Array.from(document.querySelectorAll<HTMLElement>('li.nccMuc')).find(
     (li) => li.querySelector('.nccTen')?.textContent === ten,
   );
-  expect(the, `không thấy thẻ nhà cung cấp ${ten}`).toBeDefined();
+  expect(the, `không thấy dòng nhà cung cấp ${ten}`).toBeDefined();
   return the!;
 }
-
-/**
- * Nút "Kiểm tra" của một thẻ, tìm qua chính thẻ đó chứ không qua thứ tự trong màn.
- *
- * Khớp CẢ nhãn lúc đang bay: nút đổi chữ thành "Đang kiểm tra…" trong lúc gọi, nên một biểu
- * thức chỉ khớp nhãn nghỉ sẽ "không tìm thấy nút" đúng vào lúc bài kiểm cần soi nó nhất.
- */
-function nutKiemCua(ten: string): HTMLButtonElement {
-  const nut = Array.from(theCua(ten).querySelectorAll('button')).find((b) =>
-    /^(Kiểm tra|Đang kiểm tra…)$/.test(b.textContent ?? ''),
-  );
-  expect(nut, `thẻ ${ten} không có nút Kiểm tra`).toBeDefined();
-  return nut as HTMLButtonElement;
-}
+const nutKiem = (ten: string) => within(dongCua(ten)).getByRole('button', { name: /^(Kiểm tra|Đang kiểm…)$/ });
 
 beforeEach(async () => {
+  cleanup();
   LIET_KE.mockReset();
-  LUU_CAU_HINH.mockClear();
-  KHONG_GHIM = false;
+  TUY_CHON.mockClear();
+  LUU.mockClear();
   render(<CauHinhXuong />);
   await waitFor(() => expect(document.querySelectorAll('li.nccMuc').length).toBe(3));
 });
 
-test('mỗi thẻ hỏi ĐÚNG nhà cung cấp của nó, không hỏi cái đang làm mặc định', async () => {
+test('mặc định đứng ĐẦU danh sách', () => {
+  expect(document.querySelector('li.nccMuc .nccTen')?.textContent).toBe('openai');
+});
+
+test('mỗi dòng hỏi ĐÚNG nhà cung cấp của nó, không hỏi cái đang làm mặc định', async () => {
   LIET_KE.mockResolvedValue({ provider: 'kiraai', models: ['kira-mini-1.0'], count: 1 });
-
-  fireEvent.click(nutKiemCua('kiraai'));
-
-  await waitFor(() => expect(LIET_KE).toHaveBeenCalled());
-  expect(
-    LIET_KE.mock.calls[0]?.[0],
-    'thẻ kiraai đi hỏi nhà cung cấp khác — nút này sẽ báo xanh bằng khóa của người ta',
-  ).toBe('kiraai');
+  fireEvent.click(nutKiem('kiraai'));
+  await waitFor(() => expect(LIET_KE).toHaveBeenCalledWith('kiraai'));
 });
 
-test('lỗi của một thẻ KHÔNG dán lên thẻ khác', async () => {
-  LIET_KE.mockRejectedValue(new Error('401 khóa sai'));
-
-  fireEvent.click(nutKiemCua('kiraai'));
-  await waitFor(() => expect(theCua('kiraai').textContent).toMatch(/401 khóa sai/));
-
-  const theKhoe = theCua('openai');
-  expect(
-    theKhoe.textContent,
-    'lỗi của kiraai hiện cả trên thẻ openai — một bộ lỗi dùng chung cho mọi thẻ',
-  ).not.toMatch(/401 khóa sai/);
+test('lỗi của một dòng KHÔNG dán lên dòng khác', async () => {
+  LIET_KE.mockRejectedValue(new LoiApi('kiraai trả HTTP 401 — khóa API sai hoặc hết hạn', 502));
+  fireEvent.click(nutKiem('kiraai'));
+  await waitFor(() => expect(dongCua('kiraai').textContent).toMatch(/401/));
+  expect(dongCua('openai').textContent).not.toMatch(/401/);
+  expect(dongCua('openai').textContent).toMatch(/Chưa kiểm tra/);
 });
 
-test('kiểm xong thì nói số model, và chỉ tên KHAI mà nhà cung cấp không có mới bị nêu', async () => {
-  // Nhà cung cấp trả một danh sách KHÔNG chứa `kira-mini-1.0` đang khai trong thẻ — đúng ca
-  // đã làm ba lượt tạo tác phẩm chết (`cx/gpt-5.5` khai đúng, ô mặc định gõ `gpt-5.5`).
-  LIET_KE.mockResolvedValue({ provider: 'kiraai', models: ['kira-1.0', 'kira-pro'], count: 2 });
-
-  fireEvent.click(nutKiemCua('kiraai'));
-
-  await waitFor(() => expect(theCua('kiraai').textContent).toMatch(/2 model/));
-
-  // Nhãn KHÔNG được hứa quá phạm vi lượt gọi. `GET /v1/models` chạy ngon cả khi hạn mức sinh
-  // chữ đã cạn — đo được trên gateway của người dùng: models 200, chat 429 "token quota
-  // exceeded". Một chữ "dùng được" ở đây dẫn thẳng tới một lượt chạy chết.
-  expect(theCua('kiraai').textContent, 'nhãn hứa khóa "dùng được" trong khi chưa kiểm hạn mức').not.toMatch(
-    /khóa còn dùng được/,
-  );
-  expect(theCua('kiraai').textContent).toMatch(/chưa kiểm hạn mức/);
-
-  // Nhắm đúng Ô CẢNH BÁO, không phải cả thẻ. Đo bằng đột biến: `kira-mini-1.0` đã có sẵn ở
-  // dòng "Danh sách model" của thẻ, nên một phép khớp trên `the.textContent` vẫn xanh sau khi
-  // gỡ sạch phần cảnh báo — tức bài kiểm không canh gì cả.
-  const canhBao = theCua('kiraai').querySelector('.vphacap');
-  expect(canhBao, 'không có ô cảnh báo nào cho tên model khai mà nhà cung cấp không có').not.toBeNull();
-  expect(canhBao!.textContent).toMatch(/kira-mini-1\.0/);
-  // Và CHỈ tên khai lạ. `kira-1.0` cũng được khai trong thẻ nhưng nhà cung cấp CÓ nó, nên
-  // lôi nó vào là biến cảnh báo thành nhiễu — người dùng sẽ đi sửa một dòng vốn đúng.
-  expect(canhBao!.textContent).not.toMatch(/kira-1\.0/);
-  expect(canhBao!.textContent).not.toMatch(/kira-pro/);
+test('kiểm xong thì nói số model + giờ, và chỉ tên ĐÃ LƯU mà nhà cung cấp không có mới bị nêu', async () => {
+  LIET_KE.mockResolvedValue({ provider: 'kiraai', models: ['kira-1.0', 'khac'], count: 2 });
+  fireEvent.click(nutKiem('kiraai'));
+  await waitFor(() => expect(dongCua('kiraai').textContent).toMatch(/Kết nối được · 2 model · \d/));
+  const chu = dongCua('kiraai').textContent ?? '';
+  expect(chu).toMatch(/không còn phục vụ: kira-mini-1\.0\./);
+  expect(chu, 'tên có thật cũng bị nêu là lạ').not.toMatch(/phục vụ:[^.]*kira-1\.0/);
 });
 
-/*
- * Hai bài dưới đây canh cùng MỘT khiếu nại đo được từ người dùng: "bấm nút Kiểm tra nó kiểm
- * tra tất cả nhà cung cấp". Mạng lúc đó chỉ có đúng một lượt gọi — sai nằm ở chỗ giao diện
- * để một cú bấm nói thay cho những điều khiển người dùng chưa đụng tới.
- */
-
-test('đang kiểm một thẻ thì KHÔNG điều khiển nào khác đổi trạng thái', async () => {
-  let thaRa: (v: { provider: string; models: string[]; count: number }) => void = () => {};
-  LIET_KE.mockReturnValue(
-    new Promise((res) => {
-      thaRa = res;
-    }),
-  );
-
-  // Bấm ở thẻ `openai` — cũng chính là nhà cung cấp MẶC ĐỊNH trong dữ liệu mẫu. Đó là hình
-  // dạng đã sinh ra khiếu nại: trùng nhà cung cấp thì hai điều khiển cùng đổi chữ.
-  fireEvent.click(nutKiemCua('openai'));
-  await waitFor(() => expect(nutKiemCua('openai').disabled).toBe(true));
-
-  expect(
-    nutKiemCua('kiraai').disabled,
-    'thẻ kiraai tắt theo — cả màn xám đi cho một lượt gọi duy nhất',
-  ).toBe(false);
-
-  // Và ĐÚNG MỘT điều khiển trên cả màn được nói "đang…". Đếm trên toàn bộ trang chứ không
-  // liệt kê từng nút: bề mặt này đã gộp thêm dải kênh vai, nên một phép đếm bao hết mọi thứ
-  // sẽ có mặt sau này mà không phải sửa bài kiểm.
-  const dangBan = Array.from(document.querySelectorAll('button')).filter((b) =>
-    /^Đang /.test(b.textContent ?? ''),
-  );
-  expect(
-    dangBan.map((b) => b.textContent),
-    'nhiều hơn một điều khiển đổi sang trạng thái "đang…" cho một cú bấm',
-  ).toEqual(['Đang kiểm tra…']);
-
-  thaRa({ provider: 'openai', models: [], count: 0 });
-  await waitFor(() => expect(nutKiemCua('openai').disabled).toBe(false));
+test('nút Kiểm tra xin thử gọi công cụ, và nói thẳng khi model không gọi được', async () => {
+  // Ca thật 2026-10-02: "Kết nối được · 306 model" xanh, trong khi không model nào gọi được
+  // công cụ — truyện kẹt ở Kiến trúc sư. Dòng thứ hai là câu trả lời người dùng cần.
+  LIET_KE.mockResolvedValue({
+    provider: 'kiraai',
+    models: ['kira-mini-1.0'],
+    count: 1,
+    tools: {
+      model: 'kira-mini-1.0',
+      checked: true,
+      ok: false,
+      reason: 'cổng đã thử hết 388 tuyến mà không tuyến nào nhận',
+      raw: 'All models exhausted',
+    },
+  });
+  fireEvent.click(nutKiem('kiraai'));
+  await waitFor(() => expect(dongCua('kiraai').textContent).toMatch(/không gọi công cụ được/));
+  expect(TUY_CHON).toHaveBeenCalledWith({ congCu: true });
+  const chu = dongCua('kiraai').textContent ?? '';
+  expect(chu).toMatch(/Model kira-mini-1\.0 không gọi công cụ được — Kiến trúc sư, Người viết và Biên tập viên sẽ không chạy/);
+  expect(chu).toMatch(/Lý do: cổng đã thử hết 388 tuyến/);
 });
 
-test('một cú bấm chỉ sinh ĐÚNG MỘT dòng báo cáo trên cả màn', async () => {
-  LIET_KE.mockResolvedValue({ provider: 'openai', models: ['cx/gpt-5.5'], count: 1 });
-
-  // `openai` vừa là thẻ, vừa là nhà cung cấp mặc định — đúng hình dạng đã sinh ra khiếu nại
-  // "bấm nút Kiểm tra nó kiểm tra tất cả nhà cung cấp".
-  fireEvent.click(nutKiemCua('openai'));
-  await waitFor(() => expect(theCua('openai').textContent).toMatch(/1 model/));
-
-  const baoCao = Array.from(document.querySelectorAll('p')).filter((p) =>
-    /Gọi được nhà cung cấp/.test(p.textContent ?? ''),
-  );
-  expect(
-    baoCao.length,
-    'một cú bấm làm nhiều chỗ cùng báo "gọi được" — người dùng đọc ra là nó vừa kiểm tất cả',
-  ).toBe(1);
-  expect(theCua('openai').contains(baoCao[0]!), 'dòng báo cáo không nằm trên thẻ vừa bấm').toBe(true);
+test('gọi công cụ được thì nói ra, cạnh dòng kết nối', async () => {
+  LIET_KE.mockResolvedValue({
+    provider: 'kiraai',
+    models: ['kira-mini-1.0'],
+    count: 1,
+    tools: { model: 'kira-mini-1.0', checked: true, ok: true },
+  });
+  fireEvent.click(nutKiem('kiraai'));
+  await waitFor(() => expect(dongCua('kiraai').textContent).toMatch(/kira-mini-1\.0 gọi công cụ được/));
 });
 
-test('chưa lưu khóa thì nút tắt — không mời bấm để nhận một lỗi báo trước được', () => {
-  expect(
-    nutKiemCua('chuaCoKhoa').disabled,
-    'nút Kiểm tra bật khi chưa có khóa; server sẽ từ chối và người dùng đọc thành "nhà cung cấp hỏng"',
-  ).toBe(true);
-  expect(nutKiemCua('kiraai').disabled).toBe(false);
+test('chưa lưu khóa thì nút Kiểm tra tắt, kèm lý do', () => {
+  const nut = nutKiem('chuaCoKhoa') as HTMLButtonElement;
+  expect(nut.disabled).toBe(true);
+  expect(nut.title).toMatch(/khóa/);
 });
 
-/* ── thêm nhà cung cấp trùng tên ────────────────────────────────────────── */
+test('dòng nói đúng vai nào đang dùng nó, kể cả vai theo mặc định', () => {
+  expect(dongCua('openai').textContent).toMatch(/Đang dùng cho: Mặc định, Kiến trúc sư, Biên tập viên/);
+  expect(dongCua('kiraai').textContent).toMatch(/Đang dùng cho: Người viết/);
+  expect(dongCua('chuaCoKhoa').textContent).toMatch(/Chưa vai nào dùng/);
+});
 
-/**
- * ĐO ĐƯỢC trên máy người dùng: thêm một nhà cung cấp trùng tên GHI ĐÈ thẳng lên thẻ cũ — mất
- * địa chỉ gốc, mất khóa API, mất danh sách model — và không thẻ mới nào hiện ra, nên nó đọc
- * ra là "bấm Lưu chả thấy gì". Người dùng thử lại mấy lần, mỗi lần lại phá thêm.
- *
- * Tên nhà cung cấp là KHÓA trong `cfg.Providers`, nên đây không phải chuyện nhắc nhở cho đẹp:
- * không có hàng rào thì một cú gõ trùng tên là một lượt xóa dữ liệu không hoàn tác được.
- */
-function moFormThemMoi() {
+test('không xóa được nhà cung cấp mặc định', () => {
+  const nut = within(dongCua('openai')).getByRole('button', { name: 'Xóa' }) as HTMLButtonElement;
+  expect(nut.disabled).toBe(true);
+});
+
+test('Xóa HỎI trước; xác nhận thì gỡ cả vai lẫn fallback trỏ vào nó (B9)', async () => {
+  fireEvent.click(within(dongCua('kiraai')).getByRole('button', { name: 'Xóa' }));
+  expect(LUU, 'xóa mà không hỏi').not.toHaveBeenCalled();
+  const dialog = (await screen.findByText('Xóa nhà cung cấp kiraai?')).closest('dialog')!;
+  expect(dialog.textContent).toMatch(/Người viết đang chọn riêng ở đây/);
+
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Hủy' }));
+  expect(LUU).not.toHaveBeenCalled();
+
+  fireEvent.click(within(dongCua('kiraai')).getByRole('button', { name: 'Xóa' }));
+  const dialog2 = (await screen.findByText('Xóa nhà cung cấp kiraai?')).closest('dialog')!;
+  fireEvent.click(within(dialog2).getByRole('button', { name: 'Xóa' }));
+  await waitFor(() => expect(LUU).toHaveBeenCalled());
+  expect(LUU.mock.calls[0]![0]).toEqual({
+    remove_provider: 'kiraai',
+    roles: { editor: { provider: 'openai', model: 'cx/gpt-5.5', fallbacks: [] } },
+  });
+});
+
+/* ── thêm nhà cung cấp ──────────────────────────────────────────────────── */
+
+function moThem() {
   fireEvent.click(screen.getByRole('button', { name: /Thêm nhà cung cấp/ }));
-  return document.querySelector('.nccMuc.dangSua form') as HTMLFormElement;
+  const form = document.querySelector<HTMLFormElement>('.chNcc .chPanel form')!;
+  expect(form, 'không mở được biểu mẫu thêm').not.toBeNull();
+  return form;
 }
 
-function goTen(form: HTMLFormElement, v: string) {
-  fireEvent.change(form.querySelector('input[placeholder="openrouter"]')!, { target: { value: v } });
-}
-
-test('gõ trùng tên một thẻ đã có thì KHÔNG lưu đè được', () => {
-  const form = moFormThemMoi();
-  goTen(form, 'openai');
-
-  const luu = Array.from(form.querySelectorAll('button')).find((b) => /^Lưu/.test(b.textContent ?? ''))!;
-  expect(
-    (luu as HTMLButtonElement).disabled,
-    'nút Lưu còn bấm được với tên trùng — một cú bấm là xóa mất khóa và model của thẻ cũ',
-  ).toBe(true);
-  expect(form.textContent, 'không nói ra vì sao, người dùng chỉ thấy nút chết').toMatch(
-    /Đã có nhà cung cấp tên "openai"/,
-  );
-  expect(form.textContent, 'không chỉ đường sang nút Sửa').toMatch(/bấm Sửa/);
-});
-
-test('Enter cũng không lách qua được hàng rào trùng tên', () => {
-  LIET_KE.mockResolvedValue({ provider: 'x', models: [], count: 0 });
-  const form = moFormThemMoi();
-  goTen(form, 'openai');
-
+test('gõ trùng tên một nhà cung cấp đã có thì KHÔNG lưu được, kể cả bằng Enter', () => {
+  const form = moThem();
+  fireEvent.change(within(form).getByPlaceholderText('openrouter'), { target: { value: 'kiraai' } });
+  expect(within(form).getByText(/Đã có nhà cung cấp tên kiraai/)).toBeDefined();
+  expect((within(form).getByRole('button', { name: 'Lưu' }) as HTMLButtonElement).disabled).toBe(true);
   fireEvent.submit(form);
-  expect(LUU_CAU_HINH, 'submit bằng Enter vẫn gửi lượt ghi đè').not.toHaveBeenCalled();
+  expect(LUU).not.toHaveBeenCalled();
 });
 
-test('tên chưa ai dùng thì lưu được bình thường', () => {
-  const form = moFormThemMoi();
-  goTen(form, 'mot-cai-ten-khac');
-
-  const luu = Array.from(form.querySelectorAll('button')).find((b) => /^Lưu/.test(b.textContent ?? ''))!;
-  expect((luu as HTMLButtonElement).disabled).toBe(false);
-  expect(form.textContent).not.toMatch(/Đã có nhà cung cấp tên/);
+test('mẫu sẵn điền tên + địa chỉ; tên mới lưu được, kèm giao thức và khóa vừa gõ', async () => {
+  const form = moThem();
+  fireEvent.click(within(form).getByRole('button', { name: 'OpenRouter' }));
+  expect((within(form).getByPlaceholderText('openrouter') as HTMLInputElement).value).toBe('openrouter');
+  fireEvent.change(form.querySelector('input[type="password"]')!, { target: { value: 'sk-moi' } });
+  fireEvent.change(within(form).getByPlaceholderText(/Gõ tên rồi nhấn Enter/), { target: { value: 'a/m1, a/m2' } });
+  fireEvent.keyDown(within(form).getByPlaceholderText(/Gõ tên rồi nhấn Enter/), { key: 'Enter' });
+  fireEvent.click(within(form).getByRole('button', { name: 'Lưu' }));
+  await waitFor(() => expect(LUU).toHaveBeenCalled());
+  expect(LUU.mock.calls[0]![0]).toEqual({
+    provider_config: {
+      name: 'openrouter',
+      type: 'openai',
+      base_url: 'https://openrouter.ai/api/v1',
+      api_key: 'sk-moi',
+      models: [{ name: 'a/m1' }, { name: 'a/m2' }],
+      keyless: false,
+    },
+  });
 });
 
-/* ── đổi nhà cung cấp mặc định khi còn vai đặt riêng ────────────────────── */
-
-/**
- * Người dùng: *"nếu mà chuyển nhà cung cấp mặc định thì Model theo vai cũng đổi theo chứ nhỉ,
- * sẽ có trường hợp đang dùng nhà cung cấp A, xong hết tiền, mua nhà cung cấp B để dùng"*.
- *
- * Bản trước ghi thẳng: mặc định sang B, ba vai đặt riêng ở lại A. Không câu hỏi, không dấu
- * vết. Và nếu A vừa bị đổi ruột thì ba vai đó mang tên model không còn tồn tại — engine chết
- * ở lượt Writer đầu với một thông báo nói về khóa API.
- */
-test('đổi mặc định LUÔN mở bảng đối chiếu, chưa ghi gì cả', async () => {
-  fireEvent.click(
-    Array.from(theCua('kiraai').querySelectorAll('button')).find(
-      (b) => b.textContent === 'Dùng làm mặc định',
-    )!,
-  );
-
-  await waitFor(() => expect(document.querySelector('dialog')).not.toBeNull());
-  expect(LUU_CAU_HINH, 'ghi thẳng, không hỏi — vai đặt riêng ở lại lặng lẽ').not.toHaveBeenCalled();
-
-  const hop = document.querySelector('dialog')!;
-  expect(hop.textContent).toMatch(/Chuyển sang kiraai\?/);
-  // Bảng phải nói ra vai nào KHÔNG mang được tên model cũ sang.
-  expect(hop.querySelectorAll('tr.phaiChon').length, 'không dòng nào bị đánh dấu phải chọn lại').toBeGreaterThan(0);
-  // Và phải có đủ BA lối ra, không hai.
-  for (const nhan of ['Hủy', 'Chỉ đổi mặc định', 'Chuyển cả dây chuyền']) {
-    expect(
-      Array.from(hop.querySelectorAll('button')).some((b) => b.textContent === nhan),
-      `thiếu lối ra "${nhan}"`,
-    ).toBe(true);
-  }
+test('tích "không cần khóa": ô khóa khóa lại, lưu không cần khóa và gửi keyless', async () => {
+  // Máy chủ tự dựng (vd. Ollama trong mạng nhà) không có khóa nào để dán. Khóa đã gõ trước
+  // khi tích không được đi theo — người dùng vừa nói nó không dùng tới.
+  const form = moThem();
+  fireEvent.click(within(form).getByRole('button', { name: 'OpenRouter' }));
+  const o = form.querySelector<HTMLInputElement>('input[type="password"]')!;
+  fireEvent.change(o, { target: { value: 'sk-go-nham' } });
+  fireEvent.click(within(form).getByRole('checkbox', { name: new RegExp(CH.khaiKhongKhoa) }));
+  expect(o.disabled).toBe(true);
+  fireEvent.change(within(form).getByPlaceholderText(/Gõ tên rồi nhấn Enter/), { target: { value: 'llama3' } });
+  fireEvent.keyDown(within(form).getByPlaceholderText(/Gõ tên rồi nhấn Enter/), { key: 'Enter' });
+  fireEvent.click(within(form).getByRole('button', { name: 'Lưu' }));
+  await waitFor(() => expect(LUU).toHaveBeenCalled());
+  const than = LUU.mock.calls[0]![0] as { provider_config: Record<string, unknown> };
+  expect(than.provider_config.keyless).toBe(true);
+  expect(than.provider_config).not.toHaveProperty('api_key');
 });
 
-test('"Chuyển cả dây chuyền" ghi CẢ mặc định lẫn mọi vai trong MỘT lượt', async () => {
-  fireEvent.click(
-    Array.from(theCua('kiraai').querySelectorAll('button')).find(
-      (b) => b.textContent === 'Dùng làm mặc định',
-    )!,
-  );
-  await waitFor(() => expect(document.querySelector('dialog')).not.toBeNull());
-
-  const hop = document.querySelector('dialog')!;
-  fireEvent.click(
-    Array.from(hop.querySelectorAll('button')).find((b) => b.textContent === 'Chuyển cả dây chuyền')!,
-  );
-
-  await waitFor(() => expect(LUU_CAU_HINH).toHaveBeenCalled());
-  const than = LUU_CAU_HINH.mock.calls[0]![0] as unknown as {
-    provider: string;
-    roles: Record<string, { provider: string }>;
-  };
-  expect(than.provider).toBe('kiraai');
-  expect(
-    Object.values(than.roles).every((r) => r.provider === 'kiraai'),
-    'còn vai trỏ về nhà cung cấp cũ sau khi chuyển cả dây chuyền',
-  ).toBe(true);
-  expect(LUU_CAU_HINH, 'chia thành nhiều lượt ghi — nửa chừng hỏng là cấu hình lệch').toHaveBeenCalledTimes(1);
+test('tên có dấu cách bị chặn ngay trên biểu mẫu', () => {
+  const form = moThem();
+  fireEvent.change(within(form).getByPlaceholderText('openrouter'), { target: { value: 'co cach' } });
+  expect((within(form).getByRole('button', { name: 'Lưu' }) as HTMLButtonElement).disabled).toBe(true);
 });
 
-test('"Chỉ đổi mặc định" giữ nguyên vai đặt riêng', async () => {
-  fireEvent.click(
-    Array.from(theCua('kiraai').querySelectorAll('button')).find(
-      (b) => b.textContent === 'Dùng làm mặc định',
-    )!,
-  );
-  await waitFor(() => expect(document.querySelector('dialog')).not.toBeNull());
+/* ── sửa thì quên kết quả kiểm cũ (B8) ──────────────────────────────────── */
 
-  fireEvent.click(
-    Array.from(document.querySelector('dialog')!.querySelectorAll('button')).find(
-      (b) => b.textContent === 'Chỉ đổi mặc định',
-    )!,
-  );
+test('sửa xong một nhà cung cấp thì kết quả kiểm của địa chỉ cũ bị quên', async () => {
+  LIET_KE.mockResolvedValue({ provider: 'kiraai', models: ['kira-1.0'], count: 1 });
+  fireEvent.click(nutKiem('kiraai'));
+  await waitFor(() => expect(dongCua('kiraai').textContent).toMatch(/Kết nối được/));
 
-  await waitFor(() => expect(LUU_CAU_HINH).toHaveBeenCalled());
-  const than = LUU_CAU_HINH.mock.calls[0]![0] as unknown as { provider: string; roles?: unknown };
-  expect(than.provider).toBe('kiraai');
-  expect(than.roles, 'đụng vào roles trong khi người dùng chọn CHỈ đổi mặc định').toBeUndefined();
-});
-
-/* ── model buộc theo nhà cung cấp ───────────────────────────────────────── */
-
-test('đổi ô Nhà cung cấp của một kênh thì ô Model ĐỔI THEO', async () => {
-  const kenh = Array.from(document.querySelectorAll('.kenhDai .kenh')).find(
-    (f) => f.querySelector('.kenhTen')?.textContent === 'Chấp bút',
-  )!;
-  const oNcc = kenh.querySelector('select')!;
-  const oModel = kenh.querySelector('input')!;
-  expect(oModel.value).toBe('cx/gpt-5.5');
-
-  fireEvent.change(oNcc, { target: { value: 'kiraai' } });
-
-  expect(
-    oModel.value,
-    'giữ nguyên tên model của nhà cung cấp CŨ — đúng cách dựng ra một cặp không tồn tại',
-  ).not.toBe('cx/gpt-5.5');
-  expect(oModel.value).toBe('kira-mini-1.0');
-});
-
-/**
- * Ca im lặng nhất, và là ca người dùng vấp: KHÔNG vai nào đặt riêng.
- *
- * Bản đầu chỉ hỏi khi có vai lạc chỗ, nên ở trạng thái này một cú bấm dời CẢ BỐN vai sang một
- * nhà cung cấp khác với một model khác hẳn về giá — không hộp, không dòng xác nhận. Người dùng
- * bấm rồi hỏi *"sao không thấy có hỏi gì nhỉ, vẫn không có gì xảy ra"*.
- */
-test('không vai nào đặt riêng thì VẪN hỏi, và chỉ có HAI lối ra', async () => {
-  cleanup();
-  KHONG_GHIM = true;
-  render(<CauHinhXuong />);
-  await waitFor(() => expect(document.querySelectorAll('li.nccMuc').length).toBe(3));
-
-  fireEvent.click(
-    Array.from(theCua('kiraai').querySelectorAll('button')).find(
-      (b) => b.textContent === 'Dùng làm mặc định',
-    )!,
-  );
-  await waitFor(() => expect(document.querySelector('dialog')).not.toBeNull());
-
-  const nut = Array.from(document.querySelector('dialog')!.querySelectorAll('.hopxnNut button')).map(
-    (b) => b.textContent,
-  );
-  // "Chỉ đổi mặc định" và "Chuyển cả dây chuyền" là CÙNG một lượt ghi khi mọi vai thừa hưởng.
-  // Bày cả hai là mời người dùng đi tìm một khác biệt không có thật.
-  expect(nut).toEqual(['Hủy', 'Đổi mặc định']);
-});
-
-test('xác nhận khi không có vai ghim thì KHÔNG đẻ ra mục roles nào', async () => {
-  cleanup();
-  KHONG_GHIM = true;
-  render(<CauHinhXuong />);
-  await waitFor(() => expect(document.querySelectorAll('li.nccMuc').length).toBe(3));
-
-  fireEvent.click(
-    Array.from(theCua('kiraai').querySelectorAll('button')).find(
-      (b) => b.textContent === 'Dùng làm mặc định',
-    )!,
-  );
-  await waitFor(() => expect(document.querySelector('dialog')).not.toBeNull());
-  fireEvent.click(
-    Array.from(document.querySelector('dialog')!.querySelectorAll('button')).find(
-      (b) => b.textContent === 'Đổi mặc định',
-    )!,
-  );
-
-  await waitFor(() => expect(LUU_CAU_HINH).toHaveBeenCalled());
-  const than = LUU_CAU_HINH.mock.calls[0]![0] as unknown as { roles: Record<string, unknown> };
-  expect(
-    Object.keys(than.roles),
-    'ghim luôn ba vai vốn đang thừa hưởng — từ lần sau chúng thôi đi theo mặc định',
-  ).toEqual([]);
-});
-
-/**
- * Nhãn của `providers[].models` phải đọc ra là DANH MỤC, không phải lựa chọn đang có hiệu lực.
- *
- * ĐO ĐƯỢC: chuỗi cũ là 'Model' (số ít). Người dùng đọc "Model: cx/gpt-5.6-luna" trên thẻ thành
- * "nhà cung cấp này ĐANG dùng model này", sửa nó, rồi hỏi *"Model theo vai cũng thay đổi theo
- * chứ nhỉ"*. Sự thật là trường này chỉ nạp gợi ý vào ô chọn.
- *
- * Cùng lớp lỗi với "khóa còn dùng được": một nhãn hứa rộng hơn thứ trường đó thật sự là.
- */
-test('thẻ gọi danh mục model là DANH SÁCH, không phải "Model"', () => {
-  const nhan = Array.from(theCua('openai').querySelectorAll('dt')).map((d) => d.textContent);
-  expect(nhan, 'nhãn số ít đọc ra thành "nhà cung cấp này dùng model này"').not.toContain('Model');
-  expect(nhan).toContain('Danh sách model');
+  fireEvent.click(within(dongCua('kiraai')).getByRole('button', { name: 'Sửa' }));
+  const form = dongCua('kiraai').querySelector('form')!;
+  fireEvent.change(within(form).getByPlaceholderText('https://openrouter.ai/api/v1'), {
+    target: { value: 'https://moi.example/v1' },
+  });
+  fireEvent.click(within(form).getByRole('button', { name: 'Lưu' }));
+  await waitFor(() => expect(LUU).toHaveBeenCalled());
+  await waitFor(() => expect(dongCua('kiraai').textContent).toMatch(/Chưa kiểm tra/));
 });

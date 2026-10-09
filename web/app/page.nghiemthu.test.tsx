@@ -2,15 +2,15 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, expect, test, vi } from 'vitest';
 
 import { snap } from '@/components/mau.test-helper';
-import { CHU, GIAI_THICH } from '@/lib/nhan';
+import { CHU } from '@/lib/nhan';
 import type { Studio } from '@/lib/useStudio';
 import { BO_DEM_RONG } from '@/lib/vanSong';
 
 import Trang from './page';
 
 /**
- * Mắt CUỐI của hai sợi dây mà Task 5 vừa nối: `may.choGhi` và `s.taiLai` đi từ `Trang` xuống
- * dải quyết định của cửa nghiệm thu.
+ * Mắt CUỐI của sợi dây mà Task 5 vừa nối: `s.lamMoi` đi từ `Trang` xuống dải quyết định của
+ * cửa nghiệm thu.
  *
  * # Vì sao một tệp riêng chứ không thêm vào `page.test.tsx`
  *
@@ -37,8 +37,7 @@ vi.mock('@/lib/api', async (goc) => ({
   choDiTiep: (...a: unknown[]) => CHO_DI_TIEP(...a),
 }));
 
-/** Máy giả, MUTABLE: hai bài dưới cần hai giá trị `choGhi` khác nhau trong cùng một tệp. */
-const MAY = { choGhi: true as boolean | undefined, canCaiDat: false, daHoi: true };
+const MAY = { canCaiDat: false, daHoi: true };
 
 const STUDIO_GIA: Studio = {
   workshop: { root: '/w', books: [snap({}).book] },
@@ -92,11 +91,10 @@ Element.prototype.scrollIntoView = function () {
  */
 const nutTiepCuaDai = (c: HTMLElement) =>
   [...c.querySelectorAll<HTMLButtonElement>('.cuanghiemthu button')].find(
-    (n) => n.textContent === CHU.choDiTiep,
+    (n) => /^Duyệt(, viết chương| dàn ý)/.test(n.textContent ?? ''),
   )!;
 
 beforeEach(() => {
-  MAY.choGhi = true;
   CHO_DI_TIEP.mockReset().mockResolvedValue({ permit_chapter: 9, running: true });
   LAM_MOI.mockReset();
   TAI_LAI.mockReset();
@@ -152,21 +150,6 @@ test('sợi dây `lamMoi` cũng liền ở bề mặt KIỂM ĐỊNH, không ri�
   } finally {
     STUDIO_GIA.khu = truoc;
   }
-});
-
-test('`Trang` nối `choGhi` THẬT của máy vào dải — studio chỉ đọc thì hai nút vô hiệu', () => {
-  // Nhét cứng `choGhi` thành `true` ở `page.tsx` cho ra hai nút bấm được trên một studio lắng
-  // nghe ngoài loopback, tức hai lệnh gửi vào hư không. Bộ kiểm của `Khu` truyền `choGhi` của
-  // chính nó nên nó không thấy được chuyện đó.
-  MAY.choGhi = false;
-  const { container } = render(<Trang />);
-
-  const dai = container.querySelector('.cuanghiemthu')!;
-  expect(dai).not.toBeNull();
-  for (const n of dai.querySelectorAll('button')) {
-    expect(n.disabled).toBe(true);
-  }
-  expect(dai.textContent).toContain(GIAI_THICH.nghiemThuChoDay);
 });
 
 test('`Trang` truyền cửa THẬT từ snapshot — engine đóng thì không dải nào', () => {

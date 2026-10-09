@@ -23,16 +23,16 @@ import { NhanVat } from '@/components/NhanVat';
 import type { DongSuKien } from '@/components/NhatKy';
 import { Rail } from '@/components/Rail';
 import { LuatTheGioi, PhucBut } from '@/components/TheGioi';
-import { ThanhTren } from '@/components/ThanhTren';
 import { ToSanXuat } from '@/components/ToSanXuat';
 import { Transport } from '@/components/Transport';
 import { VanPhong } from '@/components/VanPhong';
 import { Xuong } from '@/components/Xuong';
-import { DangTai, KhongTaiDuoc, XuongTrong } from '@/components/XuongTrong';
+import { DangTai, KhongTaiDuoc } from '@/components/TrangTrong';
 import { useVuaChot } from '@/lib/chotChuong';
-import { dungInspector, type Khu as KhuMa } from '@/lib/khu';
+import { dungInspector, laKhuMucMay, type Khu as KhuMa } from '@/lib/khu';
 import { manTheoTacPham } from '@/lib/man';
 import { coViecCanBan, useTongXuong, type TaiTongXuong } from '@/lib/tongXuong';
+import { viSaoDung } from '@/lib/loiLlm';
 import { trangThaiCua } from '@/lib/nghiemThu';
 import { mayDangChay } from '@/lib/song';
 import { useMay } from '@/lib/useMay';
@@ -149,43 +149,6 @@ export default function Trang() {
         </div>
       ) : null}
 
-      <ThanhTren
-        workshop={s.workshop}
-        dangXem={sachDangXem}
-        ketNoi={s.ketNoi}
-        // Huy hiệu nghiệm thu nối ở ĐÂY, ngoài `Khu`, và đó là cả điểm của nó: một dây
-        // chuyền đang đứng chờ người dùng phải thấy được từ MỌI bề mặt, không riêng buồng
-        // lái — cùng lý lẽ đã ghi cho `HoiChan` ngay dưới.
-        //
-        // `undefined` khi chưa có snapshot, KHÔNG phải `trangThaiCua(null)`: hai ca đó cho
-        // cùng một hình (không huy hiệu) nhưng khác nguồn — "chưa tải xong" và "engine
-        // đóng" — và gộp chúng ở đây là dạy người sau rằng chúng là một.
-        cuaNghiemThu={s.snapshot ? trangThaiCua(s.snapshot.advance, s.snapshot.runtime) : undefined}
-        theoTacPham={theoTacPham}
-        onChon={s.chonTacPham}
-        onChonKhu={s.chonKhu}
-        // Đường vào "Tác phẩm mới" đặt ở thanh trên, cạnh bộ chọn tác phẩm.
-        //
-        // Nó VẪN còn trong rail, nhóm Máy — bỏ đi là bỏ một đường đi. Nhưng ở đó nó là mục
-        // thứ mười lăm trong mười sáu mục cùng sức nặng, và người dùng nói nguyên văn: "bắt
-        // đầu tác phẩm mới thì như thế nào và ở đâu". Thanh trên là chỗ trả lời câu đó:
-        // câu hỏi "cuốn nào" và câu hỏi "cuốn mới" là cùng một loại câu hỏi, nên chúng
-        // thuộc cùng một chỗ.
-        //
-        // Ba điều kiện, ba lý do khác nhau:
-        //  - `choGhi`: ngoài loopback thì `POST /books` bị từ chối, nên một nút dẫn tới
-        //    biểu mẫu chắc chắn thất bại là lời hứa hụt.
-        //  - `!canCaiDat`: chưa có khóa API thì bề mặt duy nhất được vẽ là Cấu hình máy,
-        //    nên bấm nút này sẽ KHÔNG đổi được gì — một nút không phản ứng.
-        //  - `!xuongTrong`: xưởng rỗng thì Tác phẩm mới đã là bề mặt đang mở sẵn.
-        onTaoTacPham={
-          may.choGhi && !may.canCaiDat && !xuongTrong
-            ? () => s.chonKhu('tac-pham-moi')
-            : undefined
-        }
-        dangOTaoTacPham={s.khu === 'tac-pham-moi'}
-        dauChot={dauDongThanh}
-      />
 
       {/* Chưa có tệp cấu hình thì dẫn THẲNG vào cài đặt, không hiện studio trống.
           Một studio không có khóa API không làm được gì cả, nên hiện nó ra rồi để người
@@ -193,17 +156,17 @@ export default function Trang() {
           của brief thiết kế, và nó đứng TRƯỚC mọi nhánh khác vì nó chặn tất cả. */
       may.canCaiDat ? (
         <CauHinhXuong lanDau onDoiCauHinh={may.hoiLai} />
-      ) : xuongTrong && may.choGhi ? (
-        // Xưởng rỗng + ghi được → dẫn thẳng vào tạo tác phẩm. Hiện một trang trống kèm
-        // một lệnh CLI là câu trả lời của bản chỉ-đọc; giờ studio tạo được nên để người
-        // dùng tự đi tìm chỗ tạo là bắt họ đoán.
-        <TacPhamMoi onXong={xongTaoSach} />
       ) : xuongTrong ? (
-        <XuongTrong root={s.workshop?.root} />
-      ) : s.loi && !s.snapshot ? (
-        <KhongTaiDuoc loi={s.loi} onThuLai={s.taiLai} />
-      ) : !s.snapshot ? (
-        <DangTai />
+        // Xưởng rỗng → dẫn thẳng vào tạo tác phẩm. Để người dùng tự đi tìm chỗ tạo là bắt
+        // họ đoán.
+        <XuongDauTien
+          khu={s.khu}
+          onChonKhu={s.chonKhu}
+          onXongTaoSach={xongTaoSach}
+          onChotCungDung={chotCungDung}
+          onDoiCauHinh={may.hoiLai}
+          nhapSan={nhapTuCungDung}
+        />
       ) : (
         <>
           <Rail
@@ -212,11 +175,20 @@ export default function Trang() {
             khu={s.khu}
             man={s.man}
             onChonKhu={s.chonKhu}
-            onChonMan={s.chonMan}
             canBan={canBan}
             tenCuonNgan={sachDangXem?.name || sachDangXem?.id}
             dauChot={dauDongThanh}
+            sach={s.workshop?.books ?? []}
+            tacPham={s.tacPham}
+            ketNoi={s.ketNoi}
+            choDuyet={
+              s.snapshot ? trangThaiCua(s.snapshot.advance, s.snapshot.runtime, s.snapshot.stop).dangCho : false
+            }
+            onMoTacPham={s.moTacPhamTai}
           />
+          {/* Màn chung (tủ truyện, cài đặt, viết mới) không cần dữ liệu của cuốn đang mở,
+              nên chúng hiện ngay thay vì chờ nạp toàn bộ một cuốn dài. */}
+          {s.snapshot || laKhuMucMay(s.khu) ? (
           <Khu
             khu={s.khu}
             onXoaXong={s.taiLai}
@@ -228,14 +200,6 @@ export default function Trang() {
             sach={s.workshop?.books ?? []}
             tong={tong}
             tacPham={s.tacPham}
-            // Hai prop dưới đây chỉ có một người đọc: dải quyết định của cửa nghiệm thu, ở hai
-            // bề mặt. `may.choGhi` chứ không phải `snapshot.capabilities.steer` — hai giá trị
-            // gần nhau nhưng không bằng nhau, và cái khác biệt là cái đáng giữ: `steer` là một
-            // `bool` trong JSON (`serve.go:309` đặt nó bằng `choGhi && may != nil`), nên nó
-            // KHÔNG BAO GIỜ nói được "chưa biết". `choGhi === undefined` là "đang hỏi
-            // /api/config", và dải có một bài kiểm riêng cho đúng ca đó: khóa nút mà KHÔNG nói
-            // "studio chỉ đọc". Dùng `steer` là lặng lẽ giết nhánh ấy.
-            choGhi={may.choGhi}
             chuongChon={s.chuongChon}
             onChonChuong={s.chonChuong}
             onChonKhu={s.chonKhu}
@@ -258,12 +222,16 @@ export default function Trang() {
             dangChay={mayDangChay(s.snapshot)}
             vuaChot={chot.vua}
           />
+          ) : s.loi ? (
+            <KhongTaiDuoc loi={s.loi} onThuLai={s.taiLai} />
+          ) : (
+            <DangTai />
+          )}
           {coInsp ? (
             <Inspector
               snapshot={s.snapshot}
               tacPham={s.tacPham}
               chuongChon={s.chuongChon}
-              onChonChuong={s.chonChuong}
             />
           ) : null}
         </>
@@ -272,7 +240,7 @@ export default function Trang() {
       {/* Modal chặn: engine đang ĐỨNG chờ trả lời. Đặt ở tầng Trang chứ không trong một khu
           vì nó phải hiện bất kể người dùng đang xem bề mặt nào — một dây chuyền đứng chờ
           không được ẩn sau một lựa chọn điều hướng. */}
-      <HoiChan tacPham={s.tacPham} choGhi={may.choGhi} />
+      <HoiChan tacPham={s.tacPham} />
 
       {/* Transport CHỈ ở màn xưởng sản xuất.
           Nó nói năng suất · giá thành · thời lượng của MỘT cuốn, và nó mang nút `▶ Chạy` —
@@ -295,6 +263,8 @@ export default function Trang() {
         // nên hai bề mặt không thể lệch nhau nữa.
         runtime={s.snapshot?.runtime}
         hoatDong={s.snapshot?.book.activity ?? 'idle'}
+        agents={s.snapshot?.agents}
+        dungVi={viSaoDung(s.snapshot)}
       >
         {/* Điều khiển sống TRONG transport: đó là chỗ trả lời "dây chuyền còn sống không",
             nên nút bấm phải ở cùng chỗ với câu trả lời. Đặt nó trong một bề mặt riêng sẽ
@@ -302,7 +272,6 @@ export default function Trang() {
         <DieuKhien
           snapshot={s.snapshot}
           tacPham={s.tacPham}
-          choGhi={may.choGhi}
           dangChay={s.snapshot ? mayDangChay(s.snapshot) : false}
           // Cùng luật với dải quyết định ở trên, và ở đây cái giá còn lộ hơn: `Dừng` là nút
           // người ta bấm SAU KHI đọc chữ đang chảy và thấy máy đi sai hướng. Nối `taiLai` vào
@@ -313,6 +282,44 @@ export default function Trang() {
       ) : null}
     </div>
   );
+}
+
+/**
+ * Xưởng chưa có truyện nào: biểu mẫu tạo truyện là màn nhà, KHÔNG có rail.
+ *
+ * Màn nhà dẫn sang được hai màn — Model & khóa API (từ "Sẽ viết bằng", và từ nút "Sửa khóa
+ * API" khi tạo hỏng vì khóa) và Bàn ý tưởng — nên nhánh này phải VẼ được cả hai, và cả hai phải
+ * mang lối về. Bản trước chỉ vẽ `TacPhamMoi` trần, không `onChonKhu`: lưu lần đầu với một khóa
+ * sai thì `needs_setup` thành false, người dùng đứng ở đây, tạo truyện hỏng, và không còn đường
+ * nào quay lại màn nhập khóa — app desktop không có thanh địa chỉ để tự gõ.
+ *
+ * Khu nào khác (kể cả `xuong` mặc định) đều rơi về biểu mẫu: không có truyện thì mọi bề mặt
+ * khác đều không có gì để nói.
+ */
+function XuongDauTien({
+  khu,
+  onChonKhu,
+  onXongTaoSach,
+  onChotCungDung,
+  onDoiCauHinh,
+  nhapSan,
+}: {
+  khu: KhuMa;
+  onChonKhu: (k: KhuMa) => void;
+  onXongTaoSach: (id: string) => void;
+  onChotCungDung: (banNhap: string) => void;
+  onDoiCauHinh: () => void;
+  nhapSan: string;
+}) {
+  const veTao = () => onChonKhu('tac-pham-moi');
+  switch (khu) {
+    case 'cau-hinh':
+      return <CauHinhXuong onDoiCauHinh={onDoiCauHinh} onVeTaoTruyen={veTao} />;
+    case 'cung-dung':
+      return <CungDung cheDo="mo-sach" tacPham={undefined} onXong={onChotCungDung} onVeTaoTruyen={veTao} />;
+    default:
+      return <TacPhamMoi onXong={onXongTaoSach} nhapSan={nhapSan} onChonKhu={onChonKhu} tuTrong />;
+  }
 }
 
 /**
@@ -331,7 +338,6 @@ export function Khu({
   sach,
   tong,
   tacPham,
-  choGhi,
   chuongChon,
   onChonChuong,
   onChonKhu,
@@ -351,7 +357,8 @@ export function Khu({
   vuaChot,
 }: {
   khu: KhuMa;
-  snapshot: Snapshot;
+  /** `undefined` chỉ ở các khu mức máy — xem chỗ gọi. */
+  snapshot: Snapshot | undefined;
   /** Mọi cuốn trong xưởng — chỉ khu `xuong` đọc, vì chỉ nó là bề mặt của CẢ xưởng. */
   sach: Book[];
   /**
@@ -360,14 +367,6 @@ export function Khu({
    */
   tong: TaiTongXuong;
   tacPham: string | undefined;
-  /**
-   * Máy có ghi được không — CHỈ dải quyết định của cửa nghiệm thu đọc, ở hai bề mặt.
-   *
-   * `undefined` = chưa biết (đang hỏi `/api/config`), và nó phải đi tới được: dải khóa nút ở ca
-   * đó nhưng KHÔNG nói "studio chỉ đọc", vì đó là một khẳng định chưa ai đo được và nó sẽ hiện
-   * ra ở MỌI lần mở trang.
-   */
-  choGhi: boolean | undefined;
   chuongChon: number | undefined;
   onChonChuong: (n: number) => void;
   onChonKhu: (k: KhuMa) => void;
@@ -392,6 +391,30 @@ export function Khu({
   /** Họ 09 — chỉ buồng lái đọc; các khu khác không có lane chương. */
   vuaChot: ReadonlySet<number>;
 }) {
+  if (!snapshot) {
+    switch (khu) {
+      case 'xuong':
+        return (
+          <Xuong
+            sach={sach}
+            tong={tong}
+            onChonKhu={onChonKhu}
+            onMoTacPham={onMoTacPham}
+            onXoaXong={onXoaXong}
+          />
+        );
+      case 'chi-phi-xuong':
+        return <ChiPhiXuong tong={tong} />;
+      case 'cau-hinh':
+        return <CauHinhXuong onDoiCauHinh={onDoiCauHinh} />;
+      case 'tac-pham-moi':
+        return <TacPhamMoi onXong={onXongTaoSach} nhapSan={nhapSan} onChonKhu={onChonKhu} />;
+      case 'cung-dung':
+        return <CungDung cheDo="mo-sach" tacPham={undefined} onXong={onChotCungDung} />;
+      default:
+        return <DangTai />;
+    }
+  }
   switch (khu) {
     // Xưởng là bề mặt của CẢ xưởng, nên nó cố ý KHÔNG nhận `tacPham`: nội dung của nó không
     // đổi theo cuốn đang mở (`laKhuMucMay('xuong')`). Truyền vào sẽ mời người sau dùng nó rồi
@@ -411,21 +434,22 @@ export function Khu({
     case 'ban-thao':
       return (
         <DocTruyen
+          onChonKhu={onChonKhu}
           snapshot={snapshot}
           tacPham={tacPham}
           chuongChon={chuongChon}
           onChonChuong={onChonChuong}
         />
       );
-    // Kiểm định nhận `tacPham`/`choGhi`/`dangChay`/`onDoi` CHỈ cho dải quyết định — bề mặt này
-    // vẫn không tự gọi thêm mạng nào (xem chú thích đầu `KiemDinh.tsx`). Bốn prop cho một dải
+    // Kiểm định nhận `tacPham`/`dangChay`/`onDoi` CHỈ cho dải quyết định — bề mặt này
+    // vẫn không tự gọi thêm mạng nào (xem chú thích đầu `KiemDinh.tsx`). Ba prop cho một dải
     // vì nút quyết định phải ở cùng chỗ với bằng chứng (spec §7.3).
     case 'kiem-dinh':
       return (
         <KiemDinh
+          onChonKhu={onChonKhu}
           snapshot={snapshot}
           tacPham={tacPham}
-          choGhi={choGhi}
           dangChay={dangChay}
           chuongChon={chuongChon}
           onChonChuong={onChonChuong}
@@ -435,13 +459,14 @@ export function Khu({
     case 'hang-cho-viet-lai':
       return (
         <HangChoVietLai
+          onChonKhu={onChonKhu}
           snapshot={snapshot}
           chuongChon={chuongChon}
           onChonChuong={onChonChuong}
         />
       );
     case 'to-san-xuat':
-      return <ToSanXuat snapshot={snapshot} />;
+      return <ToSanXuat snapshot={snapshot} tacPham={tacPham} />;
     case 'van-phong':
       return <VanPhong tacPham={tacPham} />;
     // Chi phí là bề mặt duy nhất trong ba bề mặt mới cần `snapshot`, và nó cần
@@ -455,19 +480,33 @@ export function Khu({
     // Khu mức MÁY: cố ý KHÔNG nhận `tacPham`. Truyền vào sẽ mời người sau dùng nó rồi
     // biến một bề mặt toàn cục thành nửa-theo-tác-phẩm.
     case 'nhap-xuat':
-      return <NhapXuat tacPham={tacPham} />;
+      return (
+        <NhapXuat
+          tacPham={tacPham}
+          soChuongXong={snapshot.book.completed_chapters}
+          nhapDo={snapshot.import ?? null}
+          onDoi={onDoi}
+        />
+      );
     case 'cau-hinh':
       return <CauHinhXuong onDoiCauHinh={onDoiCauHinh} />;
     case 'tac-pham-moi':
       return <TacPhamMoi onXong={onXongTaoSach} nhapSan={nhapSan} onChonKhu={onChonKhu} />;
-    // Cùng dựng giai đoạn cần tác phẩm; cùng dựng mở sách thì không. Một khu cho cả hai,
-    // chế độ suy từ việc có tác phẩm đang xem hay không.
+    // Hai khu, hai ý định, và chế độ đi theo KHU chứ không theo việc đang chọn cuốn nào.
+    // `cung-dung` mở từ các lối "truyện mới" (rail Chung, Tủ truyện, biểu mẫu Viết truyện mới):
+    // bàn cho một truyện CHƯA có. Suy chế độ từ `tacPham` từng biến nó thành cùng dựng giai
+    // đoạn của cuốn đang chọn — tạm dừng một cuốn người dùng không hề nhắc tới, rồi đem bản
+    // nháp sang biểu mẫu tạo truyện, nên cuốn đó nằm dừng mãi.
     case 'cung-dung':
+      return <CungDung cheDo="mo-sach" tacPham={undefined} onXong={onChotCungDung} />;
+    // `ban-huong` mở từ trong xưởng của MỘT cuốn: bàn chặng tiếp của chính cuốn đó.
+    case 'ban-huong':
       return (
         <CungDung
-          cheDo={tacPham ? 'giai-doan' : 'mo-sach'}
+          cheDo="giai-doan"
           tacPham={tacPham}
-          onXong={onChotCungDung}
+          // Bản nháp đã áp dụng cho cuốn và truyện chạy lại — về chỗ xem nó chạy.
+          onXong={() => onChonKhu('dong-san-xuat')}
         />
       );
     case 'dan-y':
@@ -487,7 +526,6 @@ export function Khu({
         <BuongLai
           snapshot={snapshot}
           tacPham={tacPham}
-          choGhi={choGhi}
           chuongChon={chuongChon}
           onChonChuong={onChonChuong}
           onChonKhu={onChonKhu}

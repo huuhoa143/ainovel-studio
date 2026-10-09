@@ -19,6 +19,17 @@ type UsageState struct {
 	PerAgent     map[string]AgentUsageTotals `json:"per_agent"`
 	PerModel     map[string]AgentUsageTotals `json:"per_model,omitempty"`
 	MissingUsage int                         `json:"missing_assistant_usage"`
+	// LastCall là lượt gọi LLM gần nhất có usage. Vắng khi chưa có lượt nào kể từ bản này.
+	LastCall *LastCall `json:"last_call,omitempty"`
+}
+
+// LastCall mô tả lượt gọi LLM gần nhất: vai nào, bằng cặp provider/model ĐÃ CẤU HÌNH nào, lúc nào.
+// Provider là TÊN trong `providers` của cấu hình (vd. "9Router"), không phải loại giao thức.
+type LastCall struct {
+	Agent    string    `json:"agent"`
+	Provider string    `json:"provider"`
+	Model    string    `json:"model"`
+	At       time.Time `json:"at"`
 }
 
 // AgentUsageTotals 是单个角色（或 overall）累计计数的可持久化形态。

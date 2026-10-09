@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import {
   LoiApi,
@@ -11,9 +11,13 @@ import {
   dungSach,
   moMay,
 } from '@/lib/api';
+import { DIEU_KHIEN, DONG_PHIEN } from '@/lib/chu/tien-do';
 import { CHU, GIAI_THICH } from '@/lib/nhan';
+import { trangThaiCua } from '@/lib/nghiemThu';
 import { mayNaoDo } from '@/lib/song';
 import type { Snapshot } from '@/lib/types';
+
+import { O_GOP_Y } from './OCanThiep';
 
 /**
  * Điều khiển dây chuyền — Chạy / Dừng / Cho đi tiếp / chế độ nghiệm thu.
@@ -48,35 +52,93 @@ import type { Snapshot } from '@/lib/types';
  * đổi — không dò liên tục" cũng hết việc: sau một lượt đổi, `onDoi()` nạp lại snapshot theo
  * đúng đường mà mọi lệnh khác trên trang đã dùng.
  */
+/** Lệnh đang gửi: tên nút, vân tay trạng thái lúc bấm, và server đã nhận lệnh chưa. */
+interface Lenh {
+  ten: 'mo' | 'chay' | 'dung' | 'dong' | 'tiep' | 'chedo';
+  /** Chế độ đích khi `ten === 'chedo'` — nhãn "Đang đổi…" bám đúng nút được bấm. */
+  dich?: string;
+  dau: string;
+  daNhan: boolean;
+}
+
+/**
+ * Vân tay của những gì một lệnh điều khiển có thể đổi: engine đang ở đâu, phiên có mở không,
+ * chế độ đi tiếp, có đang đứng ở cửa duyệt không. Lệnh nào cũng đổi ít nhất một trong số đó.
+ */
+function vanTay(s: Snapshot | undefined): string {
+  if (!s) return '';
+  return [
+    mayNaoDo(s.runtime, s.book.activity),
+    s.advance === null ? 'dong' : 'mo',
+    s.advance?.mode ?? '',
+    trangThaiCua(s.advance, s.runtime, s.stop).dangCho ? 'cua' : '',
+  ].join('|');
+}
+
+/** Engine nhận lệnh mà quá lâu trạng thái vẫn đứng yên thì nhả nút — xem `goi`. */
+const CHO_DOI_TOI_DA_MS = 20_000;
+
 export function DieuKhien({
   snapshot,
   tacPham,
-  choGhi,
   dangChay,
   onDoi,
 }: {
   snapshot: Snapshot | undefined;
   tacPham: string | undefined;
-  choGhi: boolean | undefined;
   dangChay: boolean;
   /** Gọi sau mỗi lệnh để bề mặt chính nạp lại — trạng thái vừa đổi ở phía engine. */
   onDoi: () => void;
 }) {
-  const [dangGui, datDangGui] = useState<string | null>(null);
+  const [lenh, datLenh] = useState<Lenh | null>(null);
   const [loi, datLoi] = useState<string | null>(null);
+  const dau = vanTay(snapshot);
 
-  if (!choGhi || !tacPham || !snapshot) return null;
+  // Lệnh đã được nhận và trạng thái engine đã đổi khác lúc bấm: lệnh ấy xong việc.
+  useEffect(() => {
+    if (lenh?.daNhan && dau !== lenh.dau) datLenh(null);
+  }, [lenh, dau]);
+  // Lưới an toàn: engine nhận lệnh mà trạng thái không đổi (vd. bấm Dừng đúng lúc nó vừa tự
+  // dừng) thì nút không được kẹt "Đang…" mãi.
+  useEffect(() => {
+    if (!lenh?.daNhan) return;
+    const t = setTimeout(() => datLenh(null), CHO_DOI_TOI_DA_MS);
+    return () => clearTimeout(t);
+  }, [lenh]);
 
-  const goi = (ten: string, fn: () => Promise<unknown>) => {
-    datDangGui(ten);
+  if (!tacPham || !snapshot) return null;
+
+  /**
+   * Gửi một lệnh, và giữ nút ở trạng thái "đang làm" cho tới khi ENGINE đổi trạng thái — không
+   * phải tới khi HTTP trả lời.
+   *
+   * Bản trước nhả nút ngay lúc `POST` trả 200, tức vài chục mili-giây: server chỉ nhận lệnh rồi
+   * trả, còn engine đổi trạng thái sau đó một hai giây (snapshot nạp lại sau sự kiện kế tiếp).
+   * Khoảng giữa nút quay về đúng nhãn cũ — bấm "Tiếp tục viết" xong vẫn thấy "Tiếp tục viết" —
+   * nên người dùng bấm lại, và lần bấm thứ hai đâm vào một engine đang dở tay. Đo trên truyện
+   * thật: dòng đỏ "Engine đang hoàn tất lần dừng trước" là từ đúng lần bấm thứ hai ấy.
+   */
+  const goi = (ten: Lenh['ten'], fn: () => Promise<unknown>, dich?: string) => {
+    datLenh({ ten, dich, dau, daNhan: false });
     datLoi(null);
     fn()
-      .then(() => onDoi())
-      .catch((e: unknown) => datLoi(e instanceof LoiApi ? e.message : String(e)))
-      .finally(() => datDangGui(null));
+      .then(() => {
+        datLenh((l) => (l && l.ten === ten ? { ...l, daNhan: true } : l));
+        onDoi();
+      })
+      .catch((e: unknown) => {
+        datLoi(e instanceof LoiApi ? e.message : String(e));
+        datLenh(null);
+      });
   };
 
+  // Lệnh chỉ còn hiệu lực khi trạng thái CHƯA đổi so với lúc bấm — tính ngay lúc vẽ, không đợi
+  // effect nhả. Đợi effect thì có đúng một khung hình vẽ trạng thái mới cùng nhãn "Đang…" cũ:
+  // đo được, "Đang đổi…" nhảy sang nút chế độ bên kia ngay khi chế độ vừa đổi.
+  const conHieuLuc = lenh && (!lenh.daNhan || lenh.dau === dau) ? lenh : null;
+  const dangGui = conHieuLuc?.ten ?? null;
   const khoa = dangGui !== null;
+  const nhanDang = (ten: Lenh['ten'], nhan: string) => (dangGui === ten ? DIEU_KHIEN.dangLam[ten] : nhan);
 
   /**
    * Engine có đang mở cho cuốn này không — MỘT nguồn duy nhất.
@@ -102,6 +164,10 @@ export function DieuKhien({
    */
   const mayDangMo = snapshot.advance !== null;
   const choNghiemThu = snapshot.advance?.mode === 'review';
+  // Nút "Duyệt, viết chương tiếp" chỉ có nghĩa khi engine THẬT SỰ đứng ở cửa. Hiện nó suốt cả
+  // chế độ duyệt — kể cả lúc đang dựng nền, chưa có chương nào để duyệt — là mời bấm một nút
+  // không duyệt gì. Cùng phép đo với dải nghiệm thu, để nút và dải không lệch nhau.
+  const dangChoDuyet = trangThaiCua(snapshot.advance, snapshot.runtime, snapshot.stop).dangCho;
 
   // Trạng thái engine đã hợp nhất — CÙNG hàm mà thanh transport và `mayDangChay` dùng. Đọc
   // thẳng `snapshot.runtime` ở đây sẽ dựng lại đúng bản-thứ-hai vừa bị gỡ bỏ ở Transport.
@@ -113,6 +179,27 @@ export function DieuKhien({
   // `pausing` = lệnh Dừng đã nhận, engine đang thu dọn. Bấm thêm không nhanh hơn, và tệ hơn
   // là một lượt chạy chồng lên một lượt đang tắt.
   const dangThuDon = khoaMay === 'pausing';
+  // Truyện đã đủ số chương dự kiến: viết tiếp không còn là việc chính, nên nút ấy hạ xuống
+  // hàng phụ và đổi tên. Một nút vàng "▶ Viết tiếp" trên một truyện đã xong là mời người dùng
+  // tiêu tiền cho một việc họ không cần — việc chính lúc này là đọc và xuất bản.
+  const daXong = khoaMay === 'completed' || snapshot.book.phase === 'complete';
+  const lopChay = daXong ? 'dkNut dkPhu' : 'dkNut dkChay';
+  const nhanNutChay = daXong ? DIEU_KHIEN.vietThem : `▶ ${nhanChay}`;
+  const viSaoChay = daXong ? DIEU_KHIEN.vietThemGiai : GIAI_THICH.taoSachSeTieuTien;
+
+  // Truyện đã xong: "Viết thêm" không chạy thẳng — viết thêm mà không có hướng thì Kiến trúc sư
+  // thấy dàn ý đã đủ và kết truyện lại ngay sau vài giây. Nút đưa con trỏ vào ô góp ý (đã đổi
+  // thành "Muốn viết thêm gì?"); câu gửi ở đó mới mở lại truyện. Màn không có ô ấy thì chạy
+  // thẳng như cũ — vẫn hơn một nút không làm gì.
+  const bamChay = () => {
+    const o = daXong ? document.getElementById(O_GOP_Y) : null;
+    if (o instanceof HTMLInputElement && !o.disabled) {
+      o.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      o.focus();
+      return;
+    }
+    goi('chay', () => chaySach(tacPham));
+  };
 
   return (
     <div className="dieukhien" role="group" aria-label={CHU.dieuKhien}>
@@ -138,40 +225,35 @@ export function DieuKhien({
         // đường sửa model theo vai mà không tiêu tiền. Nó chỉ thôi làm nút duy nhất.
         // Nút hạng nhất đứng CUỐI, tức sát mép phải — xem `dkChay` ở nhánh dưới.
         <>
+          {/* Sách đã xong thì "mở sẵn, chưa viết" không còn gì để mở sẵn: nút có nghĩa duy
+              nhất là Viết thêm. Đổi model theo vai vẫn làm được ở màn Model. */}
+          {daXong ? null : (
+            <button
+              type="button"
+              className="dkNut dkPhu"
+              disabled={khoa}
+              title={GIAI_THICH.vongDoiCanMoMay}
+              aria-busy={dangGui === 'mo' || undefined}
+              onClick={() => goi('mo', () => moMay(tacPham))}
+            >
+              {nhanDang('mo', CHU.moMay)}
+            </button>
+          )}
           <button
             type="button"
-            className="dkNut dkPhu"
+            className={lopChay}
             disabled={khoa}
-            title={GIAI_THICH.vongDoiCanMoMay}
-            onClick={() => goi('mo', () => moMay(tacPham))}
+            title={viSaoChay}
+            aria-busy={dangGui === 'chay' || undefined}
+            onClick={bamChay}
           >
-            {dangGui === 'mo' ? CHU.dangGui : CHU.moMay}
-          </button>
-          <button
-            type="button"
-            className="dkNut dkChay"
-            disabled={khoa}
-            title={GIAI_THICH.taoSachSeTieuTien}
-            onClick={() => goi('chay', () => chaySach(tacPham))}
-          >
-            {dangGui === 'chay' ? CHU.dangGui : `▶ ${nhanChay}`}
+            {nhanDang('chay', nhanNutChay)}
           </button>
         </>
       ) : (
         <>
           {/* Cho đi tiếp CHỈ có nghĩa ở chế độ nghiệm thu. Ở chế độ tự chạy engine không
               chờ giấy phép nào, nên một nút cấp phép ở đó không làm gì cả. */}
-          {choNghiemThu ? (
-            <button
-              type="button"
-              className="dkNut"
-              disabled={khoa}
-              onClick={() => goi('tiep', () => choDiTiep(tacPham))}
-            >
-              {dangGui === 'tiep' ? CHU.dangGui : CHU.choDiTiep}
-            </button>
-          ) : null}
-
           {/* Nhãn chế độ chỉ hiện khi đo được — xem `bietCheDo`. KHÔNG `datCheDo(r.mode)` sau
               khi đổi: `SetAdvanceMode` chạm engine THẬT và `snapshot.advance.mode` đọc từ cùng
               `p.eng.Snapshot()` đó, nên `onDoi()` của `goi` đã mang về đúng giá trị mới. Giữ
@@ -187,30 +269,38 @@ export function DieuKhien({
               vì "tự chạy" và "nghiệm thu" đứng trơ thì không tự nói chúng loại trừ nhau. */}
           {/* Không còn `bietCheDo` ở đây: nhánh này CHÍNH LÀ ca máy đang mở, nên điều kiện cũ
               luôn đúng. Giữ nó lại chỉ để lại một câu hỏi đã được trả lời ở tầng trên. */}
-          <div className="dkChon" role="group" aria-label={CHU.cheDoDiTiep}>
-              <span className="dkChonDe">{CHU.cheDoDiTiep}</span>
-              {(
-                [
-                  ['auto', CHU.cheDoTuChay, GIAI_THICH.cheDoAutoLaGi],
-                  ['review', CHU.cheDoNghiemThu, GIAI_THICH.cheDoReviewLaGi],
-                ] as const
-              ).map(([che, nhan, viSao]) => {
-                const dangBat = che === (choNghiemThu ? 'review' : 'auto');
-                return (
-                  <button
-                    key={che}
-                    type="button"
-                    className={`dkChonNut${dangBat ? ' dkBat' : ''}`}
-                    aria-pressed={dangBat}
-                    disabled={khoa || dangBat}
-                    title={viSao}
-                    onClick={() => goi('chedo', () => doiCheDoTien(tacPham, che))}
-                  >
-                    {dangGui === 'chedo' && !dangBat ? CHU.dangGui : nhan}
-                  </button>
-                );
-            })}
-          </div>
+          {/* Truyện đã xong thì không còn chương nào để "đi tiếp" theo chế độ nào cả — công tắc
+              ở đó là một lựa chọn không đổi được gì. Viết thêm sẽ mở lại nó. */}
+          {daXong ? null : (
+            <div className="dkChon" role="group" aria-label={CHU.cheDoDiTiep}>
+                <span className="dkChonDe">{CHU.cheDoDiTiep}</span>
+                {(
+                  [
+                    ['auto', DIEU_KHIEN.lienTuc, CHU.cheDoTuChay, GIAI_THICH.cheDoAutoLaGi],
+                    ['review', DIEU_KHIEN.tungChuong, CHU.cheDoNghiemThu, GIAI_THICH.cheDoReviewLaGi],
+                  ] as const
+                ).map(([che, nhan, nhanDu, viSao]) => {
+                  const dangBat = che === (choNghiemThu ? 'review' : 'auto');
+                  return (
+                    <button
+                      key={che}
+                      type="button"
+                      className={`dkChonNut${dangBat ? ' dkBat' : ''}`}
+                      aria-pressed={dangBat}
+                      aria-label={nhanDu}
+                      disabled={khoa || dangBat}
+                      // Nhãn hiện ra là bản NGẮN để thanh dưới không cắt "Tự viết liên t…"; tên
+                      // đầy đủ ở `aria-label`, lời giải thích ở `title`.
+                      title={`${nhanDu} — ${viSao}`}
+                      aria-busy={(dangGui === 'chedo' && lenh?.dich === che) || undefined}
+                      onClick={() => goi('chedo', () => doiCheDoTien(tacPham, che), che)}
+                    >
+                      {dangGui === 'chedo' && lenh?.dich === che ? DIEU_KHIEN.dangLam.chedo : nhan}
+                    </button>
+                  );
+              })}
+            </div>
+          )}
 
           {/* Đóng máy nhả khóa tệp và nhả suất engine cho cuốn khác. Không có nó thì mở
               cuốn A rồi không bao giờ mở được cuốn B mà không tắt cả studio. */}
@@ -218,10 +308,13 @@ export function DieuKhien({
             type="button"
             className="dkNut dkPhu"
             disabled={khoa || dangChay}
-            title={dangChay ? GIAI_THICH.vongDoiCanMoMay : undefined}
+            // Máy đang MỞ ở nhánh này — câu "cần mở phiên trước" của bản cũ là câu của nhánh
+            // kia, và nói ngược sự thật ngay dưới một phiên đang chạy.
+            title={dangChay ? DONG_PHIEN.khiDangChay : undefined}
+            aria-busy={dangGui === 'dong' || undefined}
             onClick={() => goi('dong', () => dongMay(tacPham))}
           >
-            {dangGui === 'dong' ? CHU.dangGui : CHU.dongMay}
+            {nhanDang('dong', CHU.dongMay)}
           </button>
 
           {/* Ô NEO của nút hạng nhất — CUỐI cụm, tức sát mép phải.
@@ -233,25 +326,40 @@ export function DieuKhien({
               phải vẫn để nút Chạy dịch 107px khi bộ nút đổi từ 3 sang 4, vì mỗi nút phụ thêm
               vào lại đẩy nó sang trái. Ghim cụm là chưa đủ; phải ghim đúng cái nút ấy — đúng
               như bàn transport của DAW, nơi play–stop là một chỗ không bao giờ đổi. */}
-          {dangChay ? (
+          {/* Đứng ở cửa duyệt thì việc hạng nhất LÀ duyệt, nên nó chiếm đúng ô neo này thay cho
+              "Tiếp tục viết". Bản trước vẽ cả hai cạnh nhau: hai nút nghĩa gần như một, và người
+              dùng không biết bấm cái nào thì engine mới thật sự viết tiếp. */}
+          {dangChoDuyet && !dangChay ? (
+            <button
+              type="button"
+              className="dkNut dkChay"
+              disabled={khoa}
+              aria-busy={dangGui === 'tiep' || undefined}
+              onClick={() => goi('tiep', () => choDiTiep(tacPham))}
+            >
+              {nhanDang('tiep', CHU.nhanChoDiTiep(snapshot.book.completed_chapters))}
+            </button>
+          ) : dangChay ? (
             <button
               type="button"
               className="dkNut dkDung"
               disabled={khoa || dangThuDon}
               title={dangThuDon ? GIAI_THICH.dangThuDon : undefined}
+              aria-busy={dangGui === 'dung' || undefined}
               onClick={() => goi('dung', () => dungSach(tacPham))}
             >
-              {dangGui === 'dung' ? CHU.dangGui : `■ ${CHU.dung}`}
+              {nhanDang('dung', `‖ ${CHU.dung}`)}
             </button>
           ) : (
             <button
               type="button"
-              className="dkNut dkChay"
+              className={lopChay}
               disabled={khoa || dangThuDon}
-              title={dangThuDon ? GIAI_THICH.dangThuDon : GIAI_THICH.taoSachSeTieuTien}
-              onClick={() => goi('chay', () => chaySach(tacPham))}
+              title={dangThuDon ? GIAI_THICH.dangThuDon : viSaoChay}
+              aria-busy={dangGui === 'chay' || dangThuDon || undefined}
+              onClick={bamChay}
             >
-              {dangGui === 'chay' ? CHU.dangGui : `▶ ${nhanChay}`}
+              {dangThuDon ? DIEU_KHIEN.dangDungHan : nhanDang('chay', nhanNutChay)}
             </button>
           )}
         </>

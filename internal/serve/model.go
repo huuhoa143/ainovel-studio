@@ -19,7 +19,6 @@ type Capabilities struct {
 	PerChapterDuration bool `json:"per_chapter_duration"`
 	PerChapterCost     bool `json:"per_chapter_cost"`
 	LayeredOutline     bool `json:"layered_outline"`
-	Steer              bool `json:"steer"`
 	// Ba cờ dưới đây phục vụ ba bề mặt ở Rail. Chúng được suy từ CHÍNH builder mà
 	// endpoint tương ứng dùng (buildStyle/buildCost/buildSettings), không từ một
 	// phép kiểm riêng — đúng bài học của LayeredOutline: hai đường suy luận song
@@ -50,8 +49,11 @@ type Book struct {
 	CostPerChapter  float64 `json:"cost_per_chapter"`
 	ChaptersPerHour float64 `json:"chapters_per_hour"`
 	// EngineOpen do handleWorkshop đặt (cần s.may, một trường server — bookFrom/scanWorkshop
-	// chỉ biết store), cùng lý lẽ với Capabilities.Steer ở handleStudio.
+	// chỉ biết store).
 	EngineOpen bool `json:"engine_open"`
+	// Stop là lần dừng gần nhất của phiên đang mở (cùng phép chiếu với snapshot `stop`). Tủ
+	// truyện cần nó: một cuốn engine tự dừng vì lỗi là việc cần người, không phải "đang nghỉ".
+	Stop *LanDung `json:"stop,omitempty"`
 }
 
 // Workshop là toàn cảnh xưởng: mọi tác phẩm tìm thấy dưới thư mục gốc.
@@ -124,6 +126,9 @@ type ChapterRow struct {
 	DurationMs *int64 `json:"duration_ms,omitempty"`
 	// Owner là các vai đã tham gia chu kỳ gần nhất, suy ra từ bước checkpoint.
 	Owner []string `json:"owner,omitempty"`
+	// Reviewed = chương có bản nhận xét riêng (reviews/NN.json). Không phải mọi chương đều
+	// được nhận xét, nên màn Nhận xét biên tập cần biết chương nào mở ra có nội dung.
+	Reviewed bool `json:"reviewed,omitempty"`
 }
 
 // Dimension là một chiều trong bản duyệt của Editor.
@@ -220,6 +225,22 @@ type Transport struct {
 	// ChaptersPerHour nil khi phiên quá ngắn để con số có nghĩa.
 	ChaptersPerHour *float64 `json:"chapters_per_hour,omitempty"`
 	ElapsedMs       *int64   `json:"elapsed_ms,omitempty"`
+	// LastCall là lượt gọi LLM gần nhất, đọc từ usage.json: vai nào, bằng cặp provider/model ĐÃ
+	// CẤU HÌNH nào (provider là tên trong `providers`, không phải loại giao thức), lúc nào.
+	//
+	// Khác `Model` ở trên: `Model` là model MẶC ĐỊNH lúc mở phiên (meta/run.json), không phải
+	// model của vai nào. Ghép `Agent` với `Model` từng cho ra "Người viết · cx/gpt-5.6-luna"
+	// trong khi Người viết chạy model khác. nil khi chưa có lượt nào được ghi.
+	LastCall *LuotGoi `json:"last_call,omitempty"`
+}
+
+// LuotGoi là một lượt gọi LLM đã ghi nhận.
+type LuotGoi struct {
+	Agent    string `json:"agent"`
+	Provider string `json:"provider"`
+	Model    string `json:"model"`
+	// At theo RFC 3339.
+	At string `json:"at"`
 }
 
 // Snapshot là toàn bộ dữ liệu cho một lần tải bề mặt studio.
@@ -238,6 +259,8 @@ type Snapshot struct {
 	// nó làm điểm bắt đầu cho SSE để không bỏ sót và không nhận trùng sự kiện
 	// phát ra giữa lúc tải trang và lúc mở stream.
 	QueueSeq int64 `json:"queue_seq"`
+	// Import là lượt nhập truyện đang chờ người (xem nhap_dang_do.go); null khi không có.
+	Import *TrangThaiNhap `json:"import"`
 
 	// Bốn nhóm dưới là trường SỐNG: chúng chỉ đo được khi engine đang mở. Dùng con trỏ /
 	// slice để `nil` marshal thành `null`, và `null` nghĩa là "không có nguồn" — khác hẳn `0`
@@ -262,6 +285,20 @@ type Snapshot struct {
 	// được: `activity` suy từ mốc checkpoint trong store, nên nó còn nói "running" vài phút
 	// sau khi engine đã dừng — xem chú thích của `mayDangChay` trong web/lib/song.ts.
 	Runtime string `json:"runtime"`
+
+	// Stop là lần dừng gần nhất của phiên đang mở — ai dừng, vì sao, lỗi model cuối cùng.
+	// Vắng khi engine đóng, đang chạy lại, hoặc chưa dừng lần nào. Xem host/lan_dung.go.
+	Stop *LanDung `json:"stop,omitempty"`
+}
+
+// LanDung là host.StopNote chiếu ra hợp đồng.
+type LanDung struct {
+	At        string `json:"at"`
+	Kind      string `json:"kind"` // user | gate | budget | stuck
+	Reason    string `json:"reason"`
+	LastError string `json:"last_error,omitempty"`
+	// LastErrorAgent là vai gặp lỗi ấy (writer, architect_long…).
+	LastErrorAgent string `json:"last_error_agent,omitempty"`
 }
 
 // TienDo là chế độ đi tiếp và cửa nghiệm thu.
@@ -289,9 +326,12 @@ type Vai struct {
 	Role  string `json:"role"`
 	State string `json:"state"`
 	Tool  string `json:"tool,omitempty"`
-	Turn  int    `json:"turn,omitempty"`
-	Task  string `json:"task,omitempty"`
-	Depth int    `json:"depth"`
+	// Chapter là chương mà lượt gọi công cụ đang chạy nói tới (read_chapter(1), edit_chapter(1)…).
+	// Thẻ "đang làm" ưu tiên nó hơn "chương kế tiếp" — xem chuongTuThamSo ở host.
+	Chapter int    `json:"chapter,omitempty"`
+	Turn    int    `json:"turn,omitempty"`
+	Task    string `json:"task,omitempty"`
+	Depth   int    `json:"depth"`
 }
 
 // Selection là chi tiết của chương đang được chọn, cho panel inspector.
@@ -478,8 +518,8 @@ const (
 //
 // Writable là false vì đây là BẢN GHI: nó nói tác phẩm đã khởi động với cấu hình
 // gì. Quá khứ không sửa được, nên một ô nhập ở đây sẽ hứa một việc không tồn tại.
-// Nó nằm TRONG payload thay vì chỉ suy từ Capabilities.Steer vì Steer nói về đúng
-// một ô can thiệp, không nói về toàn bộ cấu hình.
+// Nó nằm TRONG payload vì đây là câu trả lời cho riêng bề mặt cấu hình, không suy được từ
+// việc studio ghi được hay không.
 //
 // Lý do CŨ ghi ở đây ("engine sở hữu quyền ghi, hai process cùng sửa sẽ mất trắng
 // ý kiến can thiệp") không còn đúng: engine chạy trong process này nên studio là

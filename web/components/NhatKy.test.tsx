@@ -1,9 +1,12 @@
 import { render, screen } from '@testing-library/react';
 import { expect, test } from 'vitest';
 
+import { CAU_DUNG } from '@/lib/chu/tien-do';
 import { GIAI_THICH } from '@/lib/nhan';
 
-import { DongSuKien } from './NhatKy';
+import type { StreamEvent } from '@/lib/types';
+
+import { DongSuKien, NhatKy } from './NhatKy';
 
 /**
  * Ca rỗng của dòng sự kiện phải nói đúng lý do nó rỗng, và có HAI lý do khác nhau.
@@ -44,4 +47,108 @@ test('có sự kiện thì vẽ sự kiện, không vẽ câu rỗng nào', () =
   );
   expect(screen.getByText('viết chương 3')).toBeDefined();
   expect(document.querySelector('.trongSect')).toBeNull();
+});
+
+/* ── đo trên truyện thật dong-ho-qua-lac ───────────────────────────────── */
+
+const HET_TUYEN = (n: number) =>
+  `Thử lại (${n}/7): routing_exhausted: All models exhausted: 388 routes checked (229 no usable key c...`;
+
+test('Diễn biến: xếp theo giờ, gộp thử lại liền nhau, dịch lỗi; dòng giao việc thành câu', () => {
+  const suKien: StreamEvent[] = [
+    // Thứ tự ĐẾN (seq) — sự kiện giao việc 09:07 phát lại sau với seq mới.
+    { seq: 9, time: '2026-10-02T09:07:00+07:00', kind: 'event', category: 'DISPATCH', agent: 'architect_short', summary: 'architect_short (Hãy xây dựng…)' },
+    { seq: 8, time: '2026-10-02T09:10:30+07:00', kind: 'event', category: 'SYSTEM', agent: 'architect_short', summary: HET_TUYEN(3) },
+    { seq: 7, time: '2026-10-02T09:10:20+07:00', kind: 'event', category: 'SYSTEM', agent: 'architect_short', summary: HET_TUYEN(2) },
+    { seq: 6, time: '2026-10-02T09:10:10+07:00', kind: 'event', category: 'SYSTEM', agent: 'architect_short', summary: HET_TUYEN(1) },
+  ];
+  const { container } = render(<DongSuKien suKien={suKien} dangChay ncc="lingoreup" />);
+  const dong = [...container.querySelectorAll('.sk')];
+  expect(dong).toHaveLength(2);
+  expect(dong[0]!.textContent).toContain('Thử lại 3 lần');
+  expect(dong[0]!.textContent).toContain('lingoreup không còn model nào');
+  expect(dong[0]!.textContent).not.toContain('routing_exhausted');
+  expect(dong[0]!.querySelector('.tt')!.getAttribute('title')).toContain('routing_exhausted');
+  // Dòng giao việc 09:07 đứng SAU các dòng 09:10, và đọc thành câu.
+  expect(dong[1]!.textContent).toContain('Giao việc cho Kiến trúc sư');
+});
+
+test('Nhật ký: đầu vào của plan_start là "Ý tưởng của bạn", của intervention là "Góp ý"', () => {
+  render(
+    <NhatKy
+      decisions={[
+        { id: 'a', at: '2026-10-02T09:07:00+07:00', kind: 'plan_start', decider: 'arbiter', input: 'Truyện ngắn 3 chương' },
+        { id: 'b', at: '2026-10-02T09:08:00+07:00', kind: 'intervention', decider: 'arbiter', input: 'Cho nhân vật buồn hơn' },
+      ]}
+    />,
+  );
+  expect(screen.getByText(/Ý tưởng của bạn:/).textContent).toContain('Truyện ngắn 3 chương');
+  expect(screen.getByText(/Góp ý:/).textContent).toContain('Cho nhân vật buồn hơn');
+});
+
+test('lỗi thoáng qua đã tự thử lại thành công thì không đỏ, không khuyên đổi model', () => {
+  const { container } = render(
+    <DongSuKien
+      ncc="lingo2"
+      suKien={[
+        {
+          seq: 1,
+          time: '2026-10-02T11:41:48+07:00',
+          kind: 'ui',
+          category: 'SYSTEM',
+          agent: 'writer',
+          summary: 'Thử lại (1/7, sau 1s): {"title":"Error 502: Bad gateway"}',
+        },
+        {
+          seq: 2,
+          time: '2026-10-02T11:41:55+07:00',
+          kind: 'ui',
+          category: 'TOOL',
+          agent: 'writer',
+          summary: 'draft_chapter(chương 3)',
+        },
+      ]}
+    />,
+  );
+  const dong = container.querySelector('.sk.daQua');
+  expect(dong).not.toBeNull();
+  expect(dong!.classList.contains('loi')).toBe(false);
+  expect(dong!.textContent).toContain('lingo2 tạm thời lỗi 502, đã tự thử lại.');
+  expect(dong!.textContent).not.toContain('Thử chọn model khác');
+  // Công cụ cũng đọc bằng tiếng Việt.
+  expect(container.textContent).toContain('Viết nháp chương 3');
+});
+
+test('sự kiện dừng ở cửa duyệt nói câu của web, không dạy lệnh /next của TUI', () => {
+  // Câu của engine — đo được trên truyện thật co-tho-sua-dong-ho.
+  const goc =
+    'Đã hoàn tất tới chương 2, nghiệm thu từng chương đang chờ cho qua chương 3; dùng /next để sinh, hoặc nhập ý kiến sửa';
+  render(
+    <DongSuKien
+      suKien={[
+        {
+          seq: 1,
+          time: '2026-10-03T11:07:00Z',
+          kind: 'ui_event',
+          category: 'SYSTEM',
+          summary: goc,
+          payload: { Kind: 'stop_gate', Summary: goc },
+        },
+        // Loại dừng không có câu riêng thì giữ câu của engine.
+        {
+          seq: 2,
+          time: '2026-10-03T11:08:00Z',
+          kind: 'ui_event',
+          category: 'SYSTEM',
+          summary: 'Đã chạm trần ngân sách',
+          payload: { Kind: 'stop_budget' },
+        },
+      ]}
+    />,
+  );
+  expect(screen.getByText(CAU_DUNG.stop_gate!)).toBeDefined();
+  expect(screen.queryByText(/\/next/)).toBeNull();
+  // Câu gốc vẫn đọc được khi rê chuột — không vứt dữ liệu.
+  expect(document.querySelector(`[title="${goc}"]`)).not.toBeNull();
+  expect(screen.getByText('Đã chạm trần ngân sách')).toBeDefined();
 });

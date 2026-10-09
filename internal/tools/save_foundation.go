@@ -7,11 +7,11 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/voocel/agentcore/schema"
 	"github.com/huuhoa143/ainovel-studio/internal/domain"
 	"github.com/huuhoa143/ainovel-studio/internal/errs"
 	"github.com/huuhoa143/ainovel-studio/internal/i18n"
 	"github.com/huuhoa143/ainovel-studio/internal/store"
+	"github.com/voocel/agentcore/schema"
 )
 
 // SaveFoundationTool 保存基础设定（premise/outline/characters），Architect 专用。
@@ -72,14 +72,23 @@ func (t *SaveFoundationTool) Execute(_ context.Context, args json.RawMessage) (j
 
 	result := map[string]any{"saved": true, "type": a.Type, "scale": a.Scale}
 
-	// 写作阶段禁止全量覆盖大纲，只允许增量操作（expand_arc / append_volume）
-	writing, err := t.isWriting()
+	// 全量大纲只属于规划期。写作期必须用受保护的增量操作，完结后必须先重开；
+	// 否则会绕过已完成章节保护，破坏 Progress 与章节事实的一致性。
+	progress, err := t.store.Progress.Load()
 	if err != nil {
-		return nil, fmt.Errorf("check writing phase: %w: %w", errs.ErrStoreRead, err)
+		return nil, fmt.Errorf("check foundation phase: %w: %w", errs.ErrStoreRead, err)
 	}
-	if (a.Type == "outline" || a.Type == "layered_outline") && writing {
-		return nil, fmt.Errorf(
-			i18n.F("写作阶段禁止使用 %s 全量覆盖大纲。请使用 expand_arc 展开骨架弧，或 append_volume 追加新卷: %w"), a.Type, errs.ErrToolPrecondition)
+	if (a.Type == "outline" || a.Type == "layered_outline") && progress != nil {
+		switch progress.Phase {
+		case domain.PhaseWriting:
+			return nil, fmt.Errorf(
+				i18n.F("写作阶段禁止使用 %s 全量覆盖大纲。请使用 revise_outline 修订未发生章节、expand_arc 展开骨架弧，或 append_volume 追加新卷: %w"),
+				a.Type, errs.ErrToolPrecondition)
+		case domain.PhaseComplete:
+			return nil, fmt.Errorf(
+				i18n.F("全书已完结，禁止使用 %s 全量覆盖大纲。请先重开作品，再使用受保护的大纲修订或续写操作: %w"),
+				a.Type, errs.ErrToolPrecondition)
+		}
 	}
 	if a.Scale != "" {
 		if err := t.store.RunMeta.SetPlanningTier(domain.PlanningTier(a.Scale)); err != nil {
@@ -127,7 +136,7 @@ func (t *SaveFoundationTool) Execute(_ context.Context, args json.RawMessage) (j
 			}
 			result["novel_name"] = name
 		}
-		if err := t.store.Progress.UpdatePhase(domain.PhasePremise); err != nil {
+		if err := t.store.Progress.AdvancePhase(domain.PhasePremise); err != nil {
 			return nil, fmt.Errorf("update premise phase: %w: %w", errs.ErrStoreWrite, err)
 		}
 
@@ -139,7 +148,7 @@ func (t *SaveFoundationTool) Execute(_ context.Context, args json.RawMessage) (j
 		if err := t.store.Outline.SaveOutline(entries); err != nil {
 			return nil, fmt.Errorf("save outline: %w: %w", errs.ErrStoreWrite, err)
 		}
-		if err := t.store.Progress.UpdatePhase(domain.PhaseOutline); err != nil {
+		if err := t.store.Progress.AdvancePhase(domain.PhaseOutline); err != nil {
 			return nil, fmt.Errorf("update outline phase: %w: %w", errs.ErrStoreWrite, err)
 		}
 		if err := t.store.Progress.SetTotalChapters(len(entries)); err != nil {
@@ -166,12 +175,8 @@ func (t *SaveFoundationTool) Execute(_ context.Context, args json.RawMessage) (j
 		if err := t.store.Outline.SaveLayeredOutline(volumes); err != nil {
 			return nil, fmt.Errorf("save layered_outline: %w: %w", errs.ErrStoreWrite, err)
 		}
-		flat := domain.FlattenOutline(volumes)
-		if err := t.store.Outline.SaveOutline(flat); err != nil {
-			return nil, fmt.Errorf("save flattened outline: %w: %w", errs.ErrStoreWrite, err)
-		}
 		total := domain.TotalChapters(volumes)
-		if err := t.store.Progress.UpdatePhase(domain.PhaseOutline); err != nil {
+		if err := t.store.Progress.AdvancePhase(domain.PhaseOutline); err != nil {
 			return nil, fmt.Errorf("update outline phase: %w: %w", errs.ErrStoreWrite, err)
 		}
 		if err := t.store.Progress.SetTotalChapters(total); err != nil {
@@ -427,14 +432,6 @@ func normalizeFoundationContent(raw json.RawMessage) (string, error) {
 		return "", fmt.Errorf("invalid content: expected Markdown string or valid JSON value: %w", errs.ErrToolArgs)
 	}
 	return string(raw), nil
-}
-
-func (t *SaveFoundationTool) isWriting() (bool, error) {
-	p, err := t.store.Progress.Load()
-	if err != nil {
-		return false, err
-	}
-	return p != nil && p.Phase == domain.PhaseWriting, nil
 }
 
 // recordVolumeEndDecision 把卷末三选一（续卷/收官/完结）的判定理由落进裁定审计。

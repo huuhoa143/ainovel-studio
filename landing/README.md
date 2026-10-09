@@ -1,7 +1,18 @@
 # landing/
 
-Trang giới thiệu tĩnh của ainovel studio, đang chạy ở
-**[ainovel.lingoreup.com](https://ainovel.lingoreup.com)**.
+Trang giới thiệu và tải app **AINovel Studio**, đang chạy ở
+**[ainovel.lingoreup.com](https://ainovel.lingoreup.com)**. Hành động chính của trang là hai nút
+"Tải cho macOS" / "Tải cho Windows".
+
+## Vì sao nút tải trỏ vào trang phát hành, không vào tệp
+
+Cả hai nút trỏ về `https://github.com/huuhoa143/ainovel-studio/releases/latest`. GitHub chỉ có
+liên kết "tệp mới nhất" dạng `releases/latest/download/<tên tệp>`, và tên tệp của bản phát hành
+mang số phiên bản (`AINovel-Studio-1.2.3-arm64.dmg`) — trỏ thẳng vào một tệp là trỏ vào đúng một
+bản sẽ cũ đi ở lần phát hành sau. Mục 5 của trang liệt kê tệp nào cho máy nào để khách chọn đúng
+trên trang phát hành.
+
+Tên tệp đổi trong `desktop/scripts/release.sh` thì nhớ sửa bảng ở mục 5 và ở README.
 
 Không có bước build. `index.html` là một tệp tự chứa: CSS nội tuyến, font tự host trong `chu/`,
 ảnh trong `anh/`. Mở thẳng bằng trình duyệt là xem được.
@@ -35,11 +46,20 @@ vì Tập ⊃ Cung ⊃ Chương).
 
 ## Deploy
 
+Trang chạy trên **Cloudflare Pages**, project `ainovel-studio` (tài khoản Cloudflare của
+huuhoa14399), tên miền `ainovel.lingoreup.com` (CNAME → `ainovel-studio.pages.dev`, proxied).
+Không còn phụ thuộc VPS.
+
 ```bash
-# trên máy dev, từ gốc repo:
-tar -C landing -cf - . | ssh lingoreup 'tar -x -C /var/www/ainovel.lingoreup.com'
-ssh lingoreup 'chown -R www-data:www-data /var/www/ainovel.lingoreup.com'
+# từ gốc repo — chép ra thư mục riêng để README.md và rác macOS không lên mạng,
+# rồi deploy TỪ CHÍNH thư mục đó (wrangler đọc thư mục làm việc nếu tự đổi hướng).
+rm -rf /tmp/landing-pub && mkdir /tmp/landing-pub
+COPYFILE_DISABLE=1 rsync -a --exclude README.md --exclude '.DS_Store' --exclude '._*' landing/ /tmp/landing-pub/
+cd /tmp/landing-pub && npx wrangler pages deploy . --project-name ainovel-studio --branch main
 ```
 
-vhost: `/etc/nginx/sites-enabled/ainovel.lingoreup.com.conf` trên server. TLS dùng wildcard
-`*.lingoreup.com` sẵn có, **không** cần certbot cho subdomain này.
+`404.html` là bắt buộc: thiếu nó, Pages coi trang là SPA và trả `index.html` kèm 200 cho mọi
+đường dẫn sai.
+
+Bản cũ trên VPS (`/var/www/ainovel.lingoreup.com` + vhost nginx trên server `lingoreup`) vẫn còn
+nhưng không còn bản ghi DNS nào trỏ tới.

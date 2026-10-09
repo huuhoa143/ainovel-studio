@@ -73,7 +73,7 @@ Ba việc còn lại đáng làm trước, theo thứ tự tôi sẽ chọn nế
 Ghi lại chính xác vì lần trước chưa ai mở nó lần nào.
 
 ```bash
-cd /Users/robin/Personal/ainovel-cli
+cd ~/Personal/ainovel-cli
 
 # 1. Build web tĩnh (node_modules đã có; nếu chưa thì npm install trước)
 cd web && npm run build && cd ..

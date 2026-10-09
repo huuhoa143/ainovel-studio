@@ -2,8 +2,11 @@
 
 import { useState } from 'react';
 
-import { gio, ngayGio, thoiLuong } from '@/lib/dinhdang';
-import { GIAI_THICH, nhanPhanQuyet, nhanVai } from '@/lib/nhan';
+import { CAU_DUNG, LOI_LLM, NHAT_KY_VAO } from '@/lib/chu/tien-do';
+import { gio, ngayGio, ngayNgan, thoiLuong } from '@/lib/dinhdang';
+import { giaiCongCu } from '@/lib/congCu';
+import { cauLoi, giaiGiaoViec, gopSuKien } from '@/lib/loiLlm';
+import { GIAI_THICH, nhanPhanQuyet, nhanVai, DH } from '@/lib/nhan';
 import type { Decision, StreamEvent } from '@/lib/types';
 
 /**
@@ -28,9 +31,15 @@ export function NhatKy({ decisions }: { decisions: Decision[] | undefined }) {
   );
 }
 
+/** Dòng ngày nhỏ dưới giờ — chỉ hiện khi mốc không thuộc hôm nay. Xem `ngayNgan`. */
+function MocNgay({ iso }: { iso: string | undefined }) {
+  const ngay = ngayNgan(iso);
+  return ngay ? <span className="mocNgay">{ngay}</span> : null;
+}
+
 function DongPhanQuyet({ d }: { d: Decision }) {
   const [mo, setMo] = useState(false);
-  const { giai, mau } = nhanPhanQuyet(d.kind);
+  const { giai, mau } = nhanPhanQuyet(d.kind, d.decision);
   const coTho = d.decision !== undefined && d.decision !== null;
   const tl = thoiLuong(d.duration_ms);
 
@@ -38,17 +47,21 @@ function DongPhanQuyet({ d }: { d: Decision }) {
     <div className="entry">
       <time dateTime={d.at} title={ngayGio(d.at)}>
         {gio(d.at) ?? '—'}
+        <MocNgay iso={d.at} />
       </time>
 
-      <span className={`kind ${mau}`}>
-        <span className="ma">{d.kind}</span>
-        {giai ? <span className="giai">{giai}</span> : null}
+      <span className={`kind ${mau}`} title={d.kind}>
+        <span className="giai">{giai || d.kind}</span>
       </span>
 
       <span className="why">
-        {d.reason ? d.reason : <span className="trong">không ghi lý do</span>}
-        {d.input ? <span className="vao">ý kiến vào: {d.input}</span> : null}
-        {d.error ? <span className="loi">lỗi: {d.error}</span> : null}
+        {d.reason ? d.reason : <span className="trong">{DH.khongGhiLyDo}</span>}
+        {d.input ? (
+          <span className="vao">
+            {nhanDauVao(d.kind)} {d.input}
+          </span>
+        ) : null}
+        {d.error ? <span className="loi">{DH.loi} {d.error}</span> : null}
         <span className="vao">
           <b>{nhanVai(d.decider)}</b>
           {d.model ? ` · ${d.model}` : ''}
@@ -66,10 +79,20 @@ function DongPhanQuyet({ d }: { d: Decision }) {
         aria-expanded={mo}
         onClick={() => setMo((v) => !v)}
       >
-        {mo ? 'Đóng' : 'Xem lại'}
+        {mo ? DH.anChiTiet : DH.xemChiTiet}
       </button>
     </div>
   );
+}
+
+/**
+ * Đầu vào của quyết định là chữ của AI hay của bạn — theo loại. `plan_start` mang ý tưởng
+ * lúc tạo truyện; gọi nó là "Góp ý" là gán cho người dùng một việc họ chưa làm.
+ */
+function nhanDauVao(kind: string): string {
+  if (kind === 'plan_start') return NHAT_KY_VAO.yTuong;
+  if (kind === 'intervention') return NHAT_KY_VAO.gopY;
+  return NHAT_KY_VAO.khac;
 }
 
 /**
@@ -82,6 +105,7 @@ function DongPhanQuyet({ d }: { d: Decision }) {
 export function DongSuKien({
   suKien,
   dangChay,
+  ncc,
 }: {
   suKien: StreamEvent[];
   /**
@@ -92,6 +116,8 @@ export function DongSuKien({
    * để biết phép đo đã bắt lỗi này.
    */
   dangChay?: boolean;
+  /** Tên nhà cung cấp, để câu lỗi nói đúng nơi hỏng. */
+  ncc?: string;
 }) {
   if (suKien.length === 0) {
     return (
@@ -100,20 +126,58 @@ export function DongSuKien({
       </p>
     );
   }
+  // Xếp theo giờ và gộp các lần thử lại liền nhau của cùng một lỗi — xem `gopSuKien`.
+  const dong = gopSuKien(suKien, { ncc });
   return (
     <div className="dong">
-      {suKien.map((ev) => (
-        <div key={ev.seq} className={`sk${ev.category === 'ERROR' ? ' loi' : ''}`}>
-          <time dateTime={ev.time} title={ngayGio(ev.time)}>
-            {gio(ev.time) ?? '—'}
-          </time>
-          <span className="loai">{ev.category ?? ev.kind}</span>
-          <span className="tt">
-            {ev.summary ?? <span className="trong">không có mô tả</span>}
-            {ev.agent ? <span className="vai"> · {nhanVai(ev.agent)}</span> : null}
-          </span>
-        </div>
-      ))}
+      {dong.map(({ ev, so, loi, daQua }) => {
+        // Lỗi đã qua (sau nó máy còn làm được việc) thì không kèm lời khuyên đổi model, và
+        // không tô đỏ: truyện vẫn đang chạy. Câu nói đúng điều đã xảy ra — "đã tự thử lại".
+        const cauLoiDong = loi
+          ? daQua
+            ? `${cauLoi({ ...loi, thuLai: undefined }, false)}, ${LOI_LLM.daTuThuLai}.`
+            : so > 1
+              ? `${LOI_LLM.thuLaiNLan(so)} — ${cauLoi({ ...loi, thuLai: undefined })}`
+              : cauLoi(loi)
+          : undefined;
+        const kindDung = (ev.payload as { Kind?: string } | undefined)?.Kind;
+        const cau =
+          cauLoiDong ??
+          (kindDung ? CAU_DUNG[kindDung] : undefined) ??
+          giaiGiaoViec(ev.summary) ??
+          giaiCongCu(ev.summary) ??
+          ev.summary;
+        const laLoi = (ev.category === 'ERROR' || !!loi) && !daQua;
+        return (
+          <div key={ev.seq} className={`sk${laLoi ? ' loi' : ''}${daQua ? ' daQua' : ''}`}>
+            <time dateTime={ev.time} title={ngayGio(ev.time)}>
+              {gio(ev.time) ?? '—'}
+              <MocNgay iso={ev.time} />
+            </time>
+            <span className="loai" title={ev.category ?? ev.kind}>
+              {nhanLoaiSuKien(ev.category ?? ev.kind)}
+            </span>
+            <span className="tt" title={cau !== ev.summary ? ev.summary : undefined}>
+              {cau ?? <span className="trong">{DH.khongMoTa}</span>}
+              {ev.agent ? <span className="vai"> · {nhanVai(ev.agent)}</span> : null}
+            </span>
+          </div>
+        );
+      })}
     </div>
   );
+}
+
+const LOAI_SU_KIEN: Record<string, string> = {
+  SYSTEM: 'hệ thống',
+  ERROR: 'lỗi',
+  TOOL: 'công cụ',
+  USER: 'bạn',
+  DISPATCH: 'giao việc',
+  DECISION: 'quyết định',
+};
+
+function nhanLoaiSuKien(ma: string | undefined): string {
+  if (!ma) return '';
+  return LOAI_SU_KIEN[ma.toUpperCase()] ?? ma.toLowerCase();
 }

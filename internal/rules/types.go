@@ -15,9 +15,9 @@ package rules
 type SourceKind int
 
 const (
-	// SourceGlobal — 用户全局偏好（~/.ainovel/rules/ 目录下所有 .md，按文件名字典序合并），跨书复用。
+	// SourceGlobal — sở thích chung (mọi .md trong `<thư mục cấu hình>/rules/`, ghép theo thứ tự tên tệp), dùng cho mọi cuốn.
 	SourceGlobal SourceKind = iota
-	// SourceProject — 本书规则（./.ainovel/rules/ 目录下所有 .md，按文件名字典序合并），优先级最高。
+	// SourceProject — luật riêng của cuốn (mọi .md trong `<thư mục truyện>/.ainovel/rules/`, ghép theo thứ tự tên tệp), ưu tiên cao nhất.
 	SourceProject
 )
 

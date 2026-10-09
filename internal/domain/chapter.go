@@ -10,10 +10,23 @@ import (
 // ReviewInterval 全局审阅间隔（每 N 章触发一次）。
 const ReviewInterval = 5
 
-// ShouldReview 根据已完成章节数判断是否需要全局审阅（短篇/中篇模式）。
-func ShouldReview(completedCount int) (bool, string) {
-	if completedCount > 0 && completedCount%ReviewInterval == 0 {
+// ShouldReview 判断非分层（短篇/中篇）书此刻是否到了全局审阅点。两个触发点：
+//   - 每 ReviewInterval 章一次；
+//   - 写完大纲最后一章（totalChapters>0 且 completedCount>=totalChapters）——收官前的终审。
+//
+// 第二个触发点补的是"短书永远没有审阅"的洞：3 章的书到不了第 5 章，收官又直接
+// MarkComplete，Editor 一次都不出场。分层书不走这里：它们的收官本就经过卷末
+// "评审→弧摘要→卷摘要"三连（见 commit_chapter.go 的分层完结判定）。
+// totalChapters<=0 表示总章数未知（如导入中的书），只按间隔判断。
+func ShouldReview(completedCount, totalChapters int) (bool, string) {
+	if completedCount <= 0 {
+		return false, ""
+	}
+	if completedCount%ReviewInterval == 0 {
 		return true, fmt.Sprintf(i18n.F("已完成 %d 章，触发全局审阅"), completedCount)
+	}
+	if totalChapters > 0 && completedCount >= totalChapters {
+		return true, fmt.Sprintf(i18n.F("已写完大纲全部 %d 章，收官前做一次终审"), completedCount)
 	}
 	return false, ""
 }

@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Báo lỗ hổng bảo mật (riêng tư) / Report a security vulnerability
+    url: https://github.com/huuhoa143/ainovel-studio/security/advisories/new
+    about: Rò khóa API, gọi được API nội bộ từ bên ngoài app… — báo riêng tư, đừng mở issue công khai.
+  - name: Hỏi đáp và thảo luận / Questions & discussions
+    url: https://github.com/huuhoa143/ainovel-studio/discussions
+    about: Cách dùng, chọn model, mẹo viết — hỏi ở Discussions.
+  - name: Engine / kiến trúc gốc (upstream)
+    url: https://github.com/voocel/ainovel-cli/issues
+    about: Lỗi hay đề xuất thuộc engine gốc xin gửi cho dự án upstream voocel/ainovel-cli.

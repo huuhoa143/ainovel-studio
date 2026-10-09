@@ -2,11 +2,13 @@ package ctxpack
 
 import (
 	"context"
+	"github.com/huuhoa143/ainovel-studio/internal/i18n"
+	"strings"
 	"time"
 
+	"github.com/huuhoa143/ainovel-studio/internal/store"
 	"github.com/voocel/agentcore"
 	corecontext "github.com/voocel/agentcore/context"
-	"github.com/huuhoa143/ainovel-studio/internal/store"
 )
 
 const storeSummaryStrategyName = "store_summary"
@@ -59,7 +61,7 @@ func (s *StoreSummaryCompactStrategy) apply(_ context.Context, msgs []agentcore.
 		return msgs, corecontext.StrategyResult{Name: s.Name()}, nil
 	}
 
-	summary, ok, err := buildWriterStoreSummaryText(s.store, s.summaryTokenBudget)
+	sections, ok, err := buildWriterStoreSummaryText(s.store, s.summaryTokenBudget)
 	if err != nil {
 		return nil, corecontext.StrategyResult{Name: s.Name()}, err
 	}
@@ -67,16 +69,18 @@ func (s *StoreSummaryCompactStrategy) apply(_ context.Context, msgs []agentcore.
 		return msgs, corecontext.StrategyResult{Name: s.Name()}, nil
 	}
 
-	cut := findStoreSummaryCutPoint(msgs, s.keepRecentTokens)
-	if cut.isSplitTurn && cut.turnStartIndex > 0 {
-		cut.firstKeptIndex = cut.turnStartIndex
-		cut.isSplitTurn = false
-	}
-	if cut.firstKeptIndex <= 0 || cut.firstKeptIndex >= len(msgs) {
+	cut := findCutPoint(msgs, s.keepRecentTokens)
+	if cut.FirstKeptIndex <= 0 {
 		return msgs, corecontext.StrategyResult{Name: s.Name()}, nil
 	}
+	// msgid giữ đúng chuỗi cũ (kèm "\n\n") để bản dịch vi sẵn có vẫn ăn.
+	summary := strings.TrimRight(i18n.F(storeSummaryPreamble), "\n")
+	if task := leadingTask(msgs); task != "" {
+		summary += "\n\n" + i18n.F(taskHeading) + task
+	}
+	summary += "\n\n" + sections
 
-	toKeep := append([]agentcore.AgentMessage(nil), msgs[cut.firstKeptIndex:]...)
+	toKeep := append([]agentcore.AgentMessage(nil), msgs[cut.FirstKeptIndex:]...)
 	tokensBefore := corecontext.EstimateTotal(msgs)
 	result := make([]agentcore.AgentMessage, 0, 1+len(toKeep))
 	result = append(result, corecontext.ContextSummary{
@@ -96,9 +100,9 @@ func (s *StoreSummaryCompactStrategy) apply(_ context.Context, msgs []agentcore.
 		TokensAfter:    tokensAfter,
 		MessagesBefore: len(msgs),
 		MessagesAfter:  len(result),
-		CompactedCount: cut.firstKeptIndex,
+		CompactedCount: cut.FirstKeptIndex,
 		KeptCount:      len(toKeep),
-		IsSplitTurn:    cut.isSplitTurn,
+		IsSplitTurn:    cut.IsSplitTurn,
 		SummaryLen:     len([]rune(summary)),
 		Duration:       time.Millisecond,
 	}
@@ -114,19 +118,42 @@ func (s *StoreSummaryCompactStrategy) apply(_ context.Context, msgs []agentcore.
 	}, nil
 }
 
-type storeSummaryCutResult struct {
-	firstKeptIndex int
-	turnStartIndex int
-	isSplitTurn    bool
+const (
+	storeSummaryPreamble = "以下内容来自小说持久化 store，用于在压缩后恢复写作上下文。\n\n"
+	taskHeading          = "## 当前任务\n"
+)
+
+// leadingTask 取回协调器下发的任务：首次压缩来自首条 user 消息，之后来自上一份摘要。
+// store 摘要与 LLM 摘要（WriterSummaryPrompt）都把"当前任务"作为固定一节，按下一个标题结束。
+func leadingTask(msgs []agentcore.AgentMessage) string {
+	switch first := msgs[0].(type) {
+	case agentcore.Message:
+		if first.Role == agentcore.RoleUser {
+			return first.TextContent()
+		}
+	case corecontext.ContextSummary:
+		// Tiêu đề dò theo locale: prompt nén đã dịch thì model viết "## Nhiệm vụ hiện tại".
+		if _, rest, ok := strings.Cut(first.Summary, i18n.F(taskHeading)); ok {
+			task, _, _ := strings.Cut(rest, "\n## ")
+			return strings.TrimSpace(task)
+		}
+	}
+	return ""
 }
 
-func findStoreSummaryCutPoint(msgs []agentcore.AgentMessage, keepTokens int) storeSummaryCutResult {
-	if len(msgs) == 0 {
-		return storeSummaryCutResult{}
-	}
+// cutPoint / findCutPoint chép từ agentcore v1.8.3 (context.FindCutPoint). Bản fork còn ở
+// agentcore v1.7.13, nơi hàm này chưa có; bản gốc của ainovel-cli dùng thẳng hàm thư viện.
+// Khác bản cũ của fork ở đúng một chỗ, và đó là bản sửa: KHÔNG kéo điểm cắt lùi về đầu lượt
+// khi cắt giữa lượt. Trong vòng gọi công cụ cả phiên chỉ là một lượt user, nên kéo lùi là về 0
+// và nén không bao giờ chạy. Điểm cắt chỉ cần không rơi vào một tin nhắn kết quả công cụ.
+type cutPoint struct {
+	FirstKeptIndex int
+	TurnStartIndex int
+	IsSplitTurn    bool
+}
 
-	accumulated := 0
-	cutIndex := len(msgs)
+func findCutPoint(msgs []agentcore.AgentMessage, keepTokens int) cutPoint {
+	cutIndex, accumulated := -1, 0
 	for i := len(msgs) - 1; i >= 0; i-- {
 		accumulated += corecontext.EstimateTokens(msgs[i])
 		if accumulated >= keepTokens {
@@ -134,50 +161,26 @@ func findStoreSummaryCutPoint(msgs []agentcore.AgentMessage, keepTokens int) sto
 			break
 		}
 	}
-	if cutIndex >= len(msgs) {
-		return storeSummaryCutResult{}
+	for cutIndex > 0 && laVai(msgs[cutIndex], agentcore.RoleTool) {
+		cutIndex--
 	}
-
-	for cutIndex < len(msgs) {
-		msg := msgs[cutIndex]
-		m, ok := msg.(agentcore.Message)
-		if !ok {
+	if cutIndex <= 0 {
+		return cutPoint{}
+	}
+	cut := cutPoint{FirstKeptIndex: cutIndex, TurnStartIndex: -1}
+	if laVai(msgs[cutIndex], agentcore.RoleUser) {
+		return cut
+	}
+	for i := cutIndex - 1; i >= 0; i-- {
+		if laVai(msgs[i], agentcore.RoleUser) {
+			cut.TurnStartIndex, cut.IsSplitTurn = i, true
 			break
 		}
-		if m.Role == agentcore.RoleTool {
-			cutIndex++
-			continue
-		}
-		if m.Role == agentcore.RoleUser {
-			break
-		}
-		if m.Role == agentcore.RoleAssistant && m.HasToolCalls() {
-			cutIndex++
-			for cutIndex < len(msgs) {
-				next, ok := msgs[cutIndex].(agentcore.Message)
-				if ok && next.Role == agentcore.RoleTool {
-					cutIndex++
-					continue
-				}
-				break
-			}
-			continue
-		}
-		break
 	}
-	if cutIndex >= len(msgs) {
-		return storeSummaryCutResult{}
-	}
+	return cut
+}
 
-	result := storeSummaryCutResult{firstKeptIndex: cutIndex}
-	if m, ok := msgs[cutIndex].(agentcore.Message); !ok || m.Role != agentcore.RoleUser {
-		for i := cutIndex - 1; i >= 0; i-- {
-			if um, ok := msgs[i].(agentcore.Message); ok && um.Role == agentcore.RoleUser {
-				result.turnStartIndex = i
-				result.isSplitTurn = true
-				break
-			}
-		}
-	}
-	return result
+func laVai(m agentcore.AgentMessage, role agentcore.Role) bool {
+	msg, ok := m.(agentcore.Message)
+	return ok && msg.Role == role
 }

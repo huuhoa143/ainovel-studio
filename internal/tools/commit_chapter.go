@@ -166,6 +166,17 @@ func (t *CommitChapterTool) Execute(_ context.Context, args json.RawMessage) (js
 	}
 	if existingPending == nil || existingPending.Stage == domain.CommitStageStarted {
 		if err := t.validateCommitArgs(a); err != nil {
+			// Lấy từ bản gốc (c090029): commit viết lại đã đông có thể mang tham số mà luật
+			// mới (vd. chặn phục bút gieo ở chương sau) không cho qua. Giữ nguyên payload
+			// bất biến thì mỗi lần thử lại đều lặp đúng lỗi đó — giải đông để Writer sửa
+			// tham số rồi nộp lại; bản thảo và chương đã chốt không bị đụng.
+			if existingPending != nil && existingPending.Rewrite &&
+				(errors.Is(err, errs.ErrToolArgs) || errors.Is(err, errs.ErrToolPrecondition)) {
+				if clearErr := t.store.Signals.ClearPendingCommit(); clearErr != nil {
+					return nil, fmt.Errorf(i18n.F("返工提交校验失败（%v），且清理冻结提交失败: %w: %w"), err, errs.ErrStoreWrite, clearErr)
+				}
+				return nil, fmt.Errorf(i18n.F("旧版遗留的返工提交未通过校验，已解除冻结；请修正后重新提交: %w"), err)
+			}
 			return nil, err
 		}
 	}
@@ -376,7 +387,7 @@ func (t *CommitChapterTool) Execute(_ context.Context, args json.RawMessage) (js
 	if progress != nil && progress.Layered {
 		reviewRequired, reviewReason = domain.ShouldArcReview(arcEnd, volumeEnd, vol, arc)
 	} else {
-		reviewRequired, reviewReason = domain.ShouldReview(completedCount)
+		reviewRequired, reviewReason = domain.ShouldReview(completedCount, progress.TotalChapters)
 	}
 
 	// 7. 构造结构化信号
@@ -755,7 +766,7 @@ func (t *CommitChapterTool) buildSkipResult(chapter int, progress *domain.Progre
 		}
 		result.ReviewRequired, result.ReviewReason = domain.ShouldArcReview(result.ArcEnd, result.VolumeEnd, result.Volume, result.Arc)
 	} else if progress != nil {
-		result.ReviewRequired, result.ReviewReason = domain.ShouldReview(len(progress.CompletedChapters))
+		result.ReviewRequired, result.ReviewReason = domain.ShouldReview(len(progress.CompletedChapters), progress.TotalChapters)
 	}
 
 	if progress != nil {
@@ -820,6 +831,17 @@ func (t *CommitChapterTool) applyCompletion(result *domain.CommitResult, progres
 		return false, nil
 	}
 	if progress.TotalChapters > 0 && result.NextChapter > progress.TotalChapters {
+		// 终审先于收官：最后一章还没有全局审阅就不 MarkComplete。Route 规则 11 会派
+		// Editor 做终审（可能把章节退回返工，规则 3 照常处理）；审完后大纲已耗尽，
+		// 规则 12 交给规划师用 save_foundation(complete_book) 收官。完本期任何派发都会
+		// 被 precheck 丢弃，所以终审必须发生在 MarkComplete 之前，而不是之后。
+		reviewed, err := t.store.World.HasGlobalReview(progress.TotalChapters)
+		if err != nil {
+			return false, fmt.Errorf("check final review: %w: %w", errs.ErrStoreRead, err)
+		}
+		if !reviewed {
+			return false, nil
+		}
 		if err := t.store.Progress.MarkComplete(); err != nil {
 			return false, fmt.Errorf("mark book complete: %w: %w", errs.ErrStoreWrite, err)
 		}

@@ -372,11 +372,12 @@ evals/
   reports/       Lưu trữ các báo cáo lịch sử
 ```
 
-Lệnh:
+Lệnh (`cmd/ainovel-eval` là công cụ riêng cho người phát triển, không nằm trong app; `--config` bắt buộc, đường dẫn tuyệt đối):
 
 ```bash
 # Nhiều case theo lô (CI mặc định chỉ chạy smoke, không bật judge)
-ainovel-cli eval --cases evals/cases/smoke \
+go run ./cmd/ainovel-eval --config "$PWD/.ainovel/config.json" \
+  --cases evals/cases/smoke \
   --variant evals/variants/writer-anti-ai-tone \
   --out workspace/evals/writer-anti-ai-tone --ci
 ```
@@ -387,7 +388,8 @@ ainovel-cli eval --cases evals/cases/smoke \
 
 ```bash
 # Sửa prompt lớn: A/B + repeat để giảm tính ngẫu nhiên
-ainovel-cli eval --cases evals/cases/quality \
+go run ./cmd/ainovel-eval --config "$PWD/.ainovel/config.json" \
+  --cases evals/cases/quality \
   --variant evals/variants/writer-anti-ai-tone \
   --repeat 3 --ci
 ```

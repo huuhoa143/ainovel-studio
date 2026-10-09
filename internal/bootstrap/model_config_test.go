@@ -147,8 +147,8 @@ func TestResolveContextWindowIsProviderAware(t *testing.T) {
 	}
 }
 
-func TestSaveProviderConfigPreservesSelectionAndUsesPrivateMode(t *testing.T) {
-	path := filepath.Join(t.TempDir(), ".ainovel", "config.json")
+func TestPatchConfigFilePreservesUnrelatedFieldsAndUsesPrivateMode(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
 	original := Config{
 		Provider: "old", ModelName: "old-model", Style: "fantasy",
 		Providers: map[string]ProviderConfig{"old": {Type: "openai", Models: []ModelConfig{{Name: "old-model"}}}},
@@ -158,10 +158,10 @@ func TestSaveProviderConfigPreservesSelectionAndUsesPrivateMode(t *testing.T) {
 		t.Fatalf("seed: %v", err)
 	}
 	pc := ProviderConfig{Type: "openai", Models: []ModelConfig{{Name: "new-model", ContextWindow: 500000}}}
-	if err := SaveProviderConfig(path, "new", pc); err != nil {
-		t.Fatalf("save provider config: %v", err)
+	if err := PatchConfigFile(path, func(c *Config) { c.Providers["new"] = pc }); err != nil {
+		t.Fatalf("patch: %v", err)
 	}
-	got, err := LoadConfigFile(path)
+	got, err := LoadConfig(path)
 	if err != nil {
 		t.Fatalf("load: %v", err)
 	}
@@ -176,7 +176,7 @@ func TestSaveProviderConfigPreservesSelectionAndUsesPrivateMode(t *testing.T) {
 		t.Fatalf("new provider not patched in: %#v", got.Providers["new"])
 	}
 	// 权限断言只在有 POSIX 权限位语义的平台上有意义：Windows 把一切上报为
-	// 0666/0444，此断言在该平台恒假（参见 version.TestReplaceExecutable 同款处理）。
+	// 0666/0444，此断言在该平台恒假。
 	if runtime.GOOS != "windows" {
 		info, err := os.Stat(path)
 		if err != nil {

@@ -8,7 +8,7 @@ import type { Khu } from './khu';
  * Ranh giới cấp-máy / cấp-tác-phẩm đã tồn tại trong mã từ lâu (`laKhuMucMay` trong khu.ts),
  * nhưng nó chỉ được THỂ HIỆN bằng một cái tên nhóm trong rail: "Chung cho mọi tác phẩm".
  * Một cái tên không ngăn được cái nhầm nó mô tả. Đo được trên app thật: đứng ở bề mặt Cấu
- * hình máy — thứ sửa `~/.ainovel/config.json` cho MỌI tác phẩm — thì thanh trên vẫn là bộ
+ * hình máy — thứ sửa tệp cấu hình của app cho MỌI tác phẩm — thì thanh trên vẫn là bộ
  * chọn của một cuốn, rail vẫn liệt kê 14 khu của cuốn đó, và transport dưới đáy vẫn mời bấm
  * `▶ Chạy` cho cuốn đó. Ba trong bốn vùng của khung nói về cuốn A trong khi canvas nói về cả
  * máy. Cái tên nhóm là mảnh duy nhất nói đúng, và nó thua ba vùng kia.
@@ -40,6 +40,7 @@ const MAN_CUA_KHU: Record<Khu, Man> = {
   // ── Quản lý: cả xưởng. Không khu nào ở đây đọc `tacPham`.
   xuong: 'quan-ly',
   'tac-pham-moi': 'quan-ly',
+  // Bàn ý tưởng cho một truyện MỚI — luôn cùng dựng mở sách, bất kể đang chọn cuốn nào.
   'cung-dung': 'quan-ly',
 
   // ── Cài đặt chung: áp cho MỌI lượt chạy sau, không thuộc cuốn nào.
@@ -61,6 +62,8 @@ const MAN_CUA_KHU: Record<Khu, Man> = {
   'to-san-xuat': 'xuong-san-xuat',
   'chi-phi': 'xuong-san-xuat',
   'phien-chay': 'xuong-san-xuat',
+  // Cùng dựng GIAI ĐOẠN của cuốn đang mở — tạm dừng cuốn đó trong lúc bàn.
+  'ban-huong': 'xuong-san-xuat',
 };
 
 export function manCuaKhu(khu: Khu): Man {

@@ -2,7 +2,11 @@
 
 package store
 
-import "golang.org/x/sys/windows"
+import (
+	"strconv"
+
+	"golang.org/x/sys/windows"
+)
 
 // conSong cho biết PID này còn sống.
 //
@@ -16,12 +20,9 @@ import "golang.org/x/sys/windows"
 // OpenProcess trả handle rồi hỏi mã thoát là phép thử thật: STILL_ACTIVE (259) nghĩa là
 // còn chạy. PID đã chết thì OpenProcess lỗi.
 //
-// # Chỗ phép thử này còn yếu
-//
-// Windows tái dùng PID nhanh hơn Unix, nên một PID chết rồi được cấp lại cho process
-// khác sẽ bị đọc thành "còn sống". Hệ quả: studio từ chối mở sách và bảo người dùng xóa
-// tệp khóa. Hướng sai đó là hướng AN TOÀN (từ chối ghi) và thông báo có nói rõ phải làm
-// gì, nên không đổi nó thành phép thử phức tạp hơn (so mốc tạo process) cho một ca hiếm.
+// PID còn sống chưa có nghĩa là người giữ khóa còn sống — Windows tái dùng PID rất nhanh,
+// nhất là sau khi khởi động lại máy. Phần đó do `mocKhoiDong` bên dưới và
+// `tepKhoa.nguoiGiuConSong` (khoa.go) lo.
 func conSong(pid int) bool {
 	if pid <= 0 {
 		return false
@@ -39,4 +40,23 @@ func conSong(pid int) bool {
 		return true
 	}
 	return ma == stillActive
+}
+
+// mocKhoiDong trả thời điểm tạo process (GetProcessTimes, đơn vị 100ns kể từ 1601) dạng
+// chuỗi số. Mốc này cố định suốt đời process và hai process mang cùng PID không thể có cùng
+// mốc, nên nó phân biệt được "đúng process đã lấy khóa" với "process khác mang lại số cũ".
+func mocKhoiDong(pid int) (string, bool) {
+	if pid <= 0 {
+		return "", false
+	}
+	h, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, uint32(pid))
+	if err != nil {
+		return "", false
+	}
+	defer windows.CloseHandle(h)
+	var tao, thoat, nhan, nguoiDung windows.Filetime
+	if err := windows.GetProcessTimes(h, &tao, &thoat, &nhan, &nguoiDung); err != nil {
+		return "", false
+	}
+	return strconv.FormatUint(uint64(tao.HighDateTime)<<32|uint64(tao.LowDateTime), 10), true
 }

@@ -716,7 +716,7 @@ hai phải đi qua `nhan.ts`.
 `npm run build:mock` → phục vụ `web/out` tĩnh trên `127.0.0.1:8479` → Chromium qua Playwright.
 
 **Ảnh chụp:**
-`/Users/robin/Personal/reclip/VideoCaptionerSystem/.playwright-mcp/nghiemthu-1440.png` ·
+`~/Personal/reclip/VideoCaptionerSystem/.playwright-mcp/nghiemthu-1440.png` ·
 `…/nghiemthu-390.png` · `…/nghiemthu-kiemdinh-1440.png` (dải trên bản duyệt 7 chiều).
 
 | Việc | 1440×900 | 390×844 |

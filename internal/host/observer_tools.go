@@ -1,11 +1,11 @@
 package host
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
-	"encoding/json"
 	"github.com/voocel/agentcore"
 	"github.com/huuhoa143/ainovel-studio/internal/i18n"
 )
@@ -35,6 +35,7 @@ func (o *observer) handleToolUpdate(ev agentcore.Event) {
 				a.state = "working"
 				a.tool = ev.Progress.Tool
 				a.summary = fmt.Sprintf("%s → %s", ev.Progress.Agent, toolName)
+				a.chapter = chuongTuThamSo(ev.Progress.Args)
 			})
 			break
 		}
@@ -57,8 +58,10 @@ func (o *observer) handleToolUpdate(ev agentcore.Event) {
 			a.state = "working"
 			a.tool = ev.Progress.Tool
 			a.summary = fmt.Sprintf("%s → %s", ev.Progress.Agent, toolName)
+			a.chapter = chuongTuThamSo(ev.Progress.Args)
 		})
 		o.emitFallbackStreamHeader(ev.Progress.Tool)
+		o.emitNonStreamToolContent(ev.Progress.Tool, ev.Progress.Args)
 	case agentcore.ProgressToolEnd:
 		delete(o.streamExtractors, ev.Progress.Agent)
 		if ev.Progress.Agent == "" {
@@ -87,8 +90,8 @@ func (o *observer) handleToolUpdate(ev agentcore.Event) {
 	case agentcore.ProgressThinking:
 		o.handleThinkingProgress(ev)
 	case agentcore.ProgressRetry:
-		// Arbiter 在 Meta 里保留实际 Retry-After；旧 Worker relay 尚未携带 Delay，
-		// 对它按 agentcore 的标准指数退避还原展示值。
+		// 只展示上游明确报告的实际等待时间。旧 Worker relay 尚未携带 Delay，
+		// 此时省略倒计时，避免用本地猜测误报真实重试节奏。
 		// Summary 不嵌静态延时——UI 依 RetryAt 逐秒倒计时；Detail/日志保留发出时的延时快照。
 		delay := retryProgressDelay(ev.Progress)
 		retryEv := Event{
@@ -161,18 +164,7 @@ func retryProgressDelay(p *agentcore.ProgressPayload) time.Duration {
 			return time.Duration(meta.DelayMS) * time.Millisecond
 		}
 	}
-	attempt := p.Attempt
-	if attempt <= 0 {
-		return 0
-	}
-	delay := time.Second
-	for i := 1; i < attempt && delay < 60*time.Second; i++ {
-		delay *= 2
-	}
-	if delay > 60*time.Second {
-		return 60 * time.Second
-	}
-	return delay
+	return 0
 }
 
 func dispatchSummary(agent, task string) string {
@@ -377,4 +369,38 @@ func displayToolName(tool string, args json.RawMessage) string {
 		}
 	}
 	return tool
+}
+
+// emitNonStreamToolContent cho đường KHÔNG stream tham số (provider trả nguyên khối args
+// trong ProgressToolStart) đi qua đúng bộ trích của đường stream, để hai kiểu provider ra
+// cùng một khung văn sống.
+//
+// Thiếu bước này thì với provider không stream args, nội dung draft_chapter KHÔNG BAO GIỜ
+// lên khung "AI đang viết": emitFallbackStreamHeader bỏ qua mọi tool có bộ trích (vì header
+// do bộ trích tự in), còn bộ trích thì chỉ được nạp ở handleSubagentDelta — nhánh stream.
+func (o *observer) emitNonStreamToolContent(tool string, args []byte) {
+	if len(args) == 0 {
+		return
+	}
+	ext := newToolExtractor(tool)
+	if ext == nil {
+		return
+	}
+	if emitted := ext.Feed(string(args)); emitted != "" {
+		o.streamClear()
+		o.emitStreamDelta(emitted, false)
+	}
+}
+
+// chuongTuThamSo đọc tham số `chapter` của một lượt gọi công cụ. Thẻ "đang làm" của studio cần
+// nó: khi Biên tập viên sửa lại chương 1 theo góp ý, "chương kế tiếp" là 2 nhưng việc thật đang
+// làm là chương 1 — đo được trên truyện thật, thẻ ghi "Chương 2 · Ba giây" suốt lượt sửa.
+func chuongTuThamSo(args []byte) int {
+	var a struct {
+		Chapter int `json:"chapter"`
+	}
+	if len(args) == 0 || json.Unmarshal(args, &a) != nil {
+		return 0
+	}
+	return a.Chapter
 }

@@ -18,7 +18,7 @@ import {
   viTriMoc,
   type CuaSoTruc,
 } from '@/lib/truc';
-import type { Capabilities, ChapterMark, LaneBlock, MarkState, Timeline } from '@/lib/types';
+import type { Capabilities, LaneBlock, Timeline, VachChuong, VachHien } from '@/lib/types';
 
 /**
  * Trục sản xuất ba lane: Tập → Cung → Chương.
@@ -33,7 +33,10 @@ export function Truc({
   chuongChon,
   onChonChuong,
   vuaChot,
+  dangChay,
 }: {
+  /** Máy có đang chạy thật không — vạch `running` chỉ được nói "đang viết" khi có. */
+  dangChay: boolean;
   timeline: Timeline;
   capabilities: Capabilities;
   chuongChon: number | undefined;
@@ -49,16 +52,19 @@ export function Truc({
    */
   vuaChot: ReadonlySet<number>;
 }) {
-  const marks = timeline.chapters ?? [];
+  // Chuẩn hóa MỘT lần ở cửa vào: mọi nhãn, màu, chú giải và câu tóm tắt bên dưới đọc từ đây.
+  const marks: VachChuong[] = (timeline.chapters ?? []).map((m) =>
+    m.state === 'running' && !dangChay ? { ...m, state: 'vietDo' } : m,
+  );
   const tong = marks.length;
 
   // layered_outline === false → truyện ngắn/vừa, không có tập/cung. Ẩn hai lane
   // trên thay vì vẽ lane rỗng: lane rỗng trông như dữ liệu bị mất.
   const phanTang = capabilities.layered_outline;
 
-  if (tong === 0 && !phanTang) {
-    return <p className="trongSect">{GIAI_THICH.chuongChuaCoDuLieu}</p>;
-  }
+  // Truyện phẳng chưa có chương nào: không vẽ gì. Câu "Chương này chưa có dữ liệu." của bản
+  // trước đứng ngay dưới "Chưa có chương nào" của thẻ đang làm — hai câu cho một sự thật.
+  if (tong === 0 && !phanTang) return null;
 
   return (
     <>
@@ -71,9 +77,9 @@ export function Truc({
             <Lane blocks={timeline.volumes ?? []} tien="T" nhanLane="tập" />
 
             <div className="lane-lbl" id="lane-cung">
-              {nhanLaneCung(timeline.volumes)}
+              {CHU.cung}
             </div>
-            <Lane blocks={timeline.arcs ?? []} tien="C" nhanLane="cung" />
+            <Lane blocks={timeline.arcs ?? []} tien="H" nhanLane="hồi" />
           </>
         ) : null}
 
@@ -95,12 +101,6 @@ export function Truc({
   );
 }
 
-/** Nhãn lane cung nói rõ nó là cung của TẬP NÀO, không phải mọi cung. */
-function nhanLaneCung(volumes: LaneBlock[] | null): string {
-  const dangChay = volumes?.find((v) => v.state === 'running');
-  return dangChay ? `${CHU.cung}, tập ${dangChay.index}` : CHU.cung;
-}
-
 function Lane({
   blocks,
   tien,
@@ -114,16 +114,20 @@ function Lane({
     return (
       <div className="lane">
         <span className="blk planned" style={{ flex: '1 1 0' }}>
-          <span className="txt">chưa có {nhanLane} nào được quy hoạch</span>
+          <span className="txt">chưa có {nhanLane.toLowerCase()} nào được lên dàn ý</span>
         </span>
       </div>
     );
   }
 
   const daDo = doTruc(blocks);
+  // Lane DÀY (nhiều khối hơn số nhãn đọc được ở bề rộng thường): khối đã xong chỉ còn màu,
+  // nhãn giữ cho khối đang mở. Mười mấy nhãn "T1…" bị cắt nửa chữ còn khó đọc hơn không nhãn,
+  // và chú giải đầy đủ của từng khối vẫn nằm trong `title`.
+  const day = daDo.length > 12;
 
   return (
-    <div className="lane" role="group" aria-label={`Trục ${nhanLane}`}>
+    <div className={`lane${day ? ' day' : ''}`} role="group" aria-label={`Trục ${nhanLane}`}>
       {daDo.map((b) => {
         const tt = TRANG_THAI_KHOI[b.state];
         const phamVi = nhanPhamVi(b);
@@ -139,7 +143,7 @@ function Lane({
           soChuong,
           b.chuaBietPhamVi ? GIAI_THICH.chuaBietPhamVi : undefined,
           b.estimated && !b.chuaBietPhamVi ? GIAI_THICH.soDuKien : undefined,
-          b.final ? 'tập chốt' : undefined,
+          b.final ? 'tập cuối' : undefined,
         ]
           .filter(Boolean)
           .join(' · ');
@@ -161,7 +165,12 @@ function Lane({
               {tien}
               {b.index}
             </span>
-            <span className="txt">· {phamViGon(b) ?? tt.nhan}</span>
+            {/* Chỉ khối ĐANG MỞ mang phạm vi: nó là chỗ mắt cần biết "đang ở đâu". Khối đã
+                xong hay chưa tới chỉ mang số hiệu — mười mấy khối hẹp mà khối nào cũng cố nhét
+                thêm chữ thì chữ nào cũng bị cắt thành "x…". */}
+            {b.state === 'running' ? (
+              <span className="txt">· {phamViGon(b) ?? tt.nhan}</span>
+            ) : null}
           </span>
         );
       })}
@@ -189,7 +198,7 @@ function LaneChuong({
   onChonChuong,
   vuaChot,
 }: {
-  marks: ChapterMark[];
+  marks: VachChuong[];
   chuongChon: number | undefined;
   onChonChuong: (n: number) => void;
   /** Họ 09 — chương vừa chuyển sang `done`. Xem `lib/chotChuong.ts`. */
@@ -240,7 +249,6 @@ function LaneChuong({
               onClick={() => onChonChuong(m.chapter)}
               title={`chương ${m.chapter} · ${TRANG_THAI_VACH[m.state].nhan}`}
               style={{
-                borderRadius: 1.5,
                 outline: m.chapter === chuongChon ? '1px solid var(--ink)' : undefined,
                 outlineOffset: 1,
               }}
@@ -388,10 +396,11 @@ function CuaSoNoi({
   );
 }
 
-function demTrangThai(marks: Pick<ChapterMark, 'state'>[]): Record<MarkState, number> {
-  const d: Record<MarkState, number> = {
+function demTrangThai(marks: Pick<VachChuong, 'state'>[]): Record<VachHien, number> {
+  const d: Record<VachHien, number> = {
     done: 0,
     running: 0,
+    vietDo: 0,
     rewrite: 0,
     gate: 0,
     pending: 0,
@@ -408,14 +417,14 @@ function demTrangThai(marks: Pick<ChapterMark, 'state'>[]): Record<MarkState, nu
  */
 function tomTatTruc(
   hien: number,
-  dem: Record<MarkState, number>,
+  dem: Record<VachHien, number>,
   cs: CuaSoTruc,
   tong: number,
 ): string {
   const phan: string[] = cs.thuPhong
     ? [`chương ${cs.from}–${cs.to} trong ${tong} chương`]
     : [`${tong} chương`];
-  for (const [ma, n] of Object.entries(dem) as [MarkState, number][]) {
+  for (const [ma, n] of Object.entries(dem) as [VachHien, number][]) {
     if (n > 0) phan.push(`${n} ${TRANG_THAI_VACH[ma].nhan}`);
   }
   return phan.join(', ');
@@ -426,9 +435,9 @@ function tomTatTruc(
  * tác phẩm không có chương nào bị trả về chỉ dạy người đọc một trạng thái họ
  * không cần tìm.
  */
-function ChuGiai({ marks }: { marks: Pick<ChapterMark, 'state'>[] }) {
+function ChuGiai({ marks }: { marks: Pick<VachChuong, 'state'>[] }) {
   const co = new Set(marks.map((m) => m.state));
-  const thuTu: MarkState[] = ['done', 'running', 'rewrite', 'gate', 'pending'];
+  const thuTu: VachHien[] = ['done', 'running', 'vietDo', 'rewrite', 'gate', 'pending'];
   const hien = thuTu.filter((s) => co.has(s));
   if (hien.length === 0) return null;
 
@@ -451,12 +460,14 @@ function ChuGiai({ marks }: { marks: Pick<ChapterMark, 'state'>[] }) {
 }
 
 /** Cùng công thức màu với `.chlane i` để chú giải không lệch khỏi trục. */
-function mauVach(s: MarkState): string {
+function mauVach(s: VachHien): string {
   switch (s) {
     case 'done':
       return 'color-mix(in oklch, var(--teal) 62%, var(--panel))';
     case 'running':
-      return 'var(--gold)';
+      return 'var(--gold-fill)';
+    case 'vietDo':
+      return 'color-mix(in oklch, var(--gold) 34%, var(--panel))';
     case 'rewrite':
       return 'color-mix(in oklch, var(--amber) 68%, var(--panel))';
     case 'gate':

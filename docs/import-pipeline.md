@@ -1,5 +1,7 @@
 # Đường ống nhập truyện ngoài bằng biên dịch ngữ nghĩa
 
+> **2026-10-08 — chỉ còn app desktop.** TUI và headless đã gỡ. Chỗ nào bên dưới nhắc panel TUI, `/import`, `--yes`, `--guide` hay `tui.log` là mô tả lúc viết; đường ống không đổi, còn cửa vào trên app là khu **Xuất bản & nhập → Nhập truyện có sẵn** của studio (đối chiếu cách chia, gợi ý cách chia, tự chốt cách chia). Log riêng `<gốc sách>/logs/import.log` vẫn giữ.
+
 > Trạng thái: đã hiện thực (v1, `internal/host/imp`; phần vớt tiền tố khi bị cắt gồm giai đoạn ba·bù)
 > Ngày: 2026-07-15
 > Mục tiêu: để việc nhập truyện ngoài vừa liên tục hưởng được lợi ích từ việc nâng cấp năng lực model, vừa có bảo đảm kỹ thuật là không mất chữ nào của toàn văn, thất bại thì chẩn đoán được, sập thì khôi phục được và việc phát hành thì kiểm chứng được.

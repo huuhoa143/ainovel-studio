@@ -65,7 +65,7 @@ func RewritePendingPressure(snap *Snapshot) []Finding {
 		Title:      fmt.Sprintf(i18n.F("待改写章节: [%s]"), chapters),
 		Evidence:   fmt.Sprintf("flow=%s, pending_rewrites=[%s]", p.Flow, chapters),
 		Suggestion: i18n.F("检查 Editor 评审标准是否过严，或 Writer 改写 prompt 是否有效。") +
-			i18n.F("如需人工打断，请在输入框提交干预指令。"),
+			i18n.F("某章返工反复失败时引擎会自动将其移出队列并继续后续创作，无需人工清理。"),
 	}}
 }
 

@@ -6,6 +6,7 @@ import (
 
 	"github.com/huuhoa143/ainovel-studio/internal/domain"
 	"github.com/huuhoa143/ainovel-studio/internal/errs"
+	"github.com/huuhoa143/ainovel-studio/internal/i18n"
 )
 
 // validateCommitArgs 在创建 PendingCommit 前校验模型提交的完整语义载荷。
@@ -40,10 +41,14 @@ func (t *CommitChapterTool) validateCommitArgs(a commitArgs) error {
 		if err != nil {
 			return fmt.Errorf("load foreshadow ledger: %w: %w", errs.ErrStoreRead, err)
 		}
-		known := make(map[string]struct{}, len(ledger)+len(a.ForeshadowUpdates))
+		// 账本是全书投影，而 Projector 按章序重放章节记录。重写早期章节时账本里
+		// 还躺着后续章节才种下的伏笔——放行它们，提交前校验就与重放结论相反，
+		// 模型无从修正，返工队列随之锁死。故一律以"本章可见"为准。
+		plantedAt := make(map[string]int, len(ledger))
 		for _, entry := range ledger {
-			known[entry.ID] = struct{}{}
+			plantedAt[entry.ID] = entry.PlantedAt
 		}
+		declared := make(map[string]struct{}, len(a.ForeshadowUpdates))
 		for i, update := range a.ForeshadowUpdates {
 			id := strings.TrimSpace(update.ID)
 			if id == "" {
@@ -54,10 +59,18 @@ func (t *CommitChapterTool) validateCommitArgs(a commitArgs) error {
 				if strings.TrimSpace(update.Description) == "" {
 					return fmt.Errorf("foreshadow_updates[%d] plant requires description: %w", i, errs.ErrToolArgs)
 				}
-				known[id] = struct{}{}
+				declared[id] = struct{}{}
 			case "advance", "resolve":
-				if _, ok := known[id]; !ok {
+				if _, ok := declared[id]; ok {
+					continue
+				}
+				at, known := plantedAt[id]
+				if !known {
 					return fmt.Errorf("foreshadow_updates[%d] references unknown id %q: %w", i, id, errs.ErrToolPrecondition)
+				}
+				if at > a.Chapter {
+					return fmt.Errorf(i18n.F("foreshadow_updates[%d] 伏笔 %q 种植于第 %d 章，不能在第 %d 章推进或回收: %w"),
+						i, id, at, a.Chapter, errs.ErrToolPrecondition)
 				}
 			default:
 				return fmt.Errorf("foreshadow_updates[%d].action invalid: %q: %w", i, update.Action, errs.ErrToolArgs)

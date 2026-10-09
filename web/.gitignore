@@ -7,8 +7,8 @@
 
 node_modules/
 
-# Bản build tĩnh. Sinh lại được bằng `npm run build`, và engine chỉ cần nó lúc
-# chạy (`ainovel-cli serve --web web/out`), không cần trong lịch sử.
+# Bản build tĩnh. Sinh lại được bằng `npm run build`, và app đóng gói nó lúc
+# phát hành, không cần trong lịch sử.
 /out/
 /.next/
 

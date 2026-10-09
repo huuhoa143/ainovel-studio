@@ -1,6 +1,8 @@
 'use client';
 
 import { so } from '@/lib/dinhdang';
+import { giaiCongCu } from '@/lib/congCu';
+import { giaiGiaoViec } from '@/lib/loiLlm';
 import { CHU, GIAI_THICH, nhanVai } from '@/lib/nhan';
 import type { NguCanh, Snapshot, Vai } from '@/lib/types';
 import { type NutVai, cayVai } from '@/lib/vaiTro';
@@ -33,15 +35,21 @@ import { type NutVai, cayVai } from '@/lib/vaiTro';
 export function DaiTrangThai({ snapshot }: { snapshot: Snapshot }) {
   return (
     <section className="daitrangthai" aria-label={CHU.daiTrangThaiVung}>
-      <OVai agents={snapshot.agents} cho={snapshot.idle_agents} />
+      <OVai agents={snapshot.agents} />
       <OVieccTon steer={snapshot.pending_steer} lyDo={snapshot.rewrite_reason} />
       <ONguCanh nc={snapshot.context} />
     </section>
   );
 }
 
-/** Vai đang chạy (cây) + vai đang chờ (một dòng). */
-function OVai({ agents, cho }: { agents: Vai[] | null; cho: string[] | null }) {
+/**
+ * Vai đang chạy (cây).
+ *
+ * Không còn dòng "chờ: …". `idle_agents` là các vai engine đang để RẢNH — ở chặng viết, đó là
+ * Kiến trúc sư đã dựng xong nền. In "chờ: Kiến trúc sư" ngay dưới Người viết đang viết đọc như
+ * Người viết đang đợi Kiến trúc sư, tức nói ngược việc đã xảy ra (đo được trên truyện thật).
+ */
+function OVai({ agents }: { agents: Vai[] | null }) {
   return (
     <div className="dtvai">
       <span className="dtnhan">{CHU.vaiDangChay}</span>
@@ -59,19 +67,6 @@ function OVai({ agents, cho }: { agents: Vai[] | null; cho: string[] | null }) {
           ))}
         </ul>
       )}
-
-      {/* Vai chờ có nhánh `null` riêng vì nó là một phép đo riêng. `[]` thì KHÔNG vẽ dòng
-          nào: "không vai nào chờ" đã được nói đủ bằng chỗ trống, còn "không đo được" thì
-          không — chỗ trống ở đó sẽ đọc thành "đã đo, không có ai". */}
-      {cho === null ? (
-        <p className="dtcho">
-          {CHU.vaiCho}: <KhongDo />
-        </p>
-      ) : cho.length > 0 ? (
-        <p className="dtcho">
-          {CHU.vaiCho}: {cho.map(nhanVai).join(' · ')}
-        </p>
-      ) : null}
     </div>
   );
 }
@@ -86,17 +81,22 @@ function OVai({ agents, cho }: { agents: Vai[] | null; cho: string[] | null }) {
  */
 function NhanhVai({ nut }: { nut: NutVai }) {
   const v = nut.vai;
+  // `task` thường chỉ là "vai → công cụ(tham số)" — tức nói lại đúng hai ô đứng trước nó.
+  // Đo được: "Người viết → Đọc tài liệu truyện" rồi ngay dưới "Người viết: đọc tài liệu truyện".
+  // Ca đó gộp tham số vào ô công cụ ("Đọc tài liệu cho chương 2") và bỏ dòng thứ hai.
+  const sauMuiTen = v.task?.split('→')[1]?.trim();
+  const lapLai = !!v.tool && !!sauMuiTen && sauMuiTen.startsWith(v.tool);
+  const congCu = lapLai ? sauMuiTen : v.tool;
   return (
     <li>
       <span className="vaiten">{nhanVai(v.role)}</span>
 
-      {/* Tên công cụ là DỮ LIỆU của engine, giữ nguyên dạng gốc — dịch nó là dựng một từ điển
-          thứ hai cho một tập tên thay đổi theo engine. Mũi tên là trang trí: chữ hai bên đã
-          nói đủ, nên trình đọc màn hình không cần đọc "mũi tên phải". */}
+      {/* Tên công cụ dịch qua CÙNG một bảng với Diễn biến và thanh dưới (`lib/congCu.ts`);
+          tên lạ giữ nguyên, nguyên văn luôn ở `title`. Mũi tên là trang trí. */}
       {v.tool ? (
-        <span className="vaicongcu">
+        <span className="vaicongcu" title={congCu}>
           <span aria-hidden="true">→ </span>
-          {v.tool}
+          {giaiCongCu(congCu) ?? congCu}
         </span>
       ) : null}
 
@@ -108,7 +108,13 @@ function NhanhVai({ nut }: { nut: NutVai }) {
         </span>
       ) : null}
 
-      {v.task ? <span className="vaiviec">{v.task}</span> : null}
+      {/* Việc kiểu "engine → architect_short (Hãy xây dựng…)" là dòng nội bộ: đọc thành câu
+          "Điều phối giao việc cho Kiến trúc sư", nguyên văn ở `title`. */}
+      {v.task && !lapLai ? (
+        <span className="vaiviec" title={v.task}>
+          {giaiGiaoViec(v.task) ?? v.task}
+        </span>
+      ) : null}
 
       {nut.con.length > 0 ? (
         <ul>

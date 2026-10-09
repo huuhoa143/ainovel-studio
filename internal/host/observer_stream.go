@@ -1,6 +1,7 @@
 package host
 
 import (
+	"strings"
 	"time"
 
 	"github.com/voocel/agentcore"
@@ -13,7 +14,7 @@ import (
 // - DeltaToolCall 只对已知的长内容工具（如 draft_chapter.content）抽取字段流出；其他工具的参数 JSON 全部丢弃
 func (o *observer) handleSubagentDelta(p *agentcore.ProgressPayload) {
 	if p.DeltaKind != agentcore.DeltaToolCall {
-		o.emitStreamDelta(p.Delta, false)
+		o.emitLoiNoi(p.Delta)
 		return
 	}
 	if p.Tool == "" {
@@ -62,6 +63,26 @@ func (o *observer) handleSubagentDelta(p *agentcore.ProgressPayload) {
 		}
 		o.emitStreamDelta(emitted, false)
 	}
+}
+
+// emitLoiNoi phát lời model tự nói (văn bản ngoài tham số công cụ) trong MỘT lượt riêng có tiêu
+// đề "✻ …", như mọi bước công cụ.
+//
+// Bản trước phát trần vào lượt đang mở. Văn truyện (`draft_chapter.content`) cũng trần, nên
+// studio web không phân biệt được hai thứ: đo được trên truyện thật, khu "AI đang viết" in "Let me
+// start by calling novel_context…" bằng chữ serif khổ đọc giữa lúc dựng nền — lúc chưa có chữ
+// truyện nào — và "Đoạn viết gần nhất" chứa ghi chú tiếng Anh của model dưới bước "Đọc tài liệu".
+// Có tiêu đề thì cả TUI lẫn web xếp nó vào dạng bước, không lẫn với văn.
+func (o *observer) emitLoiNoi(delta string) {
+	if !o.streamLoiNoi {
+		if strings.TrimSpace(delta) == "" {
+			return // khoảng trắng giữa hai lượt gọi công cụ không đáng mở một lượt rỗng
+		}
+		o.streamClear()
+		o.emitStreamDelta("✻ "+i18n.F("模型说明")+"\n", false)
+		o.streamLoiNoi = true
+	}
+	o.emitStreamDelta(delta, false)
 }
 
 func (o *observer) emitStreamDelta(delta string, thinking bool) {
@@ -157,6 +178,7 @@ func streamHeaderFallback(tool string) string {
 // 再被 ThinkingSep 切分为思考段，title 颜色被画成思考色。
 func (o *observer) streamClear() {
 	o.emitC()
+	o.streamLoiNoi = false
 	o.streamHasContent = false
 	o.streamLastByte = 0
 	o.streamThinking = false

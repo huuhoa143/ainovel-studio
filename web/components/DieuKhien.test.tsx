@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, expect, test, vi } from 'vitest';
 
+import { DIEU_KHIEN, DONG_PHIEN } from '@/lib/chu/tien-do';
 import { CHU } from '@/lib/nhan';
 import type { Snapshot } from '@/lib/types';
 
@@ -48,7 +49,6 @@ function ve(p: Partial<Snapshot> = {}, dangChay = false) {
     <DieuKhien
       snapshot={snap(p)}
       tacPham="tran-yeu-ky"
-      choGhi
       dangChay={dangChay}
       onDoi={ON_DOI}
     />,
@@ -90,10 +90,15 @@ test('chế độ tự chạy cũng suy từ snapshot — vế ngược', () => 
   expect(LAY_CAI_DAT).not.toHaveBeenCalled();
 });
 
-test('`Cho đi tiếp` chỉ có ở chế độ nghiệm thu', () => {
+test('`Cho đi tiếp` chỉ có khi engine đứng ở cửa nghiệm thu', () => {
   // Ở chế độ tự chạy engine không chờ giấy phép nào, nên một nút cấp phép ở đó không làm gì.
-  ve({ advance: { ...REVIEW } });
-  expect(screen.getByRole('button', { name: CHU.choDiTiep })).toBeDefined();
+  ve({ advance: { ...REVIEW, hold: true } });
+  expect(screen.getByRole('button', { name: /^Duyệt(, viết chương| dàn ý)/ })).toBeDefined();
+  cleanup();
+
+  // Chế độ duyệt nhưng engine còn đang viết (vd. đang dựng nền): chưa có gì để duyệt.
+  ve({ advance: { ...REVIEW }, runtime: 'running' }, true);
+  expect(screen.queryByRole('button', { name: /^Duyệt(, viết chương| dàn ý)/ })).toBeNull();
 
   // `cleanup()` giữa hai lượt vẽ: không có nó thì nút của lượt trước còn nằm trong
   // `document` và `queryByRole` thấy nó — bài kiểm khi đó đỏ (hoặc xanh) vì rác của chính
@@ -102,7 +107,7 @@ test('`Cho đi tiếp` chỉ có ở chế độ nghiệm thu', () => {
   cleanup();
 
   ve({ advance: { ...AUTO } });
-  expect(screen.queryByRole('button', { name: CHU.choDiTiep })).toBeNull();
+  expect(screen.queryByRole('button', { name: /^Duyệt(, viết chương| dàn ý)/ })).toBeNull();
 });
 
 /* ── ca engine đóng: KHÔNG đo được, và không được vẽ thành "tự chạy" ────── */
@@ -120,7 +125,7 @@ test('`advance === null` thì KHÔNG vẽ chế độ nào — "tự chạy" là
 
   expect(screen.queryByRole('button', { name: CHU.cheDoTuChay })).toBeNull();
   expect(screen.queryByRole('button', { name: CHU.cheDoNghiemThu })).toBeNull();
-  expect(screen.queryByRole('button', { name: CHU.choDiTiep })).toBeNull();
+  expect(screen.queryByRole('button', { name: /^Duyệt(, viết chương| dàn ý)/ })).toBeNull();
 });
 
 test('`advance === null` KHÔNG làm mất nút Chạy — bề mặt vẫn điều khiển được', () => {
@@ -212,7 +217,7 @@ test('runtime=pausing thì KHÓA nút hạng nhất — lệnh dừng đã nhậ
   // Bấm Chạy giữa lúc engine đang thu dọn là một lượt gọi chắc chắn thất bại hoặc tệ hơn là
   // một lượt chạy chồng lên một lượt đang tắt.
   ve({ runtime: 'pausing', advance: { ...AUTO } }, true);
-  const nut = screen.queryByRole('button', { name: `■ ${CHU.dung}` });
+  const nut = screen.queryByRole('button', { name: `‖ ${CHU.dung}` });
   expect(nut).not.toBeNull();
   expect((nut as HTMLButtonElement).disabled).toBe(true);
 });
@@ -237,7 +242,7 @@ test('nút hạng nhất luôn là nút CUỐI, ở cả bốn bộ nút', () =>
     ['engine đóng', {}, false, `▶ ${CHU.chay}`],
     ['mở · tự chạy', { advance: { ...AUTO } }, false, `▶ ${CHU.chay}`],
     ['mở · nghiệm thu', { advance: { ...REVIEW } }, false, `▶ ${CHU.chay}`],
-    ['đang chạy · nghiệm thu', { advance: { ...REVIEW } }, true, `■ ${CHU.dung}`],
+    ['đang chạy · nghiệm thu', { advance: { ...REVIEW } }, true, `‖ ${CHU.dung}`],
   ];
   for (const [ten, p, chay, cuoi] of boCanKiem) {
     cleanup();
@@ -266,7 +271,28 @@ test('công tắc chế độ mang đủ TÊN TRỢ NĂNG, vì CSS ẩn nhãn nh
   expect(nhom, 'công tắc chế độ phải là một `group` có nhãn').not.toBeNull();
   expect(nhom!.getAttribute('aria-label')).toBe(CHU.cheDoDiTiep);
 
-  // Tên nút lấy từ NỘI DUNG, không từ `aria-label` — ellipsis của CSS không chạm vào nó.
-  const nut = [...nhom!.querySelectorAll('button')].map((b) => b.textContent?.trim());
-  expect(nut).toEqual([CHU.cheDoTuChay, CHU.cheDoNghiemThu]);
+  // Mắt thấy nhãn NGẮN (để thanh dưới không cắt "Tự viết liên t…"); tên trợ năng vẫn là tên
+  // ĐẦY ĐỦ, qua `aria-label` — người dùng trình đọc màn hình không mất gì.
+  const nut = [...nhom!.querySelectorAll('button')];
+  expect(nut.map((b) => b.getAttribute('aria-label'))).toEqual([CHU.cheDoTuChay, CHU.cheDoNghiemThu]);
+  expect(nut.map((b) => b.textContent?.trim())).toEqual([DIEU_KHIEN.lienTuc, DIEU_KHIEN.tungChuong]);
+});
+
+test('đang chạy → Đóng phiên khóa và nói ĐÚNG lý do (không phải "cần mở phiên trước")', () => {
+  ve({ advance: { ...AUTO } }, true);
+  const nut = screen.getByRole('button', { name: CHU.dongMay }) as HTMLButtonElement;
+  expect(nut.disabled).toBe(true);
+  expect(nut.getAttribute('title')).toBe(DONG_PHIEN.khiDangChay);
+  expect(nut.getAttribute('title')).not.toContain('mở phiên trước');
+});
+
+test('truyện đã xong: viết tiếp hạ xuống hàng phụ, tên "Viết thêm" — không phải nút vàng chính', () => {
+  const { container } = ve({
+    runtime: 'completed',
+    advance: { ...AUTO },
+    book: { ...snap({}).book, phase: 'complete', completed_chapters: 3, total_chapters: 3 },
+  });
+  expect(container.querySelector('.dkChay')).toBeNull();
+  const nut = screen.getByRole('button', { name: DIEU_KHIEN.vietThem });
+  expect(nut.className).toContain('dkPhu');
 });

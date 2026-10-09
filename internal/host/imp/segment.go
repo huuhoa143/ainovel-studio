@@ -412,7 +412,7 @@ func Segment(ctx context.Context, m callModel, systemPrompt string, normalized [
 		hint := i18n.F("块缓存已清除，重跑将重新切分")
 		if w != nil {
 			if cerr := w.clearDir(dirSegmentChunks); cerr != nil {
-				hint = fmt.Sprintf(i18n.F("块缓存清除失败：%v，重跑前请手动删除 meta/import/segment-chunks/"), cerr)
+				hint = fmt.Sprintf(i18n.F("块缓存清除失败：%v，请在「Nhập truyện có sẵn」点「Bỏ lượt nhập dở」后重新导入"), cerr)
 			}
 		}
 		raw, _ := json.MarshalIndent(decisions, "", "  ")

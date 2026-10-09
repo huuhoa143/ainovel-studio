@@ -19,10 +19,16 @@ export function TrangThai({
   tt,
   title,
   dap,
+  vien,
 }: {
   tt: NhanTrangThai;
   title?: string;
   dap?: boolean;
+  /**
+   * Vẽ thành viên thuốc `.vien` của hệ giao diện 2 thay vì dòng chữ trần. Tùy chọn, mặc định
+   * tắt: `TrangThai` còn nằm ở thanh dưới và tổ sản xuất, hai chỗ vẫn dùng dạng chữ trần.
+   */
+  vien?: boolean;
 }) {
   /**
    * Trạng thái VỪA ĐỔI thì lắng xuống một lần.
@@ -42,7 +48,7 @@ export function TrangThai({
   return (
     <span
       key={dau}
-      className={`st ${tt.mau}${dap ? ' dap' : ''}${dau > 0 ? ' vuaDoi' : ''}`}
+      className={`st ${tt.mau}${vien ? ' vien' : ''}${dap ? ' dap' : ''}${dau > 0 ? ' vuaDoi' : ''}`}
       title={title}
     >
       <span className="ky" aria-hidden="true">

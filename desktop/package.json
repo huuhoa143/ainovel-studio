@@ -1,0 +1,37 @@
+{
+  "name": "ainovel-studio-desktop",
+  "productName": "AINovel Studio",
+  "version": "1.0.0",
+  "description": "AINovel Studio — app desktop: vỏ Electron quanh `ainovel-cli serve`",
+  "main": ".vite/build/main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron-forge start",
+    "package": "electron-forge package",
+    "make": "electron-forge make",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "author": {
+    "name": "robin",
+    "email": "huuhoa14399@gmail.com"
+  },
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "@electron-addons/electron-forge-maker-nsis": "^7.0.2",
+    "@electron-forge/cli": "^7.11.1",
+    "@electron-forge/maker-zip": "^7.11.1",
+    "@electron-forge/plugin-fuses": "^7.11.1",
+    "@electron-forge/plugin-vite": "^7.11.1",
+    "@electron/fuses": "^1.8.0",
+    "@types/node": "^22.10.0",
+    "app-builder-lib": "24.13.3",
+    "electron": "42.0.1",
+    "typescript": "~5.4.5",
+    "vite": "^5.4.21",
+    "vitest": "^2.1.9"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.3"
+  }
+}

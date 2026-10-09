@@ -3,6 +3,7 @@ package imp
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"errors"
 	"github.com/huuhoa143/ainovel-studio/internal/i18n"
@@ -173,7 +174,7 @@ func LoadState(w *Workspace) (Facts, error) {
 	return f, nil
 }
 
-// CollectFacts 组合工作区事实与正式发布对账，是 ResumeStatus/ResumeSummary/runner
+// CollectFacts 组合工作区事实与正式发布对账，是 ResumeStatus/runner
 // 的统一事实入口。发布对账的期望章数优先取新鲜切分；切分因 prompt 版本 / 指导升级
 // 而失配时，退回工件里当时确认的章数——已发布书的正式章节正是按那份切分落库的，
 // 用当前版本重算 digest 对账反而对不上任何东西。
@@ -206,35 +207,29 @@ func ResumeStatus(st *store.Store) (active, done bool, err error) {
 	return true, NextAction(f) == ActionDone, nil
 }
 
-// ResumeSummary 生成未完成导入的一行提示（RFC §18.2）；无未完成导入返回空串。
-// 供宿主在启动/欢迎界面主动告知，避免用户只有在创作被门禁拒绝时才发现这本书停在导入半路。
-func ResumeSummary(st *store.Store) string {
+// Discard 放弃未完成或已损坏的导入：删除 meta/import/ 与残留的 import.init-* 临时目录，
+// 解除"存在未完成导入"对普通创作的门禁。已发布（对账一致）的工作区是审计存档，不删。
+// 返回是否真的删除了什么；调用方负责保证此刻没有导入步骤在跑。
+func Discard(st *store.Store) (bool, error) {
+	daXoa := false
+	tmps, _ := filepath.Glob(filepath.Join(st.Dir(), "meta", "import.init-*"))
+	for _, tmp := range tmps {
+		if err := os.RemoveAll(tmp); err != nil {
+			return daXoa, err
+		}
+		daXoa = true
+	}
 	w := OpenWorkspace(st.Dir())
 	if !w.Active() {
-		return ""
+		return daXoa, nil
 	}
-	f, err := CollectFacts(st, w)
-	if err != nil {
-		return i18n.F("发现导入状态读取异常：") + err.Error() + i18n.F("；请运行 /import 查看并修复")
+	if f, err := CollectFacts(st, w); err == nil && NextAction(f) == ActionDone {
+		return daXoa, nil
 	}
-	var state string
-	switch NextAction(f) {
-	case ActionDone:
-		return ""
-	case ActionIngest, ActionSegment:
-		state = i18n.F("尚未完成切分")
-	case ActionAwaitConfirmation:
-		state = fmt.Sprintf(i18n.F("已切分 %d 章，等待核对确认"), f.ExpectedChapters)
-	case ActionAnalyze:
-		state = fmt.Sprintf(i18n.F("已分析 %d/%d 章"), f.AnalyzedChapters, f.ExpectedChapters)
-	case ActionSynthesize:
-		state = i18n.F("逐章分析完成，待全书综合")
-	case ActionAwaitStoryResolution:
-		state = i18n.F("待明确故事状态（--story=open|closed）")
-	case ActionPublish:
-		state = i18n.F("综合完成，待发布正式状态")
+	if err := os.RemoveAll(w.dir); err != nil {
+		return daXoa, err
 	}
-	return i18n.F("发现未完成的导入（") + state + i18n.F("），输入 /import 从断点恢复")
+	return true, nil
 }
 
 // checkImportPreconditions 校验新导入前置条件（RFC §12.1）：

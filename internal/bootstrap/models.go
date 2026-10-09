@@ -9,12 +9,13 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/voocel/agentcore"
-	"github.com/voocel/agentcore/llm"
 	"github.com/huuhoa143/ainovel-studio/internal/errs"
 	"github.com/huuhoa143/ainovel-studio/internal/i18n"
 	"github.com/huuhoa143/ainovel-studio/internal/llmcontract"
 	"github.com/huuhoa143/ainovel-studio/internal/llmretry"
+	"github.com/voocel/agentcore"
+	"github.com/voocel/agentcore/llm"
+	"github.com/voocel/litellm"
 )
 
 // FailoverEvent 表示一次显式 provider 切换。
@@ -427,6 +428,31 @@ func (ms *ModelSet) fallbackTargets(role string) []modelTarget {
 	return append([]modelTarget(nil), ms.fallbacks[role]...)
 }
 
+// CapDaCauHinh trả về cặp provider/model ĐÃ CẤU HÌNH (tên provider trong `providers`, tên model
+// như người dùng khai) ứng với một lượt gọi của `role` mà phản hồi báo model `daGoi`.
+//
+// Phản hồi chỉ mang loại giao thức ("openai") và tên model gateway trả về — có khi đã cắt tiền
+// tố (`cx/gpt-5.6-luna` về thành `gpt-5.6-luna`). Không đối chiếu được hai thứ đó với cấu hình
+// thì thanh trạng thái không nói được "lượt vừa rồi chạy bằng gì". Thứ tự: model chính của vai,
+// rồi các fallback; khớp khi tên bằng nhau hoặc tên cấu hình kết thúc bằng `/`+tên trả về.
+// Không khớp gì (hoặc `daGoi` rỗng) thì trả model chính của vai.
+func (ms *ModelSet) CapDaCauHinh(role, daGoi string) (provider, model string) {
+	provider, model, _ = ms.CurrentSelection(role)
+	daGoi = strings.TrimSpace(daGoi)
+	khop := func(ten string) bool {
+		return daGoi == "" || ten == daGoi || strings.HasSuffix(ten, "/"+daGoi)
+	}
+	if khop(model) {
+		return provider, model
+	}
+	for _, t := range ms.fallbackTargets(role) {
+		if khop(t.name) {
+			return t.provider, t.name
+		}
+	}
+	return provider, model
+}
+
 // ModelName 从 ChatModel 中提取当前模型名，失败返回空字符串。
 // 支持 SwappableModel 的热切换：调用时总是返回最新值。
 func ModelName(m agentcore.ChatModel) string {
@@ -470,6 +496,10 @@ func NewModelSet(cfg Config) (*ModelSet, error) {
 
 	// 创建角色覆盖模型
 	for role, rc := range cfg.Roles {
+		// Mục chỉ ghi đè độ suy luận: vai vẫn theo model mặc định, không dựng model riêng.
+		if rc.IsEffortOnly() {
+			continue
+		}
 		pc, ok := cfg.Providers[rc.Provider]
 		if !ok {
 			return nil, fmt.Errorf("role %s references unknown provider %q: %w", role, rc.Provider, errs.ErrConfig)
@@ -537,6 +567,9 @@ func createModelFromConfig(providerKey, model string, pc ProviderConfig, cache m
 		llm.WithStreamIdleTimeout(streamIdle),
 		llm.WithProviderExtra(providerExtra),
 		llm.WithExtra(pc.ExtraBody),
+		// 部分上游的 tool_use id 带 '#'、':' 等字符，发出前的校验只接受 [A-Za-z0-9_-]；
+		// 归一化后 tool_result 按同一映射成对改写。
+		llm.WithClientOptions(litellm.WithMessageRepair(litellm.RepairNormalizeToolUseIDs)),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("provider %s (%s): %w: %w", providerKey, providerType, errs.ErrProvider, err)

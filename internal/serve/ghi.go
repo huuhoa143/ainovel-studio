@@ -237,10 +237,14 @@ func maLoi(err error) int {
 		return http.StatusConflict
 	case errors.Is(err, errQuaNhieuMay):
 		return http.StatusConflict
-	case errors.Is(err, store.ErrDangBiKhoa):
+	case errors.Is(err, store.ErrDangBiKhoa), errors.Is(err, errBiGiuNoiKhac):
+		return http.StatusConflict
+	case errors.Is(err, host.ErrDangBan):
 		return http.StatusConflict
 	case errors.Is(err, errNotInitialized):
 		return http.StatusNotFound
+	case errors.Is(err, errDangTat):
+		return http.StatusServiceUnavailable
 	default:
 		return http.StatusBadRequest
 	}

@@ -1,6 +1,7 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { expect, test, vi } from 'vitest';
 
+import { TD } from '@/lib/chu/tien-do';
 import { CHU } from '@/lib/nhan';
 import type { CastDoc, OutlineDoc, Snapshot } from '@/lib/types';
 
@@ -41,16 +42,9 @@ const CHUONG: Snapshot['chapters'] = [
 ];
 
 function ve(chuongChon: number | undefined, p: Partial<Snapshot> = {}) {
-  const chon = vi.fn();
-  const r = render(
-    <Inspector
-      snapshot={snap({ chapters: CHUONG, ...p })}
-      tacPham="b"
-      chuongChon={chuongChon}
-      onChonChuong={chon}
-    />,
+  return render(
+    <Inspector snapshot={snap({ chapters: CHUONG, ...p })} tacPham="b" chuongChon={chuongChon} />,
   );
-  return { ...r, chon };
 }
 
 /** `useHoSo` nạp trong effect nên hai lời gọi đã hẹn phải được nhả trước khi hỏi DOM. */
@@ -68,11 +62,11 @@ test('chưa chọn chương → thấy tiền đề, KHÔNG thấy tab', async (
   expect(container.querySelector('[role="tablist"]')).toBeNull();
 });
 
-test('chưa chọn chương → thấy dải chương ●▶○ và danh sách nhân vật', async () => {
+test('chưa chọn chương → thấy danh sách nhân vật, KHÔNG lặp lại dải chương của cột giữa', async () => {
   const { container } = ve(undefined);
   await xong();
 
-  expect(container.querySelectorAll('.dsvach button')).toHaveLength(3);
+  expect(container.querySelector('.dsvach')).toBeNull();
   expect(screen.getByText('Lâm Thanh')).toBeDefined();
 });
 
@@ -80,20 +74,6 @@ test('chưa chọn chương → KHÔNG có nút quay lại (đang ở chính ch�
   ve(undefined);
   await xong();
   expect(screen.queryByRole('button', { name: CHU.veDanhSachChuong })).toBeNull();
-});
-
-test('mỗi vạch chương mang CẢ ký hiệu lẫn chữ, không chỉ màu', async () => {
-  // Luật 5 của PRODUCT.md: màu không bao giờ là kênh thông tin duy nhất. Một dải chấm chỉ
-  // khác nhau về màu là một dải chỉ đọc được bằng mắt đã quen — và không đọc được trên ảnh
-  // chụp đen trắng lẫn bằng trình đọc màn hình.
-  const { container } = ve(undefined);
-  await xong();
-
-  const vach = container.querySelectorAll('.dsvach button');
-  expect(vach[0]!.getAttribute('title')).toBe(CHU.chuongVaCongDoan(1, 'đã nghiệm thu'));
-  expect(vach[0]!.textContent).toContain('●');
-  expect(vach[1]!.textContent).toContain('▶');
-  expect(vach[2]!.textContent).toContain('○');
 });
 
 test('nhân vật null (chưa dựng nền) nói khác nhân vật [] (đã dựng mà rỗng)', async () => {
@@ -150,25 +130,20 @@ test('bấm nút quay lại → về chế độ ngữ cảnh truyện', async (
   expect(container.querySelector('[role="tablist"]')).toBeNull();
 });
 
-test('quay lại rồi bấm ĐÚNG chương đang chọn thì vào lại chi tiết, không thành ngõ cụt', async () => {
+test('quay lại rồi muốn xem lại ĐÚNG chương đang chọn thì có đường về, không thành ngõ cụt', async () => {
   // Đường lui không được là đường cụt. `chuongChon` do URL giữ, nên bấm lại đúng chương đó
-  // KHÔNG làm prop đổi — nếu chế độ chỉ suy từ prop thì nút trông bấm được mà không phản
-  // ứng. Đây là ca duy nhất phân biệt "quay lại" làm đúng với "quay lại" làm hỏng.
-  const { container, chon } = ve(2);
+  // ở cột giữa KHÔNG làm prop đổi — cột phải phải tự có nút quay về chi tiết.
+  const { container } = ve(2);
   await xong();
   fireEvent.click(screen.getByRole('button', { name: CHU.veDanhSachChuong }));
   await xong();
+  expect(container.querySelector('[role="tablist"]')).toBeNull();
 
-  const vach = within(container.querySelector('.dsvach')!).getByTitle(
-    CHU.chuongVaCongDoan(2, 'đang soạn bản thảo'),
-  );
-  fireEvent.click(vach);
+  fireEvent.click(screen.getByRole('button', { name: new RegExp(TD.xemLaiChuong(2)) }));
   await xong();
 
-  expect(chon).toHaveBeenCalledWith(2);
   expect(container.querySelector('[role="tablist"]')).not.toBeNull();
 });
-
 test('đổi sang chương KHÁC ở nơi khác cũng mở lại chi tiết', async () => {
   // Bảng chương ở cột giữa vẫn chọn được chương trong lúc cột phải đang ở chế độ ngữ cảnh.
   const { container, rerender } = ve(2);
@@ -181,7 +156,6 @@ test('đổi sang chương KHÁC ở nơi khác cũng mở lại chi tiết', as
       snapshot={snap({ chapters: CHUONG })}
       tacPham="b"
       chuongChon={3}
-      onChonChuong={() => {}}
     />,
   );
   await xong();

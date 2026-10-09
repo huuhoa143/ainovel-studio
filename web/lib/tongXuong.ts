@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 
+import { giaiLoi } from '@/lib/loiLlm';
+
 import { layTongXuong } from './api';
 import type { Book, TongXuongDoc, TongXuongSach } from './types';
 
@@ -94,6 +96,8 @@ export interface ViecCanBan {
   /** Ý định đã ký. Có thể mang cả hai. */
   tamDung: boolean;
   canThiep: boolean;
+  /** Engine tự dừng vì lỗi (bế tắc, hết ngân sách) — việc cần người, không phải ý định đã ký. */
+  tuDung?: boolean;
   lyDo?: string;
 }
 
@@ -109,10 +113,9 @@ export function vieccanBanCuaXuong(
   du: TongXuongDoc | undefined,
   sach: Book[],
 ): ViecCanBan[] {
-  if (!du) return [];
   const theoID = new Map(sach.map((b) => [b.id, b]));
   const ra: ViecCanBan[] = [];
-  for (const s of du.books) {
+  for (const s of du?.books ?? []) {
     if (!sachCanBan(s)) continue;
     const b = theoID.get(s.id);
     // Cuốn có trong tờ tổng mà không có trong danh sách là một ca thật, dù hiếm: hai lượt
@@ -125,6 +128,20 @@ export function vieccanBanCuaXuong(
       canThiep: s.pending_steer,
       lyDo: s.advance_hold_reason,
     });
+  }
+  // Cuốn có phiên đang mở mà engine TỰ dừng: lời chào từng nói "chưa có việc nào cần bạn" ngay
+  // trên một cuốn đứng im vì cổng model hết tuyến.
+  for (const b of sach) {
+    const d = b.stop;
+    if (!d || (d.kind !== 'stuck' && d.kind !== 'budget')) continue;
+    const loi = giaiLoi(d.last_error, { vai: d.last_error_agent });
+    const co = ra.find((v) => v.sach.id === b.id);
+    if (co) {
+      co.tuDung = true;
+      co.lyDo = loi?.cau ?? d.reason;
+    } else {
+      ra.push({ sach: b, tamDung: false, canThiep: false, tuDung: true, lyDo: loi?.cau ?? d.reason });
+    }
   }
   return ra;
 }

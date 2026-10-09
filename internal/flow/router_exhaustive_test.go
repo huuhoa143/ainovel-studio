@@ -74,7 +74,7 @@ func expectedInstruction(s State) expectKind {
 	}
 	// 非分层:每 ReviewInterval 章一次全局审阅(未做则先审阅再续写)。
 	if !p.Layered && s.LastCompleted > 0 {
-		if due, _ := domain.ShouldReview(len(p.CompletedChapters)); due && !s.HasGlobalReview {
+		if due, _ := domain.ShouldReview(len(p.CompletedChapters), p.TotalChapters); due && !s.HasGlobalReview {
 			return expectGlobalReview
 		}
 	}

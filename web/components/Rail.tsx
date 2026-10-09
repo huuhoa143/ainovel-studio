@@ -1,11 +1,18 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 
-import type { Khu } from '@/lib/khu';
+import { TEN_KHU, type Khu } from '@/lib/khu';
 import type { Man } from '@/lib/man';
-import { CHU, GIAI_THICH } from '@/lib/nhan';
-import type { Profile, Snapshot, TinhTrangNguon } from '@/lib/types';
+import { CHU, GIAI_THICH, DH, TRANG_THAI_KET_NOI, trangThaiDong } from '@/lib/nhan';
+import { mayDangChay } from '@/lib/song';
+import { DauHieu } from './DauHieu';
+
+import { BieuTuong } from './BieuTuong';
+import type { Book, Profile, Snapshot, TinhTrangNguon } from '@/lib/types';
+import type { TinhTrangKetNoi } from '@/lib/useStudio';
+import { useGiaoDien } from '@/lib/giaoDien';
+import { mauBia } from '@/lib/bia';
 import { useDauDoi, useDauToi } from '@/lib/dauDoi';
 import { useTruot } from '@/lib/truot';
 
@@ -17,43 +24,22 @@ import { useTruot } from '@/lib/truot';
  * số. Rail trống số còn tốt hơn rail có số bịa, vì người vận hành sẽ tin nó và
  * bỏ qua một hàng chờ thật.
  *
- * Ba loại mục, và sự khác nhau giữa chúng phải THẤY ĐƯỢC, không chỉ cảm được:
+ * Hai loại mục, và sự khác nhau giữa chúng phải THẤY ĐƯỢC, không chỉ cảm được:
  *
  *   1. có bề mặt thật  → nút điều hướng, `aria-current` khi đang mở
  *   2. nằm trong khu khác → nút điều hướng tới khu đó, chú giải nói rõ
- *   3. chưa dựng bề mặt → KHÔNG phải nút: chữ mờ + nhãn "chưa dựng"
  *
- * Loại 3 là chỗ dễ nói dối nhất. Một mục trông bấm được mà bấm vào không đi đâu
- * là một lời hứa hụt; tệ hơn là bấm vào rồi ra một bề mặt trống trơn, vì lúc đó
- * người vận hành kết luận tác phẩm không có dữ liệu chứ không phải studio chưa
- * dựng bề mặt.
+ * Ba mục Văn phong / Chi phí / Cài đặt đổi cách vẽ theo việc store có dữ liệu hay
+ * chưa — xem `TinhTrangNguon`:
  *
- * Ba mục Văn phong / Chi phí / Cài đặt TỪNG ở loại 3 vì API không có endpoint.
- * Giờ chúng đã có bề mặt và có endpoint (`/style`, `/cost`, `/settings`), nên
- * chúng không còn là loại 3 một cách cố định — chúng đổi loại theo BẢN ENGINE
- * ĐANG CHẠY, và đó là loại thứ tư:
- *
- *   4. có bề mặt, nhưng nguồn của nó chưa chắc có → xem `TinhTrangNguon`
- *
- * Ba trạng thái, ba cách vẽ khác nhau, và sự khác nhau phải THẤY ĐƯỢC:
- *
- *   'thieu-endpoint' → bản engine đang chạy không có route (404). Vẫn là loại 3:
- *                      chữ mờ, nhãn "chưa dựng". Bấm vào thì bề mặt chỉ hiện được
- *                      một câu lỗi HTTP, và đó là một lời hứa hụt.
- *   'co-route'       → route có, store chưa có dữ liệu. LÀ NÚT, kèm nhãn báo
- *                      trước là sẽ rỗng. Bề mặt tự nói rõ rỗng vì sao — chưa chạy
- *                      gì / tệp có mà rỗng / schema lệch — nên vào đó KHÔNG phải
- *                      một bề mặt trống trơn, mà là một câu trả lời.
+ *   'co-route'       → store chưa có dữ liệu. LÀ NÚT, kèm nhãn báo trước là sẽ
+ *                      rỗng. Bề mặt tự nói rõ rỗng vì sao — chưa chạy gì / tệp có
+ *                      mà rỗng / schema lệch — nên vào đó KHÔNG phải một bề mặt
+ *                      trống trơn, mà là một câu trả lời.
  *   'co-nguon'       → nút thường.
  *
- * Vì sao không gate bằng ba cờ trong `capabilities`: cờ trả lời "store có dữ liệu
- * không", không trả lời "engine này có route không". Với một binary engine cũ hơn
- * bản web, cờ vắng mặt và mọi phép kiểm falsy trên nó sẽ dán nhãn sai lên cả ba
- * mục. `Profile` hỏi thăm endpoint thật nên nó phân biệt được hai câu đó.
- *
- * Và khi CHƯA BIẾT (`hoSo` chưa về, hoặc lời hỏi thăm lỗi mạng) thì mục vẫn là
- * NÚT. Chỉ hạ xuống "chưa dựng" khi biết chắc là thiếu endpoint: đoán theo hướng
- * kia sẽ nháy một nhãn "chưa dựng" lên một bề mặt đã dựng, mỗi lần đổi tác phẩm.
+ * Và khi CHƯA BIẾT (`hoSo` chưa về) thì mục là nút thường: đoán "rỗng" sẽ nháy một
+ * nhãn báo trước lên một bề mặt có dữ liệu, mỗi lần đổi tác phẩm.
  */
 export function Rail({
   snapshot,
@@ -61,10 +47,14 @@ export function Rail({
   khu,
   man,
   onChonKhu,
-  onChonMan,
   canBan,
   tenCuonNgan,
   dauChot,
+  sach = [],
+  tacPham,
+  ketNoi,
+  choDuyet,
+  onMoTacPham,
 }: {
   snapshot: Snapshot | undefined;
   hoSo: Profile | undefined;
@@ -72,7 +62,6 @@ export function Rail({
   /** Màn đang mở. Suy từ `khu` ở `useStudio`, truyền xuống để không suy lại ở đây. */
   man: Man;
   onChonKhu: (k: Khu) => void;
-  onChonMan: (m: Man) => void;
   /**
    * Có việc tồn ở màn Quản lý — bật dấu amber trên hàng màn đó.
    *
@@ -104,8 +93,65 @@ export function Rail({
    *     chỗ đó là MỘT sự thật nhìn từ ba góc.
    */
   dauChot: number;
+  /** Mọi truyện trong tủ — rail liệt kê chúng, thay cho bộ chọn ở thanh trên cũ. */
+  sach?: Book[];
+  tacPham?: string;
+  ketNoi?: TinhTrangKetNoi;
+  /** Truyện đang mở đang đứng chờ bạn duyệt chương. */
+  choDuyet?: boolean;
+  onMoTacPham?: (id: string, khu: Khu, chuong?: number) => void;
 }) {
+  const { toi, dao } = useGiaoDien();
   const oRail = useRef<HTMLElement>(null);
+
+  /**
+   * NGĂN KÉO — hình dạng của rail ở màn hình hẹp.
+   *
+   * Dưới 860px rail từng là một DẢI NGANG chứa đủ mọi mục. Nó không mất đường đi, nhưng
+   * ĐO ĐƯỢC ở 390px: dải rộng 3.904px trong một khung 389px — gấp mười lần. Muốn tới
+   * "Văn phong" phải vuốt qua khoảng 1.600px, và không có cách nào thấy trước còn những
+   * gì ở phía sau. Một đường đi phải vuốt mười màn hình mới tới là một đường đi trên
+   * giấy tờ.
+   *
+   * Ngăn kéo giữ NGUYÊN cây điều hướng — cùng mục, cùng nhóm, cùng thứ tự như ở cột
+   * rộng — và chỉ đổi vật chứa. Không dựng một bộ điều hướng thứ hai cho màn hình hẹp:
+   * hai cây là hai thứ phải giữ cho khớp nhau, và chúng sẽ lệch.
+   *
+   * Giá phải trả là một lần chạm nữa cho mỗi lần đổi bề mặt. Đổi lại: mọi đích đến thấy
+   * được cùng lúc, không vuốt, và nhãn nhóm ("Thế giới truyện", "Vận hành") quay lại —
+   * ở dải ngang chúng buộc phải ẩn vì không còn đứng trên nhóm nào.
+   */
+  const [moNgan, datMoNgan] = useState(false);
+  const nutNgan = useRef<HTMLButtonElement>(null);
+  const idNgan = useId();
+
+  /**
+   * Đóng ngăn sau khi đi tới một đích.
+   *
+   * Bọc ở ĐÂY chứ không ở từng mục: rail có hơn hai mươi nút điều hướng, và một nút quên
+   * đóng ngăn là một nút để lại tấm che phủ lên bề mặt vừa mở. Ba đường ra của rail —
+   * đổi khu, đổi màn, mở tác phẩm khác — đều đi qua ba hàm này.
+   */
+  const diKhu = useCallback(
+    (k: Khu) => {
+      datMoNgan(false);
+      onChonKhu(k);
+    },
+    [onChonKhu],
+  );
+  const diTacPham = useCallback(
+    (id: string, k: Khu, chuong?: number) => {
+      datMoNgan(false);
+      diTacPham(id, k, chuong);
+    },
+    [onMoTacPham],
+  );
+
+  /** Đóng bằng BÀN PHÍM thì trả tiêu điểm về nút mở — cùng luật với `ChonModel`. */
+  const dongNganBangPhim = useCallback(() => {
+    datMoNgan(false);
+    nutNgan.current?.focus();
+  }, []);
 
   /* Dấu chỉ khu đang mở TRƯỢT theo trục DỌC. Nâng cấp tiệm tiến: nền của `[aria-current]` vẫn
      là thứ nói đúng cho tới khi hook đo được — xem lib/truot.ts. */
@@ -133,6 +179,50 @@ export function Rail({
     }
   }, [khu]);
 
+  /**
+   * Ghi nhớ neo cần cuộn tới, để effect ngay trên xử lý sau khi khu đích đã render.
+   *
+   * Khối `neoCho` và chú thích của nó ĐÃ CÓ SẴN, nhưng không chỗ nào gán vào nó: bản sửa
+   * mà chú thích ấy mô tả mới làm một nửa, và nửa bị chính nó gọi là hỏng
+   * (`requestAnimationFrame` trong `onClick`) vẫn là đường duy nhất đang chạy.
+   *
+   * `daMo` là ca khu đích ĐANG mở: `khu` không đổi nên effect không chạy lần nào, và một
+   * cú bấm vào mục neo sẽ không làm gì cả. Lúc đó cuộn thẳng, vì DOM đã có sẵn.
+   */
+  /**
+   * Ngăn đang mở: nghe Esc, và đưa tiêu điểm vào trong.
+   *
+   * KHÔNG khoá cuộn nền ở đây. `body` của studio đã là `overflow: hidden` (globals.css:133
+   * — "khung ứng dụng cố định, không phải trang cuộn"), nên một lần đặt-rồi-trả
+   * `body.style.overflow` là mã không làm gì mà trông như đang gánh việc. Phần thật sự
+   * cần — chặn cuộn LAN từ trong ngăn ra nền khi vuốt quá đáy — là
+   * `overscroll-behavior: contain` trên chính ngăn, ở he.css.
+   */
+  useEffect(() => {
+    if (!moNgan) return;
+    const nghe = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      datMoNgan(false);
+      nutNgan.current?.focus();
+    };
+    document.addEventListener('keydown', nghe);
+    // Tiêu điểm vào mục đang mở nếu có, không thì vào chính ngăn — người dùng bàn phím
+    // mở ngăn ra phải đứng ngay trong nó, không phải Tab qua cả trang để tới.
+    const vao =
+      oRail.current?.querySelector<HTMLElement>('[aria-current="page"]') ?? oRail.current;
+    vao?.focus?.();
+    return () => document.removeEventListener('keydown', nghe);
+  }, [moNgan]);
+
+  const datNeo = useCallback((neo: string, daMo: boolean) => {
+    if (daMo) {
+      document.getElementById(neo)?.scrollIntoView({ block: 'start' });
+      return;
+    }
+    neoCho.current = neo;
+  }, []);
+
   const rows = snapshot?.chapters ?? [];
 
   // Bản thảo = số chương đã có bản thảo chốt. Lấy từ book, là số store ghi.
@@ -154,7 +244,9 @@ export function Rail({
   // amber theo `cuaKiemDinh > 0` — một điều kiện gần như không bao giờ đúng, nên
   // chưa ai thấy nó sai. Báo động chất lượng thật nằm ở Hàng chờ viết lại ngay
   // dưới, và mục đó có amber.
-  const kiemDinh = rows.length;
+  // Số chương CÓ nhận xét (`reviewed`), không phải số hàng: bảng chương còn có chương chưa
+  // viết, và một truyện chưa có nhận xét nào từng hiện "Nhận xét biên tập 1".
+  const kiemDinh = rows.filter((r) => r.reviewed).length;
   // Hàng chờ viết lại đếm từ BẢNG CHƯƠNG, không từ vạch trên trục — vì bề mặt
   // hàng chờ cũng đọc từ đó. Lane chương chỉ trải từ 1 tới `total_chapters` nên
   // một chương chờ viết lại ngoài khoảng đó không có vạch: rail sẽ báo 2 rồi bề
@@ -165,329 +257,349 @@ export function Rail({
   // Chương đang chạy: hiện ở khu bản thảo để thấy dây chuyền còn động.
   const dangSoan = rows.filter((r) => r.stage === 'drafting').length;
 
+  const tenSach = tenCuonNgan;
+  // Chưa có snapshot thì nhóm của truyện đang mở chưa vẽ được — để nó trong danh sách
+  // thường, nếu không truyện đang mở biến mất khỏi rail đúng lúc người dùng vừa chọn nó.
+  const sachKhac = snapshot ? sach.filter((b) => b.id !== tacPham) : sach;
+  // Hai cuốn trùng tên (thường là cùng một ý tưởng chạy hai lần) thì rail phải tách được
+  // chúng — thêm tên thư mục, mờ, chỉ cho những cuốn bị trùng.
+  const demTen = new Map<string, number>();
+  for (const b of sach) demTen.set(b.name || b.id, (demTen.get(b.name || b.id) ?? 0) + 1);
+  const trungTen = (b: Book) => (demTen.get(b.name || b.id) ?? 0) > 1;
+
   return (
+    <>
+      {/* THANH GỌN — chỉ hiện dưới 860px (CSS), là vật thay cho dải ngang cũ.
+          Nó nói ba điều mà dải ngang nói được nhờ luôn hiện: đang ở bề mặt nào, truyện nào
+          đang mở, và có việc nào đang chờ. Thiếu điều thứ ba thì ngăn kéo giấu mất một
+          trạng thái mà trước đây thấy ngay. */}
+      <div className="railThanh">
+        <button
+          ref={nutNgan}
+          type="button"
+          className="railThanhNut"
+          aria-expanded={moNgan}
+          aria-controls={idNgan}
+          aria-label={DH.dieuHuong}
+          onClick={() => datMoNgan((x) => !x)}
+        >
+          <span className="railThanhVach" aria-hidden="true" />
+          <span className="railThanhChu">
+            <span className="railThanhKhu">{TEN_KHU[khu]}</span>
+            {tenSach ? <span className="railThanhSach">{tenSach}</span> : null}
+          </span>
+          {canBan || choDuyet ? (
+            <span className="dauton" aria-label={DH.coViecChoBan} />
+          ) : null}
+        </button>
+      </div>
+
+      {/* Tấm che: bấm ra ngoài để đóng, và làm rõ rằng bề mặt phía sau đang tạm nghỉ.
+          `aria-hidden` vì nó không mang nội dung nào — đường đóng cho bàn phím là Esc. */}
+      {moNgan ? (
+        <div className="railMan" aria-hidden="true" onClick={() => datMoNgan(false)} />
+      ) : null}
+
     <nav
-      className="rail"
-      aria-label="Khu vực sản xuất"
-      /* HAI ref trên một thẻ: `oRail` cho effect tự-mở-nhóm (đọc `[aria-current]` từ DOM),
-         `hopTruot` cho dấu chỉ trượt. Gộp bằng callback ref vì React chỉ nhận một `ref`. */
+      id={idNgan}
+      className={`rail${moNgan ? ' railMo' : ''}`}
+      aria-label={DH.dieuHuong}
+      tabIndex={-1}
       ref={(el) => {
         oRail.current = el;
         hopTruot.current = el;
       }}
     >
-      {/* ── Bộ chuyển MÀN: luôn thấy, không thu được, đứng trên mọi thứ khác ──
-          Đây là câu trả lời cho "các màn khác đâu rồi ta". Điều hướng cấp một không được
-          nằm sau một cú bấm mở nhóm.
-
-          Ba hàng này KHÔNG mang ký hiệu, khác hẳn mục khu ngay dưới — và đó là chủ ý: chúng
-          là một TẦNG khác, nên sự khác nhau phải đọc được từ hình dạng chứ không từ việc
-          phải nhớ ba biểu tượng nữa. Cái chúng mang thay vào đó là PHẠM VI ("cả xưởng" /
-          "mọi tác phẩm" / "một tác phẩm"), tức đúng điều đang bị đọc nhầm. */}
-      <div className="manrail" role="group" aria-label="Màn">
-        <MucMan
-          ma="quan-ly"
-          ten={CHU.manQuanLy}
-          pham={CHU.manQuanLyPhu}
-          man={man}
-          onChonMan={onChonMan}
-          canhBao={canBan}
-        />
-        <MucMan
-          ma="cai-dat-chung"
-          ten={CHU.manCaiDatChung}
-          pham={CHU.manCaiDatChungPhu}
-          man={man}
-          onChonMan={onChonMan}
-        />
-        <MucMan
-          ma="xuong-san-xuat"
-          ten={CHU.manXuongSanXuat}
-          pham={tenCuonNgan ?? CHU.manXuongSanXuatPhu}
-          man={man}
-          onChonMan={onChonMan}
-        />
+      {/* Đầu rail: dấu hiệu + tên sản phẩm + nút đổi sáng/tối. Thay cho thanh trên cũ —
+          một hàng 44px chỉ để chứa logo và bộ chọn truyện là một hàng ăn chiều cao của mọi
+          màn. Bộ chọn truyện giờ chính là danh sách truyện ngay dưới. */}
+      <div className="railDau">
+        <span className="railLogo">
+          <DauHieu />
+          <span className="ten">{CHU.sanPham}</span>
+        </span>
+        <button
+          type="button"
+          className="railNutNho"
+          onClick={dao}
+          aria-label={toi ? DH.sangSang : DH.sangToi}
+          title={toi ? DH.sangSang : DH.sangToi}
+        >
+          <BieuTuong ten={toi ? 'matTroi' : 'trang'} co={15} />
+        </button>
       </div>
 
-      {man === 'quan-ly' ? (
-        // Không bọc nhóm: ba mục dưới một tiêu đề màn đã tự thành một nhóm. Thêm một nhãn
-        // nhóm nữa là đặt tên cho một tập hợp chỉ có một tập hợp.
-        <div className="nhomrail" data-mo="1">
-          <div className="mucnhom">
-            <MucDi
-              nhan={CHU.xuong}
-              ky="▦"
-              di="xuong"
-              khu={khu}
-              onChonKhu={onChonKhu}
-              chuGiai={GIAI_THICH.xuongRailGiaiThich}
-            />
-            <MucDi
-              nhan={CHU.taoTacPham}
-              ky="+"
-              di="tac-pham-moi"
-              khu={khu}
-              onChonKhu={onChonKhu}
-              chuGiai={GIAI_THICH.taoSachGiaiThich}
-            />
-            <MucDi
-              nhan={CHU.cungDung}
-              ky="⁂"
-              di="cung-dung"
-              khu={khu}
-              onChonKhu={onChonKhu}
-              chuGiai={GIAI_THICH.cungDungGiaiThich}
-            />
+      <div className="nhomrail railChung" data-mo="1">
+        <div className="mucnhom">
+          <MucDi
+            nhan={DH.tuTruyen}
+            ky="tu"
+            di="xuong"
+            khu={khu}
+            onChonKhu={diKhu}
+            chuGiai={canBan ? DH.coViecChoBan : DH.railTuTruyen}
+            dauViec={canBan && man !== 'quan-ly'}
+          />
+          <MucDi
+            nhan={DH.vietTruyenMoi}
+            ky="cong"
+            di="tac-pham-moi"
+            khu={khu}
+            onChonKhu={diKhu}
+            chuGiai={DH.railVietMoi}
+          />
+          <MucDi
+            nhan={DH.banYTuong}
+            ky="yTuong"
+            di="cung-dung"
+            khu={khu}
+            onChonKhu={diKhu}
+            chuGiai={DH.railYTuong}
+          />
+        </div>
+      </div>
+
+      {sach.length > 0 || snapshot ? <div className="grp railGrpSach">{DH.truyen}</div> : null}
+
+      {snapshot ? (
+        <section className="railSach" aria-label={DH.truyenDangMo}>
+          <button
+            type="button"
+            className="railSachDau"
+            title={tenSach}
+            aria-current={man === 'xuong-san-xuat' && khu === 'dong-san-xuat' ? 'page' : undefined}
+            onClick={() => diKhu('dong-san-xuat')}
+          >
+            <span className="biaNho" style={{ background: tacPham ? nenBiaNho(tacPham) : undefined }} />
+            <span className="railSachTen">{tenSach ?? DH.truyenDangMo}</span>
+          </button>
+          {/* Truyện đang đứng chờ bạn duyệt: một nút thật, thấy được từ MỌI màn — một quá trình
+              viết đang dừng chờ người không được ẩn sau một lựa chọn điều hướng. */}
+          {choDuyet ? (
+            <button
+              type="button"
+              className="railChoDuyet"
+              aria-label={CHU.nghiemThuChoBan}
+              title={GIAI_THICH.nghiemThuHuyHieuDanToi}
+              onClick={() => diKhu('kiem-dinh')}
+            >
+              <span className="dauton" aria-hidden="true" />
+              {CHU.nghiemThuChoBan}
+            </button>
+          ) : null}
+          <div className="nhomrail railCon" data-mo="1">
+            <div className="mucnhom">
+              <MucDi
+                nhan={DH.tienDo}
+                ky="tienDo"
+                di="dong-san-xuat"
+                khu={khu}
+                onChonKhu={diKhu}
+                chuGiai={DH.railTienDo}
+              />
+              {/* Đọc truyện là mục DUY NHẤT nhận `dauChot`: nó đếm chương đã xong, tức đúng
+                  con số mà sự kiện chốt chương làm đổi (họ 10 · đồng thanh). */}
+              <MucDi
+                nhan={DH.docTruyen}
+                ky="doc"
+                di="ban-thao"
+                khu={khu}
+                onChonKhu={diKhu}
+                dem={banThao}
+                dauChot={dauChot}
+                chuGiai={
+                  dangSoan > 0
+                    ? DH.dangDocChuong(
+                        banThao ?? 0,
+                        dangSoan,
+                        trangThaiDong({ stage: 'drafting' }, mayDangChay(snapshot)).nhan,
+                      )
+                    : DH.railDoc
+                }
+              />
+              <MucDi
+                nhan={DH.nhanXet}
+                ky="nhanXet"
+                di="kiem-dinh"
+                khu={khu}
+                onChonKhu={diKhu}
+                dem={kiemDinh}
+                chuGiai={DH.railNhanXet}
+              />
+              <MucDi
+                nhan={DH.canVietLai}
+                ky="vietLai"
+                di="hang-cho-viet-lai"
+                khu={khu}
+                onChonKhu={diKhu}
+                dem={vietLai}
+                canhBao={vietLai > 0}
+                chuGiai={DH.railVietLai}
+              />
+              <MucDi
+                nhan={DH.xuatBan}
+                ky="xuatBan"
+                di="nhap-xuat"
+                khu={khu}
+                onChonKhu={diKhu}
+                chuGiai={DH.railXuatBan}
+              />
+            </div>
           </div>
+          <Nhom
+            dongSan
+            ma="the-gioi"
+            ten={DH.theGioi}
+            khu={khu}
+            canhBao={(hoSo?.foreshadow ?? 0) > 0}
+          >
+            <MucDi
+              nhan={DH.danY}
+              ky="danY"
+              di="dan-y"
+              khu={khu}
+              onChonKhu={diKhu}
+              dem={soKhoiDanY(snapshot)}
+            />
+            <MucDi
+              nhan={DH.nhanVat}
+              ky="nhanVat"
+              di="nhan-vat"
+              khu={khu}
+              onChonKhu={diKhu}
+              dem={hoSo?.characters ?? undefined}
+            />
+            <MucDi
+              nhan={DH.luatTheGioi}
+              ky="luat"
+              di="luat-the-gioi"
+              khu={khu}
+              onChonKhu={diKhu}
+              dem={hoSo?.rules ?? undefined}
+            />
+            <MucDi
+              nhan={DH.phucBut}
+              ky="phucBut"
+              di="phuc-but"
+              khu={khu}
+              onChonKhu={diKhu}
+              dem={hoSo?.foreshadow ?? undefined}
+              canhBao={(hoSo?.foreshadow ?? 0) > 0}
+            />
+            <MucNguon
+              nhan={DH.vanPhong}
+              ky="vanPhong"
+              di="van-phong"
+              khu={khu}
+              onChonKhu={diKhu}
+              nguon={hoSo?.vanPhong}
+              chuGiai={GIAI_THICH.railVanPhong}
+            />
+          </Nhom>
+
+          <Nhom ma="van-hanh" ten={DH.vanHanh} khu={khu} dongSan>
+            <MucDi
+              nhan={DH.nhatKy}
+              ky="nhatKy"
+              di="dong-san-xuat"
+              khu={khu}
+              onChonKhu={diKhu}
+              dem={phanQuyet}
+              chuGiai={GIAI_THICH.namTrongDongSanXuat}
+              neo="nhat-ky-phan-quyet"
+              onNeo={datNeo}
+              phu
+            />
+            <MucNguon
+              nhan={DH.chiPhi}
+              ky="chiPhi"
+              di="chi-phi"
+              khu={khu}
+              onChonKhu={diKhu}
+              nguon={hoSo?.chiPhi}
+              chuGiai={GIAI_THICH.railChiPhi}
+            />
+            <MucDi
+              nhan={DH.nhomAi}
+              ky="nhomAi"
+              di="to-san-xuat"
+              khu={khu}
+              onChonKhu={diKhu}
+            />
+            <MucNguon
+              nhan={DH.thongSoPhien}
+              ky="phien"
+              di="phien-chay"
+              khu={khu}
+              onChonKhu={diKhu}
+              nguon={hoSo?.caiDat}
+              chuGiai={GIAI_THICH.railPhienChay}
+            />
+          </Nhom>
+        </section>
+      ) : null}
+
+      {sachKhac.length > 0 ? (
+        <div className="railSachKhac">
+          {sachKhac.slice(0, 8).map((b) => (
+            <button
+              key={b.id}
+              type="button"
+              className="mucdi mucSach"
+              title={`${b.name || b.id} · ${b.id}`}
+              onClick={() => diTacPham(b.id, 'dong-san-xuat')}
+            >
+              <span className="biaNho" style={{ background: nenBiaNho(b.id) }} />
+              <span className="nhan">
+                {b.name || b.id}
+                {trungTen(b) ? <span className="thuMuc"> · {b.id}</span> : null}
+              </span>
+              {b.activity === 'running' ? <span className="dangChayDot" aria-label={DH.dangViet} /> : null}
+            </button>
+          ))}
         </div>
       ) : null}
 
-      {man === 'cai-dat-chung' ? (
-        <div className="nhomrail" data-mo="1">
-          <div className="mucnhom">
-            <MucDi
-              nhan={CHU.cauHinh}
-              ky="⌸"
-              di="cau-hinh"
-              khu={khu}
-              onChonKhu={onChonKhu}
-              chuGiai={GIAI_THICH.cauHinhLaMucMay}
-            />
-            {/* KHÔNG còn mục "Model theo vai" ở đây: dải kênh vai đã nhập vào chính bề mặt
-                Cấu hình máy ngay trên. Hai mục rail cho một quyết định là đúng thứ làm người
-                dùng phải nhớ rằng còn một màn nữa mới dùng được nhà cung cấp vừa thêm. */}
-            <MucDi
-              nhan={CHU.chiPhiXuong}
-              ky="$"
-              di="chi-phi-xuong"
-              khu={khu}
-              onChonKhu={onChonKhu}
-              chuGiai={GIAI_THICH.chiPhiXuongGiaiThich}
-            />
-          </div>
+      {/* Cài đặt ghim ở đáy: dùng một lần lúc đầu rồi hiếm khi quay lại. */}
+      <div className="nhomrail railDay" data-mo="1">
+        <div className="mucnhom">
+          <MucDi
+            nhan={DH.modelKhoa}
+            ky="khoa"
+            di="cau-hinh"
+            khu={khu}
+            onChonKhu={diKhu}
+            chuGiai={DH.railModel}
+          />
+          <MucDi
+            nhan={DH.chiPhiTong}
+            ky="bieuDo"
+            di="chi-phi-xuong"
+            khu={khu}
+            onChonKhu={diKhu}
+            chuGiai={DH.railChiPhiTong}
+          />
         </div>
-      ) : null}
-
-      {man !== 'xuong-san-xuat' ? null : (
-        <>
-      {/* Nhóm 1 mở sẵn và không thu được: đây là nhóm chứa bề mặt đang mở ở mọi lần vào
-          đầu tiên, nên thu nó lại là để người dùng đối diện một rail rỗng. */}
-      <Nhom ma="truyen" ten={CHU.nhomTruyen} luonMo>
-        {/* Bản thảo lên ĐẦU, trước Dòng sản xuất.
-            Thứ tự cũ đặt bảng giám sát trước thành quả, và đó là thứ tự của người dựng hệ
-            thống chứ không của người viết truyện: cửa đầu tiên nên là thứ người dùng muốn
-            nhất. Bề mặt mặc định vẫn là Dòng sản xuất — đổi cả cửa đó là đổi sản phẩm,
-            không phải sửa rail. */}
-        {/* Bản thảo là mục DUY NHẤT nhận `dauChot`: nó đếm chương đã chốt, tức đúng con số
-            mà sự kiện ấy làm đổi. Rải nó ra các mục khác sẽ biến một tin thành một đợt
-            nhấp toàn rail — đúng thứ họ 10 tồn tại để KHÔNG làm. */}
-        <MucDi
-          nhan={CHU.banThao}
-          ky="✎"
-          di="ban-thao"
-          khu={khu}
-          onChonKhu={onChonKhu}
-          dem={banThao}
-          dauChot={dauChot}
-          chuGiai={
-            dangSoan > 0
-              ? `${banThao ?? 0} chương đã chốt · ${dangSoan} đang soạn`
-              : undefined
-          }
-        />
-        <MucDi
-          nhan={CHU.dongSanXuat}
-          ky="▤"
-          di="dong-san-xuat"
-          khu={khu}
-          onChonKhu={onChonKhu}
-        />
-        <MucDi
-          nhan={CHU.kiemDinh}
-          ky="◆"
-          di="kiem-dinh"
-          khu={khu}
-          onChonKhu={onChonKhu}
-          dem={kiemDinh}
-          chuGiai={GIAI_THICH.railKiemDinhDem}
-        />
-        <MucDi
-          nhan={CHU.hangChoVietLai}
-          ky="■"
-          di="hang-cho-viet-lai"
-          khu={khu}
-          onChonKhu={onChonKhu}
-          dem={vietLai}
-          canhBao={vietLai > 0}
-        />
-        {/* Nhập & Xuất về nhóm này, không ở nhóm vận hành.
-            Xuất bản là hợp nhất BẢN THẢO thành một tệp mang về máy — nó tác động lên chính
-            thứ nhóm này chứa. Ở nhóm vận hành nó nằm giữa chi phí và cấu hình, tức giữa các
-            mục nói về cái máy, nên không ai tìm "xuất truyện ra tệp" ở đó. */}
-        <MucDi
-          nhan={CHU.nhapXuat}
-          ky="⇄"
-          di="nhap-xuat"
-          khu={khu}
-          onChonKhu={onChonKhu}
-          chuGiai={GIAI_THICH.xuatBanGiaiThich}
-        />
-      </Nhom>
-
-      <Nhom
-        ma="the-gioi"
-        ten={CHU.nhomTheGioi}
-        khu={khu}
-        // Phục bút chưa thu là việc TỒN — nhóm thu lại vẫn phải mang dấu đó ra ngoài, nếu
-        // không thu nhóm biến thành ẩn một hàng chờ thật.
-        canhBao={(hoSo?.foreshadow ?? 0) > 0}
-      >
-        <MucDi
-          nhan={CHU.danYPhanTang}
-          ky="☰"
-          di="dan-y"
-          khu={khu}
-          onChonKhu={onChonKhu}
-          dem={soKhoiDanY(snapshot)}
-        />
-        <MucDi
-          nhan={CHU.nhanVat}
-          ky="●"
-          di="nhan-vat"
-          khu={khu}
-          onChonKhu={onChonKhu}
-          dem={hoSo?.characters ?? undefined}
-        />
-        <MucDi
-          nhan={CHU.luatTheGioi}
-          ky="⬢"
-          di="luat-the-gioi"
-          khu={khu}
-          onChonKhu={onChonKhu}
-          dem={hoSo?.rules ?? undefined}
-        />
-        <MucDi
-          nhan={CHU.phucBut}
-          ky="◇"
-          di="phuc-but"
-          khu={khu}
-          onChonKhu={onChonKhu}
-          dem={hoSo?.foreshadow ?? undefined}
-          canhBao={(hoSo?.foreshadow ?? 0) > 0}
-        />
-        {/* Văn phong không có số đếm: store giữ nó là một bản mô tả, không phải
-            danh sách đếm được. Không có nguồn thì không hiện ô số. */}
-        <MucNguon
-          nhan={CHU.vanPhong}
-          ky="✒"
-          di="van-phong"
-          khu={khu}
-          onChonKhu={onChonKhu}
-          nguon={hoSo?.vanPhong}
-          chuGiai={GIAI_THICH.railVanPhong}
-          viSaoThieu={GIAI_THICH.thieuEndpointVanPhong}
-        />
-      </Nhom>
-
-      <Nhom ma="van-hanh" ten={CHU.nhomVanHanh} khu={khu}>
-        {/* Nhật ký phán quyết CÓ bề mặt — nó là một mục trong Dòng sản xuất. Nên
-            đây là điều hướng thật, không phải mục chưa dựng. */}
-        <MucDi
-          nhan={CHU.nhatKyPhanQuyet}
-          ky="⌗"
-          di="dong-san-xuat"
-          khu={khu}
-          onChonKhu={onChonKhu}
-          dem={phanQuyet}
-          chuGiai={GIAI_THICH.namTrongDongSanXuat}
-          neo="nhat-ky-phan-quyet"
-          phu
-        />
-        <MucNguon
-          nhan={CHU.chiPhi}
-          ky="$"
-          di="chi-phi"
-          khu={khu}
-          onChonKhu={onChonKhu}
-          nguon={hoSo?.chiPhi}
-          chuGiai={GIAI_THICH.railChiPhi}
-          viSaoThieu={GIAI_THICH.thieuEndpointChiPhi}
-        />
-        <MucDi
-          nhan={CHU.toSanXuat}
-          ky="☗"
-          di="to-san-xuat"
-          khu={khu}
-          onChonKhu={onChonKhu}
-        />
-        <MucNguon
-          nhan={CHU.phienChayKhu}
-          ky="⚙"
-          di="phien-chay"
-          khu={khu}
-          onChonKhu={onChonKhu}
-          nguon={hoSo?.caiDat}
-          chuGiai={GIAI_THICH.railPhienChay}
-          viSaoThieu={GIAI_THICH.thieuEndpointPhienChay}
-        />
-      </Nhom>
-        </>
-      )}
+        {ketNoi ? (
+          <span
+            className="railKetNoi"
+            data-tt={ketNoi}
+            title={TRANG_THAI_KET_NOI[ketNoi].giaiThich}
+            aria-label={TRANG_THAI_KET_NOI[ketNoi].nhan}
+          >
+            <span className="dot" aria-hidden="true" />
+            {TRANG_THAI_KET_NOI[ketNoi].nhan}
+          </span>
+        ) : null}
+      </div>
     </nav>
+    </>
   );
 }
 
-/**
- * Một hàng của bộ chuyển màn.
- *
- * # Vì sao nó KHÔNG dùng lại `MucDi`
- *
- * Hai thứ trông gần giống nhau mà khác tầng là chỗ dùng lại sai nhất. `MucDi` mang một ký
- * hiệu và một số đếm việc tồn; hàng màn mang một dòng phạm vi và không bao giờ mang số. Ép
- * chúng vào một component sẽ sinh ra một loạt prop bật/tắt, và mỗi prop ấy là một cách để
- * hai tầng lẫn vào nhau trở lại.
- *
- * `aria-current="page"` dùng CHUNG với mục khu, và đó là đúng: ở mọi lúc chỉ có một màn và
- * một khu đang mở, nên hai `aria-current` trong rail nói hai câu thật ở hai tầng — trình đọc
- * màn hình đọc được cả "đang ở màn nào" lẫn "đang ở khu nào".
- */
-function MucMan({
-  ma,
-  ten,
-  pham,
-  man,
-  onChonMan,
-  canhBao,
-}: {
-  ma: Man;
-  ten: string;
-  /** Phạm vi của màn — thứ đang bị đọc nhầm, nên nó ở trên bề mặt chứ không trong `title`. */
-  pham: string;
-  man: Man;
-  onChonMan: (m: Man) => void;
-  canhBao?: boolean;
-}) {
-  const dangMo = man === ma;
-  return (
-    <button
-      type="button"
-      className="mucman"
-      aria-current={dangMo ? 'page' : undefined}
-      title={CHU.doiMan(ten, pham)}
-      onClick={() => onChonMan(ma)}
-    >
-      <span className="tenMan">{ten}</span>
-      {/* Dấu việc tồn của MÀN. Không phải một con số: `/api/workshop/cost` nói được "cuốn
-          nào có ý định đã ký", còn "bao nhiêu việc" thì mỗi cuốn một loại việc và cộng
-          chúng lại không ra nghĩa gì. Một dấu có/không là điều duy nhất chứng minh được. */}
-      {canhBao && !dangMo ? (
-        <span className="dauton" aria-hidden="true">
-          ■
-        </span>
-      ) : null}
-      <span className="phamMan">{pham}</span>
-    </button>
-  );
+function nenBiaNho(id: string): string {
+  const m = mauBia(id);
+  return `linear-gradient(160deg, ${m.sang}, ${m.chinh} 60%, ${m.sau})`;
 }
 
 /** Khóa localStorage giữ nhóm nào đang mở. Một khóa cho cả rail, không phải một khóa mỗi nhóm. */
@@ -532,6 +644,7 @@ function Nhom({
   khu,
   luonMo,
   canhBao,
+  dongSan,
   children,
 }: {
   ma: string;
@@ -542,11 +655,12 @@ function Nhom({
   luonMo?: boolean;
   /** Có việc tồn bên trong — dấu phải ra ngoài kể cả khi nhóm đang đóng. */
   canhBao?: boolean;
+  /** Mặc định thu lại — cho nhóm ít dùng hằng ngày. Vẫn tự mở khi khu đang mở nằm trong nó. */
+  dongSan?: boolean;
   children: React.ReactNode;
 }) {
-  // Mặc định MỞ — xem chú thích ngay trên về vì sao điều khoản này đã đổi. `luonMo` vẫn khác:
-  // nhóm đó không có nút thu, còn nhóm thường mở sẵn nhưng thu được và nhớ lựa chọn.
-  const [mo, datMo] = useState(true);
+  // Mặc định MỞ, trừ nhóm `dongSan`. Người dùng thu/mở thì studio nhớ lựa chọn đó.
+  const [mo, datMo] = useState(!dongSan);
   const oNhom = useRef<HTMLDivElement>(null);
 
   // MỘT effect cho cả hai luật, không phải hai — thứ tự giữa chúng là một luật thật:
@@ -566,6 +680,14 @@ function Nhom({
     if (luonMo) return;
     if (oNhom.current?.querySelector('[aria-current="page"]')) {
       datMo(true);
+      window.dispatchEvent(new CustomEvent('ainovel:nhomMo', { detail: ma }));
+      return;
+    }
+    // Màn đang mở nằm trong nhóm KHÁC thì nhóm đó thắng, và nhóm này đóng — bất kể đã lưu gì.
+    // Không dựa được vào sự kiện `ainovel:nhomMo` ở đây: lúc gắn trang, nhóm đứng trước phát
+    // sự kiện khi nhóm đứng sau chưa kịp nghe, nên hai nhóm cùng mở.
+    if (document.querySelector('[data-thu-gon] [aria-current="page"]')) {
+      datMo(false);
       return;
     }
     try {
@@ -579,9 +701,21 @@ function Nhom({
     }
   }, [ma, luonMo, khu]);
 
+  // Mỗi lúc một nhóm mở: mở nhóm này thì báo cho nhóm kia thu lại, để rail không dài quá
+  // một màn hình khi cả hai nhóm cùng bung.
+  useEffect(() => {
+    if (luonMo) return;
+    const nghe = (e: Event) => {
+      if ((e as CustomEvent<string>).detail !== ma) datMo(false);
+    };
+    window.addEventListener('ainovel:nhomMo', nghe);
+    return () => window.removeEventListener('ainovel:nhomMo', nghe);
+  }, [ma, luonMo]);
+
   const doi = () => {
     const moi = !mo;
     datMo(moi);
+    if (moi) window.dispatchEvent(new CustomEvent('ainovel:nhomMo', { detail: ma }));
     try {
       const luu = window.localStorage.getItem(KHOA_NHOM_MO);
       const d = luu ? (JSON.parse(luu) as Record<string, boolean>) : {};
@@ -601,7 +735,7 @@ function Nhom({
   }
 
   return (
-    <div className="nhomrail" data-mo={mo ? '1' : '0'} ref={oNhom}>
+    <div className="nhomrail" data-thu-gon="" data-mo={mo ? '1' : '0'} ref={oNhom}>
       <button
         type="button"
         className="grp grpnut"
@@ -610,9 +744,9 @@ function Nhom({
         title={mo ? CHU.dongNhom(ten) : CHU.moNhom(ten)}
         onClick={doi}
       >
-        <span className="chev" aria-hidden="true">
-          {mo ? '▾' : '▸'}
-        </span>
+        <svg className="chev" width="10" height="10" viewBox="0 0 10 10" aria-hidden="true" data-mo={mo ? '1' : '0'}>
+          <path d="M3.5 2 7 5 3.5 8" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
         <span className="tenNhom">{ten}</span>
         {/* Dấu việc tồn chỉ hiện khi nhóm ĐANG ĐÓNG: mở ra thì con số amber của chính mục
             đó đã nói, và hai dấu cho một việc là một việc bị đếm hai lần. */}
@@ -646,9 +780,11 @@ function MucDi({
   chuGiai,
   canhBao,
   neo,
+  onNeo,
   phu,
   nhanPhu,
   dauChot,
+  dauViec,
 }: {
   nhan: string;
   ky: string;
@@ -659,9 +795,13 @@ function MucDi({
   chuGiai?: string;
   canhBao?: boolean;
   neo?: string;
+  /** Giao neo cho `Rail` cuộn SAU khi khu đích render. Xem `datNeo`. */
+  onNeo?: (neo: string, daMo: boolean) => void;
   phu?: boolean;
   /** Họ 10 — chỉ mục "Bản thảo" truyền vào. Xem chú thích ở `Rail`. */
   dauChot?: number;
+  /** Chấm amber: có việc chờ bạn ở đích này (không phải một con số). */
+  dauViec?: boolean;
   /**
    * Nhãn báo trước, cho mục VẪN BẤM ĐƯỢC mà biết trước là sẽ rỗng.
    *
@@ -697,19 +837,15 @@ function MucDi({
       title={chuGiai}
       onClick={() => {
         onChonKhu(di);
-        if (neo) {
-          // Cuộn sau khi khu đích đã render. requestAnimationFrame đủ vì React
-          // đã dựng DOM xong ở nhịp vẽ kế tiếp.
-          requestAnimationFrame(() => {
-            document.getElementById(neo)?.scrollIntoView({ block: 'start' });
-          });
-        }
+        // Neo giao cho `Rail`: khu đích có thể chưa mount ở nhịp vẽ này. Xem `datNeo`.
+        if (neo) onNeo?.(neo, khu === di);
       }}
     >
       <span className="g" aria-hidden="true">
-        {ky}
+        <BieuTuong ten={ky} />
       </span>
       <span className="nhan">{nhan}</span>
+      {dauViec ? <span className="dauton" aria-label={DH.coViecChoBan} /> : null}
       {dem !== undefined ? (
         /* `key` là thứ làm animation chạy LẠI: CSS chỉ phát keyframes khi phần tử được dựng,
            nên một lớp bật-rồi-tắt không đủ. Dấu 0 = chưa đổi lần nào → không lớp nào, tức mở
@@ -727,15 +863,11 @@ function MucDi({
 }
 
 /**
- * Mục có bề mặt ở tầng web, nhưng nguồn của nó tuỳ bản engine đang chạy.
+ * Mục có bề mặt, kèm nhãn báo trước khi store chưa có dữ liệu cho nó.
  *
- * Chỉ `'thieu-endpoint'` hạ mục xuống dạng "chưa dựng". Mọi giá trị khác — kể cả
- * `undefined`, tức chưa hỏi thăm xong hoặc hỏi thăm lỗi — đều cho ra NÚT.
- *
- * Hướng mặc định đó là có chủ ý: hai hướng sai không tương đương. Vẽ nút cho một
- * endpoint thiếu thì người vận hành bấm vào và đọc được câu lỗi thật của server —
- * bất tiện, nhưng vẫn là sự thật. Vẽ "chưa dựng" cho một bề mặt đã dựng thì họ
- * không bao giờ bấm, và câu sai đó không có cách nào tự lộ ra.
+ * Chỉ `'co-route'` gắn nhãn. `undefined` — chưa đọc xong — cho ra nút thường: nhãn sai
+ * "chưa có số liệu" trên một bề mặt có dữ liệu thì người vận hành không bấm, và câu sai
+ * đó không có cách nào tự lộ ra.
  */
 function MucNguon({
   nhan,
@@ -745,7 +877,6 @@ function MucNguon({
   onChonKhu,
   nguon,
   chuGiai,
-  viSaoThieu,
 }: {
   nhan: string;
   ky: string;
@@ -755,11 +886,7 @@ function MucNguon({
   nguon: TinhTrangNguon | undefined;
   /** Phạm vi của bề mặt — điều không đọc được từ tên mục. */
   chuGiai: string;
-  viSaoThieu: string;
 }) {
-  if (nguon === 'thieu-endpoint') {
-    return <MucChuaDung nhan={nhan} ky={ky} viSao={viSaoThieu} />;
-  }
   const trong = nguon === 'co-route';
   return (
     <MucDi
@@ -772,48 +899,8 @@ function MucNguon({
       // thêm vào chứ không thay thế. Thay thế thì người vận hành mất cách biết khu
       // này để làm gì, đúng lúc họ đang cân nhắc có nên vào hay không.
       chuGiai={trong ? `${chuGiai} — ${GIAI_THICH.coRouteChuaCoNguon}` : chuGiai}
-      nhanPhu={trong ? CHU.chuaCoSoLieu : undefined}
+      nhanPhu={trong ? DH.chuaCoSoLieu : undefined}
     />
-  );
-}
-
-/**
- * Mục chưa có bề mặt riêng.
- *
- * Vẫn hiện số đếm khi có nguồn — con số là tin vận hành và nó đúng dù bề mặt
- * chưa dựng. Nhưng mục này không phải nút và mang nhãn "chưa dựng", để không ai
- * bấm rồi chờ.
- *
- * `viSao` là lý do CỤ THỂ của từng mục, và nó bắt buộc phải có. Ba mục còn lại
- * đều chưa dựng vì cùng một loại nguyên nhân — dữ liệu nằm trong store nhưng
- * chưa có endpoint trả ra — chứ không vì giao diện chưa kịp làm. Một chú giải
- * chung ("chưa dựng bề mặt") để người đọc tưởng đây là việc tồn của tầng web và
- * đi chờ sai chỗ.
- */
-function MucChuaDung({
-  nhan,
-  ky,
-  dem,
-  canhBao,
-  viSao,
-}: {
-  nhan: string;
-  ky: string;
-  dem?: number;
-  canhBao?: boolean;
-  viSao: string;
-}) {
-  return (
-    <div className="muc chuadung" title={viSao} aria-disabled="true">
-      <span className="g" aria-hidden="true">
-        {ky}
-      </span>
-      <span className="nhan">{nhan}</span>
-      {dem !== undefined ? (
-        <span className={`n${canhBao ? ' warn' : ''}`}>{dem}</span>
-      ) : null}
-      <span className="tag">chưa dựng</span>
-    </div>
   );
 }
 

@@ -22,6 +22,7 @@ import {
   layWorkshop,
 } from './api';
 import { nhanSuKienUi } from './dongSuKien';
+import { nhanVai } from './nhan';
 import { KHU_MAC_DINH, chuanKhu, laKhu, type Khu } from './khu';
 import { KHU_DAU_MAN, manCuaKhu, type Man } from './man';
 import type { Profile, Snapshot, StreamEvent, Workshop } from './types';
@@ -36,6 +37,8 @@ const GIU_SU_KIEN = 40;
  * sự kiện sẽ nghiền store khi engine đang phát liên tục. Gộp lại một nhịp.
  */
 const NHIP_LAM_MOI_MS = 1500;
+/** Nhịp hỏi lại khi engine đang ở trạng thái chuyển tiếp (`pausing`). */
+const NHIP_CHUYEN_TIEP_MS = 1000;
 
 /**
  * Nhịp làm mới NỀN — cho những gì dòng sự kiện không với tới.
@@ -48,7 +51,7 @@ const NHIP_LAM_MOI_MS = 1500;
  * còn cách F5.
  *
  * Và ngay cả khi có engine mở, dòng sự kiện chỉ chảy khi CÓ SỰ KIỆN. Một engine đang nghỉ
- * không phát gì, nên một cuốn bị đổi từ CLI hay từ một tab khác vẫn không thấy.
+ * không phát gì, nên một cuốn bị đổi từ một tab khác vẫn không thấy.
  *
  * # Vì sao 8 giây, và vì sao chỉ khi tab đang hiện
  *
@@ -103,16 +106,26 @@ function docPayload(p: unknown): PayloadEvent {
   return p as PayloadEvent;
 }
 
-function congDoanTu(ev: StreamEvent): CongDoanSong | undefined {
+export function congDoanTu(ev: StreamEvent): CongDoanSong | undefined {
   const buoc = ev.summary?.trim();
   if (!buoc) return undefined;
 
   const pl = docPayload(ev.payload);
   const chuaXong = !!pl.FinishedAt && pl.FinishedAt.startsWith(THOI_GIAN_RONG);
+  const loai = ev.category || pl.Category || undefined;
+  const laGiaoViec = loai?.toUpperCase() === 'DISPATCH';
+  // Sự kiện giao việc ĐÃ XONG ("architect_short (…)" kèm FinishedAt) nói rằng một vai vừa làm
+  // xong — không phải việc đang diễn ra. Lấy nó làm "đang làm" là đúng lỗi đo được trên truyện
+  // thật: Người viết đã chạy mà thẻ vẫn ghi "Kiến trúc sư đang làm". Bỏ qua, giữ việc trước.
+  if (laGiaoViec && !!pl.ID && !chuaXong) return undefined;
+  // Vai của một lần giao việc là BÊN NHẬN (tên đứng đầu dòng tóm tắt), không phải `agent` —
+  // trường đó là `engine` ở sự kiện bắt đầu, tức kênh chứ không phải người làm.
+  const nhan = laGiaoViec ? /^\s*([a-z][\w-]*)/i.exec(buoc)?.[1] : undefined;
+  const vaiNhan = nhan && nhanVai(nhan) !== nhan ? nhan : undefined;
   return {
     buoc,
-    vai: ev.agent || pl.Agent || undefined,
-    loai: ev.category || pl.Category || undefined,
+    vai: vaiNhan || ev.agent || pl.Agent || undefined,
+    loai,
     dangChay: !!pl.ID && chuaXong,
     luc: ev.time,
     loi: pl.Failed === true || pl.Level === 'error' || ev.category === 'ERROR',
@@ -573,13 +586,29 @@ export function useStudio(): Studio {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tacPham, lanTai, !!snapshot, napBaTo]);
 
+  /**
+   * Trạng thái CHUYỂN TIẾP tự hỏi lại, không chờ sự kiện.
+   *
+   * `pausing` là một khoảnh khắc chứ không phải chỗ dừng: engine đang thoát, lát nữa sẽ là
+   * `paused`. Nếu chỉ trông vào dòng sự kiện để nạp lại thì một sự kiện rơi (hay một lần nạp lại
+   * chạy sớm hơn lúc engine thoát hẳn) là thanh điều khiển kẹt "Đang dừng…" mãi — đo được trên
+   * truyện thật, kẹt hơn hai phút dù engine đã dừng từ giây đầu. Hỏi lại mỗi giây cho tới khi
+   * trạng thái rời `pausing`; snapshot đổi thì effect tự dọn.
+   */
+  const dangChuyen = snapshot?.runtime === 'pausing';
+  useEffect(() => {
+    if (!dangChuyen || !tacPham) return;
+    const t = setInterval(() => napBaTo(tacPham), NHIP_CHUYEN_TIEP_MS);
+    return () => clearInterval(t);
+  }, [dangChuyen, tacPham, napBaTo]);
+
   /* ── 4. làm mới nền ────────────────────────────────────────────────── */
 
   /**
    * Hai nguồn kích hoạt, và chúng bắt hai ca KHÁC nhau — bỏ cái nào cũng còn lỗ:
    *
-   *   nhịp        — thay đổi xảy ra TRONG LÚC đang nhìn (một tab khác tạo cuốn, CLI chạy
-   *                 song song). Không có nhịp thì bề mặt đứng im trước mắt người dùng.
+   *   nhịp        — thay đổi xảy ra TRONG LÚC đang nhìn (một tab khác tạo cuốn, một cuốn
+   *                 khác đang chạy). Không có nhịp thì bề mặt đứng im trước mắt người dùng.
    *   quay lại    — thay đổi xảy ra trong lúc tab bị ẩn. Nhịp không chạy khi ẩn, nên nếu
    *                 chỉ có nhịp thì lúc quay lại vẫn phải đợi hết một chu kỳ mới thấy — và
    *                 đó đúng là khoảnh khắc người ta bấm F5.

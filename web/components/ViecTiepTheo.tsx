@@ -1,10 +1,15 @@
 'use client';
 
+import { LOI_LLM } from '@/lib/chu/tien-do';
 import { soTu } from '@/lib/dinhdang';
 import type { Khu } from '@/lib/khu';
+import { lyDoTuDung } from '@/lib/loiLlm';
+import { trangThaiCua } from '@/lib/nghiemThu';
 import { CHU, GIAI_THICH, giaiCongDoan, nhanVai } from '@/lib/nhan';
 import type { Snapshot } from '@/lib/types';
 import type { CongDoanSong } from '@/lib/useStudio';
+
+import { BieuTuong } from './BieuTuong';
 
 /**
  * Dải VIỆC TIẾP THEO — dòng đầu tiên của bề mặt mặc định.
@@ -85,9 +90,7 @@ export function ViecTiepTheo({
             className="vttPhu vttCanh"
             onClick={() => onChonKhu('hang-cho-viet-lai')}
           >
-            <span className="ky" aria-hidden="true">
-              ■
-            </span>
+            <BieuTuong ten="vietLai" co={14} />
             {CHU.xemChoVietLai(vietLai)}
           </button>
         ) : null}
@@ -98,6 +101,7 @@ export function ViecTiepTheo({
             className="vttChinh"
             onClick={() => onDocChuong(chuongDoc.so)}
           >
+            <BieuTuong ten="doc" co={14} />
             {chuongDoc.nhan}
           </button>
         ) : null}
@@ -257,13 +261,23 @@ function trangThai(
     };
   }
 
+  // Đứng ở cửa duyệt thì "bấm Viết tiếp ở thanh dưới" là chỉ sai đường: việc của người dùng
+  // lúc này là đọc rồi duyệt, và nút đó nằm ở dải phía trên.
+  if (trangThaiCua(snap.advance, snap.runtime, snap.stop).dangCho) {
+    return xong === 0
+      ? { cau: CHU.dangChoDuyetNen, hint: GIAI_THICH.choDuyetNenGoiY, mau: 'nghi' }
+      : { cau: CHU.ttNghi(xong, b.total_chapters), hint: GIAI_THICH.choDuyetChuongGoiY, mau: 'nghi' };
+  }
+
   if (xong === 0) {
     return { cau: CHU.ttChuaCoChuong, hint: GIAI_THICH.chuaChayLanNao, mau: 'nghi' };
   }
 
   return {
     cau: CHU.ttNghi(xong, b.total_chapters),
-    hint: GIAI_THICH.chayTiepOThanhDuoi,
+    // Engine tự dừng thì "bấm Viết tiếp" là mời đâm lại vào đúng chỗ vừa dừng — lý do nằm ở
+    // thẻ ngay trên (cùng phép đo `lyDoTuDung`).
+    hint: lyDoTuDung(snap) ? LOI_LLM.tuDungGoiY : GIAI_THICH.chayTiepOThanhDuoi,
     mau: 'nghi',
   };
 }

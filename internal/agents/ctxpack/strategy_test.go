@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -12,68 +13,6 @@ import (
 	"github.com/huuhoa143/ainovel-studio/internal/domain"
 	storepkg "github.com/huuhoa143/ainovel-studio/internal/store"
 )
-
-func TestStoreSummaryCompactApplyUsesPersistentStoreData(t *testing.T) {
-	s := seededWriterStore(t)
-	strategy := NewStoreSummaryCompact(StoreSummaryCompactConfig{
-		Store:              s,
-		KeepRecentTokens:   80,
-		SummaryTokenBudget: 2000,
-	})
-
-	msgs := []agentcore.AgentMessage{
-		agentcore.UserMsg(strings.Repeat("旧上下文", 80)),
-		agentcore.Message{
-			Role:    agentcore.RoleAssistant,
-			Content: []agentcore.ContentBlock{agentcore.TextBlock(strings.Repeat("旧回复", 80))},
-		},
-		agentcore.UserMsg("继续写第三章，注意承接第二章结尾。"),
-		agentcore.Message{
-			Role:    agentcore.RoleAssistant,
-			Content: []agentcore.ContentBlock{agentcore.TextBlock("收到，我先梳理当前场景。")},
-		},
-	}
-
-	out, result, err := strategy.Apply(context.Background(), msgs, msgs, corecontext.Budget{
-		Tokens:    corecontext.EstimateTotal(msgs),
-		Window:    128,
-		Threshold: 32,
-	})
-	if err != nil {
-		t.Fatalf("Apply: %v", err)
-	}
-	if !result.Applied {
-		t.Fatal("expected store summary strategy to apply")
-	}
-	if result.Name != storeSummaryStrategyName {
-		t.Fatalf("unexpected strategy name: %q", result.Name)
-	}
-	if len(out) < 2 {
-		t.Fatalf("expected summary + kept messages, got %d", len(out))
-	}
-	summary, ok := out[0].(corecontext.ContextSummary)
-	if !ok {
-		t.Fatalf("expected ContextSummary, got %T", out[0])
-	}
-	if !strings.Contains(summary.Summary, "最近章节摘要") {
-		t.Fatalf("expected persistent summaries in checkpoint, got %q", summary.Summary)
-	}
-	if !strings.Contains(summary.Summary, "当前章节计划") {
-		t.Fatalf("expected chapter plan in checkpoint, got %q", summary.Summary)
-	}
-	if !strings.Contains(summary.Summary, "活跃伏笔") {
-		t.Fatalf("expected foreshadow data in checkpoint, got %q", summary.Summary)
-	}
-	if !strings.Contains(summary.Summary, "待修审稿问题") {
-		t.Fatalf("expected pending review section in checkpoint, got %q", summary.Summary)
-	}
-	if !strings.Contains(summary.Summary, "仓库线索需要再蓄压一拍") {
-		t.Fatalf("expected pending review details in checkpoint, got %q", summary.Summary)
-	}
-	if result.Info == nil || result.Info.CompactedCount <= 0 {
-		t.Fatalf("expected compaction info, got %+v", result.Info)
-	}
-}
 
 func TestWriterRestoreIncludesOptionalDataWarnings(t *testing.T) {
 	s := seededWriterStore(t)
@@ -242,4 +181,64 @@ func seededWriterStore(t *testing.T) *storepkg.Store {
 		t.Fatalf("SaveReview: %v", err)
 	}
 	return s
+}
+
+func toolGroup(id, name, result string) []agentcore.AgentMessage {
+	return []agentcore.AgentMessage{
+		agentcore.Message{
+			Role:    agentcore.RoleAssistant,
+			Content: []agentcore.ContentBlock{agentcore.ToolCallBlock(agentcore.ToolCall{ID: id, Name: name, Args: []byte(`{}`)})},
+		},
+		agentcore.ToolResultMsg(id, []byte(strconv.Quote(result)), false),
+	}
+}
+
+// Writer 一次运行只有一条任务消息，其余全是工具组：压缩必须落在工具循环内部，
+// 摘要来自 store 事实，任务文本跟着摘要走，再次压缩也不能丢。
+func TestStoreSummaryCompactCompactsToolLoop(t *testing.T) {
+	const task = "返工第 3 章：结尾要承接第二章的仓库线索\n\n补充：结尾留一个钩子"
+	strategy := NewStoreSummaryCompact(StoreSummaryCompactConfig{
+		Store:              seededWriterStore(t),
+		KeepRecentTokens:   600,
+		SummaryTokenBudget: 2000,
+	})
+	msgs := []agentcore.AgentMessage{agentcore.UserMsg(task)}
+	for i := 1; i <= 6; i++ {
+		msgs = append(msgs, toolGroup("t"+strconv.Itoa(i), "read_chapter", strings.Repeat("a", 1600))...)
+	}
+
+	compact := func(in []agentcore.AgentMessage) []agentcore.AgentMessage {
+		out, result, err := strategy.Apply(context.Background(), in, in, corecontext.Budget{
+			Tokens: corecontext.EstimateTotal(in), Window: 4000, Threshold: 1000,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !result.Applied || result.Info == nil || result.Info.CompactedCount <= 0 {
+			t.Fatalf("store summary must apply inside a tool loop, got %+v", result)
+		}
+		summary, ok := out[0].(corecontext.ContextSummary)
+		if !ok || !strings.Contains(summary.Summary, taskHeading+task+"\n\n## ") {
+			t.Fatalf("summary must carry the task section verbatim, got %T", out[0])
+		}
+		for _, want := range []string{"最近章节摘要", "当前章节计划", "活跃伏笔", "待修审稿问题", "仓库线索需要再蓄压一拍"} {
+			if !strings.Contains(summary.Summary, want) {
+				t.Fatalf("expected %q in store checkpoint", want)
+			}
+		}
+		if next, ok := out[1].(agentcore.Message); !ok || !next.HasToolCalls() {
+			t.Fatalf("kept suffix must start with a tool call, got %T", out[1])
+		}
+		return out
+	}
+
+	first := compact(msgs)
+	if len(first) >= len(msgs) {
+		t.Fatalf("expected compaction, %d -> %d", len(msgs), len(first))
+	}
+	compact(append(first, toolGroup("t7", "read_chapter", strings.Repeat("a", 1600))...))
+
+	// 中间经过 FullSummary：LLM 摘要按 WriterSummaryPrompt 格式重写，任务仍在固定一节
+	llmSummary := corecontext.ContextSummary{Summary: taskHeading + task + "\n\n## 当前进度\n第 3 章进行中"}
+	compact(append([]agentcore.AgentMessage{llmSummary}, msgs[1:]...))
 }

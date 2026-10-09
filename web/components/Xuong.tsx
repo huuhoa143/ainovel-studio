@@ -1,66 +1,54 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { LoiApi, xoaSach } from '@/lib/api';
-import { HopXacNhan } from './HopXacNhan';
-import { donGia, nangSuat, ngayGio, so, soTu, tienDo, tongTien } from '@/lib/dinhdang';
+import { mauBia, nenBia } from '@/lib/bia';
+import { TU_TRUYEN as T } from '@/lib/chu/tu-truyen';
+import { donGia, nangSuat, ngayGio, so, soTu, tongTien } from '@/lib/dinhdang';
 import type { Khu } from '@/lib/khu';
-import { CHU, GIAI_THICH, nhanPhase } from '@/lib/nhan';
+import { CHU, DH, GIAI_THICH, nhanPhase } from '@/lib/nhan';
 import type { Book } from '@/lib/types';
 import { tienCuaXuong, vieccanBanCuaXuong, type TaiTongXuong, type ViecCanBan } from '@/lib/tongXuong';
 import { tongXuong } from '@/lib/xuong';
 import { useDauDoi } from '@/lib/dauDoi';
 
+import { BieuTuong } from './BieuTuong';
+import { HopXacNhan } from './HopXacNhan';
+
 /**
- * Màn QUẢN LÝ: mọi tác phẩm trong xưởng, và cái gì đang cần người vận hành.
+ * Màn Tủ truyện: mọi truyện của bạn, và cái gì đang cần bạn.
  *
- * # Bề mặt này đã đổi vai, không chỉ đổi hình
+ * # Thứ tự trên màn là thứ tự ba câu hỏi trong PRODUCT.md
  *
- * Trước bản ba màn nó là một KHU tên "Xưởng" nằm trong studio của một cuốn: rail bên trái
- * liệt kê 14 khu của cuốn đó, thanh trên là bộ chọn của cuốn đó, transport dưới đáy mời
- * `▶ Chạy` cho cuốn đó. Ba trong bốn vùng của khung nói về một cuốn trong khi canvas nói về
- * cả xưởng. Giờ nó là MÀN, và cả khung nói cùng một phạm vi với nó.
+ * Lời chào kèm MỘT câu tóm tắt ("Đang viết X, chưa có việc nào cần bạn") trả lời câu đầu —
+ * dây chuyền còn chạy đúng không — trước khi mắt chạm tới bất kỳ con số nào. Khối "Cần bạn
+ * xem" chỉ hiện khi CÓ việc: một khối trống ở vị trí nổi bật nhất dạy người ta bỏ qua nó, đúng
+ * vào ngày nó có việc thật. Ba ô số đứng cạnh lời chào, kệ truyện ngay dưới.
  *
- * # Vì sao có dải "cần bạn", và vì sao nó ở TRÊN dải tổng
+ * # Vì sao kệ là THẺ có bìa, không còn là bảng chín cột
  *
- * Thứ tự này là thứ tự ba câu hỏi trong PRODUCT.md, và câu đầu tiên không phải "tôi có bao
- * nhiêu" mà "dây chuyền còn chạy đúng không, hay đã kẹt". Một dải tổng đứng trước sẽ trả lời
- * câu thứ ba trước tiên.
- *
- * Dải này KHÔNG mang dữ liệu mới — mọi thứ trong nó đã có trong bảng ngay dưới. Nó mang THỨ
- * TỰ ƯU TIÊN, đúng luật đã ghi cho dải việc-tiếp-theo ở buồng lái.
+ * Bảng cũ trả lời "cuốn nào tốn bao nhiêu" rất tốt và mọi câu khác rất tệ: chín cột cùng một
+ * độ đậm thì mắt không biết dừng ở đâu. Thẻ đưa ba thứ lên trước — truyện nào (bìa màu, tên),
+ * đang ở đâu (trạng thái, thanh tiến độ), tốn bao nhiêu — và lùi phần còn lại xuống một dòng
+ * nhỏ. Bấm thẻ là vào Tiến độ của truyện đó. Đọc, Xuất bản, Xóa nằm trong menu "…": chúng là
+ * việc thỉnh thoảng mới làm, và ba nút phơi trên mọi thẻ là ba chỗ bấm nhầm.
  *
  * # Vì sao KHÔNG có nút chạy ở đây (giữ nguyên quyết định 4, spec §4)
  *
- * Chạy và dừng chỉ có ở transport, trên cuốn đang mở — một đường tiêu tiền duy nhất. Hai nút
- * cùng gọi `POST /run` thì trạng thái khóa-lúc-đang-gửi của chúng không thấy nhau, nên bấm
- * cả hai là hai lượt chạy và trả tiền hai lần. Và đây là bề mặt người ta QUÉT MẮT.
+ * Chạy và dừng chỉ có ở thanh dưới, trên truyện đang mở — một đường tiêu tiền duy nhất. Hai nút
+ * cùng gọi `POST /run` thì trạng thái khóa-lúc-đang-gửi của chúng không thấy nhau.
  *
- * Bản trước in nguyên hai đoạn văn dài nói điều đó ra giữa màn hình. Đo được ở 1512×900:
- * bảng cao 182px, hai đoạn biện giải cao 110px — lời giải thích nặng bằng hơn nửa thứ nó
- * giải thích. Lý do vẫn còn, nhưng nó về `title` của đúng chỗ người dùng sẽ hỏi.
+ * # Vì sao CÓ xóa (đảo quyết định 8)
  *
- * # Vì sao GIỜ CÓ xóa (đảo quyết định 8)
- *
- * Quyết định cũ là "xóa để ở hệ tệp, nơi thấy rõ mình đang phá cái gì". Lý lẽ đúng, tiền đề
- * sai: nó giả định mọi cuốn trên bảng đều là hàng giờ chạy và hàng chục đô.
- *
- * Thực tế đo được: một khóa API sai làm ba lượt tạo hỏng liên tiếp, để lại ba cuốn 0 chương
- * 0 đô nằm trên bảng này. Không cuốn nào đáng "thấy rõ mình đang phá cái gì", và cách duy
- * nhất gỡ chúng là mở terminal — đúng việc studio tồn tại để khỏi phải làm.
- *
- * Nên xóa vào bảng, còn phần "thấy rõ đang phá cái gì" chuyển thành trách nhiệm của lời xác
- * nhận: nó đọc ra SỐ CHƯƠNG và SỐ TIỀN sắp mất, và server còn đòi gõ lại đúng tên. Cuốn rỗng
- * thì hai con số đó bằng không và câu xác nhận nói thẳng như vậy.
- *
+ * Một khóa API sai từng để lại ba cuốn 0 chương 0 đô, gỡ được chỉ bằng terminal. Phần "thấy rõ
+ * mình đang phá cái gì" là việc của hộp xác nhận: nó đọc ra SỐ CHƯƠNG và SỐ TIỀN sắp mất.
  * Đổi tên vẫn KHÔNG có: tên thư mục đi vào đường dẫn của mọi tệp trong cuốn.
  *
- * # `0` KHÔNG phải "chưa đo được", và đó vẫn là luật chính của bảng này
+ * # `0` KHÔNG phải "chưa đo được"
  *
- * `chapters_per_hour` và `cost_per_chapter` về `0` cho cuốn CHƯA CHẠY lần nào — server không
- * có gì để chia. In `0 ch/giờ` ra thì bảng nói cuốn đó chạy chậm tới mức không xong nổi một
- * chương trong một giờ. `cost_usd === 0` thì NGƯỢC LẠI: đó là một phép đo có thật.
+ * `chapters_per_hour` và `cost_per_chapter` về `0` cho cuốn CHƯA CHẠY lần nào; thẻ ẩn hai số
+ * đó thay vì in `0`. `cost_usd === 0` thì NGƯỢC LẠI: đó là một phép đo có thật, in `$0,00`.
  */
 export function Xuong({
   sach,
@@ -75,31 +63,22 @@ export function Xuong({
   /**
    * Mở một cuốn ở một bề mặt, trong MỘT hành động.
    *
-   * Ba tham số đi cùng nhau chứ không phải ba lời gọi nối tiếp, và đó là điều kiện đúng-sai
-   * chứ không phải chuyện gọn gàng: `useStudio` ghi cả ba mảnh vị trí vào URL trong một lần,
-   * và mọi hành động của nó đọc `tacPhamRef.current` — một ref chỉ được đặt lại lúc RENDER.
-   * Gọi "chọn tác phẩm" rồi "chọn khu" liền nhau trong một handler thì React gộp hai lần đặt
-   * state và không render ở giữa, nên lời gọi thứ hai ghi URL bằng cuốn CŨ. Lỗi đó đã đo được
-   * hai lần trong dự án này.
+   * Ba tham số đi cùng nhau chứ không phải ba lời gọi nối tiếp: `useStudio` ghi cả ba mảnh vị
+   * trí vào URL trong một lần, và mọi hành động của nó đọc `tacPhamRef.current` — một ref chỉ
+   * được đặt lại lúc RENDER. Gọi "chọn tác phẩm" rồi "chọn khu" liền nhau thì lời gọi thứ hai
+   * ghi URL bằng cuốn CŨ. Lỗi đó đã đo được hai lần trong dự án này.
    */
   onMoTacPham: (id: string, khu: Khu, chuong?: number) => void;
-  /** Nạp lại cả xưởng sau khi xóa — bảng phải khớp đĩa ngay, không đợi F5. */
+  /** Nạp lại cả tủ sau khi xóa — kệ phải khớp đĩa ngay, không đợi F5. */
   onXoaXong: () => void;
-  /**
-   * Đi tới một khu mức MÁY (Tác phẩm mới / Cùng dựng) — không kèm tác phẩm nào.
-   *
-   * Khác `onMoTacPham` ở đúng chỗ đáng khác: hai khu đó không đọc `tacPham`, nên truyền một
-   * cuốn vào chúng là mời người sau dùng nó rồi biến một bề mặt toàn cục thành
-   * nửa-theo-tác-phẩm — cùng lý lẽ đã ghi cho `laKhuMucMay`.
-   */
+  /** Đi tới một khu mức MÁY (Viết truyện mới / Bàn ý tưởng) — không kèm truyện nào. */
   onChonKhu: (khu: Khu) => void;
 }) {
   const t = tongXuong(sach);
   const tien = tienCuaXuong(tong.du);
   const viec = vieccanBanCuaXuong(tong.du, sach);
-  // MỘT hộp cho cả màn, không phải mỗi hàng một hộp. `<dialog>` nằm trong markup bảng là HTML
-  // không hợp lệ (trình duyệt được phép nhấc nó ra khỏi `<td>`), và nút của nó sẽ lọt vào mọi
-  // phép đếm nút của hàng — đã đo: bài kiểm đếm ra `['Chi tiết','Xóa','Hủy','Xóa']`.
+  // MỘT hộp cho cả màn, không phải mỗi thẻ một hộp: nút của nó sẽ lọt vào mọi phép đếm nút
+  // của thẻ, và mười hộp `<dialog>` cho mười cuốn là mười bẫy focus chờ sẵn.
   const [xinXoa, datXinXoa] = useState<Book | null>(null);
   const [dangXoa, datDangXoa] = useState(false);
   const [loiXoa, datLoiXoa] = useState<string | null>(null);
@@ -119,71 +98,69 @@ export function Xuong({
 
   const dangChay = sach.find((b) => b.activity === 'running');
   const engineMo = sach.find((b) => b.engine_open);
+  const ganDay = sach
+    .filter((b) => ngayGio(b.updated_at))
+    .sort((a, b) => new Date(b.updated_at!).getTime() - new Date(a.updated_at!).getTime())
+    .slice(0, 5);
 
   return (
     <main className="canvas khuxuong" id="xuong">
-      <div className="head">
-        <h1>{CHU.manQuanLy}</h1>
+      <div className="head headTu">
+        <h1>{DH.tuTruyen}</h1>
+        <span className="day" />
+        <button type="button" className="nutPhu nutBt" onClick={() => onChonKhu('cung-dung')}>
+          <BieuTuong ten="yTuong" co={14} />
+          {DH.banYTuong}
+        </button>
+        <button type="button" className="nutChinh nutBt" onClick={() => onChonKhu('tac-pham-moi')}>
+          <BieuTuong ten="cong" co={14} />
+          {DH.vietTruyenMoi}
+        </button>
       </div>
 
-      <DaiCanBan
-        viec={viec}
-        dangChay={dangChay}
-        engineMo={engineMo}
-        onMoTacPham={onMoTacPham}
-      />
+      <div className="tuThan">
+        <section className="tuChao" aria-label={DH.tuTruyen}>
+          <div className="tuLoi">
+            <h2>{T.loiChao(new Date().getHours())}</h2>
+            <p className="tuTomTat">
+              <TomTat
+                dangChay={dangChay}
+                engineMo={engineMo}
+                soViec={viec.length}
+                onMo={(b) => onMoTacPham(b.id, 'dong-san-xuat')}
+              />
+            </p>
+          </div>
 
-      {/* Dải tổng: câu trả lời cho "đã tiêu bao nhiêu", đặt TRÊN bảng vì đó là câu người ta
-          mở bề mặt này để hỏi. Bắt cuộn qua một bảng mười dòng rồi mới thấy tổng là bắt họ
-          tự cộng trong lúc cuộn. */}
-      <div className="xtong">
-        <OTong so={t.soTacPham} chu={so(t.soTacPham)} nhan={CHU.donViTacPham} loai="chot" />
-        <OTong so={t.chuongDaChot} chu={so(t.chuongDaChot)} nhan={CHU.donViChuongDaChot} loai="chot" />
-        <OTong so={t.soTu} chu={so(t.soTu)} nhan={CHU.donViTu} loai="tu" />
-        {/* Ô tiền mang MẪU SỐ của chính nó. Đo trên xưởng thật: $7,37 với `counted: 1` trên
-            ba cuốn — hai cuốn kia chưa có meta/usage.json. Một con số tiền không kèm mẫu số
-            sẽ được đọc thành "cả xưởng tốn có thế". */}
-        <OTong
-          so={t.chiPhi}
-          chu={tongTien(t.chiPhi)}
-          nhan={CHU.donViDaTieu}
-          loai="tien"
-          phu={
-            tien && tien.tongSach > 0 && tien.demDuoc < tien.tongSach
-              ? tien.demDuoc === 0
-                ? CHU.chuaDoDuocCuonNao
-                : CHU.doDuocO(tien.demDuoc, tien.tongSach)
-              : undefined
-          }
-          viSaoPhu={GIAI_THICH.tongTienMauSo}
-        />
-        <OTong so={t.engineDangMo} chu={so(t.engineDangMo)} nhan={CHU.engineDangMo} loai="chot" />
-      </div>
+          {/* Ba ô số: tiến độ, khối lượng, tiền. Ô tiền mang MẪU SỐ của chính nó — đo trên tủ
+              thật: $7,37 với `counted: 1` trên ba cuốn. Một con số tiền không kèm mẫu số sẽ
+              được đọc thành "cả tủ tốn có thế". */}
+          <div className="xtong">
+            <OTong so={t.chuongDaChot} chu={so(t.chuongDaChot)} nhan={CHU.donViChuongDaChot} loai="chot" />
+            <OTong so={t.soTu} chu={so(t.soTu)} nhan={CHU.donViTu} loai="tu" />
+            <OTong
+              so={t.chiPhi}
+              chu={tongTien(t.chiPhi)}
+              nhan={CHU.donViDaTieu}
+              loai="tien"
+              phu={
+                tien && tien.tongSach > 0 && tien.demDuoc < tien.tongSach
+                  ? tien.demDuoc === 0
+                    ? CHU.chuaDoDuocCuonNao
+                    : CHU.doDuocO(tien.demDuoc, tien.tongSach)
+                  : undefined
+              }
+              viSaoPhu={GIAI_THICH.tongTienMauSo}
+            />
+          </div>
+        </section>
 
-      <div className="bangwrap">
-        <table className="bang bangxuong">
-          <thead>
-            <tr>
-              <th scope="col">{CHU.colTacPham}</th>
-              <th scope="col">{CHU.colGiaiDoan}</th>
-              <th scope="col">{CHU.colTienDo}</th>
-              <th scope="col" className="num">
-                {CHU.colSoTu}
-              </th>
-              <th scope="col" className="num">
-                {CHU.colChiPhi}
-              </th>
-              <th scope="col" className="num">
-                {CHU.colNhip}
-              </th>
-              <th scope="col">{CHU.colCanBan}</th>
-              <th scope="col">{CHU.colSuaLanCuoi}</th>
-              <th scope="col">{CHU.colHanhDong}</th>
-            </tr>
-          </thead>
-          <tbody>
+        <DaiCanBan viec={viec} onMoTacPham={onMoTacPham} />
+
+        <section className="ke" aria-label={T.keTruyen}>
+          <ul className="keLuoi">
             {sach.map((b) => (
-              <Dong
+              <TheTruyen
                 key={b.id}
                 b={b}
                 viec={viec.find((v) => v.sach.id === b.id)}
@@ -191,11 +168,64 @@ export function Xuong({
                 onXinXoa={datXinXoa}
               />
             ))}
-          </tbody>
-        </table>
-      </div>
+            <li className="theMoi">
+              <button type="button" onClick={() => onChonKhu('tac-pham-moi')}>
+                <span className="theMoiDau" aria-hidden="true">
+                  <BieuTuong ten="cong" co={16} />
+                </span>
+                <span className="theMoiChu">
+                  <b>{DH.vietTruyenMoi}</b>
+                  <span>{T.vietTruyenMoiPhu}</span>
+                </span>
+              </button>
+            </li>
+          </ul>
+        </section>
 
-      {loiXoa ? <p className="loiDoc">{loiXoa}</p> : null}
+        {loiXoa ? (
+          <p className="loiDoc" role="alert">
+            {loiXoa}
+          </p>
+        ) : null}
+
+        <div className={`tuDuoi${ganDay.length >= 2 ? '' : ' mot'}`}>
+          {ganDay.length >= 2 ? (
+            <section className="the tuGanDay">
+              <h2>{T.ganDay}</h2>
+              <ol>
+                {ganDay.map((b) => (
+                  <li key={b.id}>
+                    <button type="button" onClick={() => onMoTacPham(b.id, 'dong-san-xuat')}>
+                      <span className="luc" title={ngayGio(b.updated_at)}>
+                        {T.luc(b.updated_at)}
+                      </span>
+                      <span className="biaNho" style={{ background: nenBia(b.id) }} aria-hidden="true" />
+                      <span className="ten">{tenSach(b)}</span>
+                      <span className="cau">{trangThai(b).chu}</span>
+                    </button>
+                  </li>
+                ))}
+              </ol>
+            </section>
+          ) : null}
+
+          <section className="the tuToan">
+            <h2>{T.toanTu}</h2>
+            <dl>
+              <dt>{T.soTruyen}</dt>
+              <dd>{so(t.soTacPham)}</dd>
+              <dt title={GIAI_THICH.xuongEngineDangMo}>{T.phienDangMo}</dt>
+              <dd>{t.engineDangMo > 0 ? so(t.engineDangMo) : T.khongCoPhien}</dd>
+              {tien && tien.tietKiem > 0 ? (
+                <>
+                  <dt>{T.daTietKiem}</dt>
+                  <dd>{tongTien(tien.tietKiem)}</dd>
+                </>
+              ) : null}
+            </dl>
+          </section>
+        </div>
+      </div>
 
       <HopXacNhan
         moRa={xinXoa !== null}
@@ -214,143 +244,85 @@ export function Xuong({
         onHuy={() => datXinXoa(null)}
         dangLam={dangXoa}
       />
-
-      <DaiTaoMoi onChonKhu={onChonKhu} />
     </main>
   );
 }
 
 /**
- * Dải tạo tác phẩm, ở CUỐI màn Quản lý.
+ * Câu tóm tắt dưới lời chào: máy đang làm gì, rồi có việc gì cần bạn.
  *
- * # Vì sao nó tồn tại, và vì sao ở cuối
- *
- * ĐO ĐƯỢC ở 1512×900 với ba cuốn: bảng kết thúc ở 377px trong một khung 722px, tức 345px
- * (48%) cuối màn là khoảng trống. Một màn mở đầu bỏ trống nửa dưới đọc ra là "hết rồi", và
- * câu mà người vận hành mang tới đúng lúc đó — sau khi đã quét xong bảng — là "tạo cuốn nữa
- * ở đâu". Nên chỗ trống ấy nhận đúng câu trả lời đó.
- *
- * Ở CUỐI chứ không ở đầu: hai nút này là việc làm MỘT LẦN cho mỗi tác phẩm, còn bảng phía
- * trên là thứ được đọc mỗi lần mở studio. Đặt chúng trên bảng là để một hành động hiếm chắn
- * trước một phép đọc thường xuyên.
- *
- * # Vì sao KHÔNG phải hai thẻ
- *
- * Hai thẻ cùng cỡ mang biểu tượng + tiêu đề + mô tả là mẫu mặc định của landing page, và
- * PRODUCT.md cấm thẳng lưới thẻ giống nhau lặp lại. Đây là hai HÀNG: nút bên trái, câu giải
- * thích bên phải — cùng ngữ pháp với dải kênh vai và các danh sách khóa-giá trị khác của
- * studio.
+ * Tên truyện đang viết là một nút: câu trả lời "đang viết X" dẫn thẳng tới X trong một lần bấm.
+ * Engine mở mà không chạy cũng được nói ra — nó đang giữ khóa tệp của cuốn đó, nên không mở
+ * được cuốn khác; nói ở đây thay vì để người dùng gặp lỗi 409 lúc bấm chạy cuốn thứ hai.
  */
-function DaiTaoMoi({ onChonKhu }: { onChonKhu: (khu: Khu) => void }) {
+function TomTat({
+  dangChay,
+  engineMo,
+  soViec,
+  onMo,
+}: {
+  dangChay: Book | undefined;
+  engineMo: Book | undefined;
+  soViec: number;
+  onMo: (b: Book) => void;
+}) {
+  const ai = dangChay ?? engineMo;
+  const sau = soViec > 0 ? T.tomTatViec(soViec) : T.tomTatKhongViec;
+  if (!ai) {
+    return <>{sau.charAt(0).toUpperCase() + sau.slice(1)}</>;
+  }
+  const dau = dangChay ? T.tomTatDangViet : T.tomTatPhienMo;
   return (
-    <div className="taomoi">
-      <h2>{CHU.batDauCuonMoi}</h2>
-      <div className="hang">
-        <button type="button" className="nutChiTiet" onClick={() => onChonKhu('tac-pham-moi')}>
-          {CHU.taoTacPham}
-        </button>
-        <span className="mo">{GIAI_THICH.taoSachGiaiThich}</span>
-      </div>
-      <div className="hang">
-        <button type="button" className="nutPhu" onClick={() => onChonKhu('cung-dung')}>
-          {CHU.cungDung}
-        </button>
-        <span className="mo">{GIAI_THICH.cungDungGiaiThich}</span>
-      </div>
-    </div>
+    <>
+      {dau}
+      <button type="button" className="tomTatMo" onClick={() => onMo(ai)}>
+        {tenSach(ai)}
+      </button>
+      , {sau}
+    </>
   );
 }
 
 /**
- * Dải "cần bạn" — hàng đầu của màn Quản lý.
+ * Khối "Cần bạn xem" — chỉ hiện khi có việc.
  *
- * Ba trạng thái, và chúng KHÔNG cùng một loại sự thật. Sự khác nhau đó phải đọc được, nếu
- * không dải này sẽ dạy người dùng rằng một dòng trên đĩa và một engine đang đứng chờ là cùng
- * một thứ:
- *
- *   1. `activity === 'running'` — engine đang chạy MỘT cuốn. `/api/workshop` chứng minh
- *      được, và vì `boMay.soToiDa === 1` thì nhiều nhất một cuốn ở trạng thái này.
- *   2. có ý định đã ký — đọc từ `meta/run.json`. Đây là sự thật trên ĐĨA, không phải lời
- *      engine khẳng định nó đang đứng ở cửa. Câu chữ ("đã ký") mang đúng nghĩa đó.
- *   3. không có gì — nói thẳng ra. Một dải trống ở vị trí đầu tiên đọc thành "đang tải".
- *
- * Nút ở đây chỉ ĐIỀU HƯỚNG. Việc chạy engine để nguyên ở transport của màn sản xuất, vì hai
- * nút cùng gọi một API tiêu tiền thì trạng thái khóa của chúng không thấy nhau.
+ * Việc ở đây là Ý ĐỊNH ĐÃ KÝ đọc từ `meta/run.json` — sự thật trên ĐĨA, không phải lời engine
+ * khẳng định nó đang đứng ở cửa. Câu chữ ("đã hẹn", "chưa xử lý") mang đúng nghĩa đó. Nút chỉ
+ * ĐIỀU HƯỚNG; việc chạy engine để nguyên ở thanh dưới.
  */
 function DaiCanBan({
   viec,
-  dangChay,
-  engineMo,
   onMoTacPham,
 }: {
   viec: ViecCanBan[];
-  dangChay: Book | undefined;
-  engineMo: Book | undefined;
   onMoTacPham: (id: string, khu: Khu, chuong?: number) => void;
 }) {
-  if (dangChay) {
-    return (
-      <div className="daicanban dangchay">
-        <span className="ky dap" aria-hidden="true">
-          ▶
-        </span>
-        <span className="cau">{CHU.mayDangChay(tenSach(dangChay))}</span>
-        <span className="day" />
-        <button
-          type="button"
-          className="nutPhu"
-          onClick={() => onMoTacPham(dangChay.id, 'dong-san-xuat')}
-        >
-          {CHU.vaoXuong(tenSach(dangChay))}
-        </button>
-      </div>
-    );
-  }
-
-  if (viec.length === 0) {
-    return (
-      <div className="daicanban rong">
-        <span className="ky" aria-hidden="true">
-          ○
-        </span>
-        <span className="cau">{CHU.khongCoViecTon}</span>
-        {/* Engine còn mở mà không chạy là tin vận hành thật: nó đang giữ khóa tệp của cuốn
-            đó, nên không mở được cuốn khác. Nói ra ở đây thay vì để người dùng phát hiện
-            bằng một lỗi 409 lúc bấm chạy cuốn thứ hai. */}
-        {engineMo ? (
-          <>
-            <span className="phu">· {CHU.engineConMoO(tenSach(engineMo))}</span>
-            <span className="day" />
-            <button
-              type="button"
-              className="nutPhu"
-              onClick={() => onMoTacPham(engineMo.id, 'dong-san-xuat')}
-            >
-              {CHU.vaoXuong(tenSach(engineMo))}
-            </button>
-          </>
-        ) : null}
-      </div>
-    );
-  }
-
+  if (viec.length === 0) return null;
   return (
-    <div className="daicanban cocho" title={GIAI_THICH.canBanTuDia}>
-      {viec.map((v) => (
-        <div className="hangcanban" key={v.sach.id}>
+    <section className="daicanban cocho" aria-labelledby="canban-de" title={GIAI_THICH.canBanTuDia}>
+      <div className="canbanDau">
+        <h2 id="canban-de">
           <span className="ky" aria-hidden="true">
             ■
           </span>
+          {T.canBanDe}
+        </h2>
+        <span className="phu">{T.canBanPhu}</span>
+      </div>
+      {viec.map((v) => (
+        <div className="hangcanban" key={v.sach.id}>
+          <span className="biaNho" style={{ background: nenBia(v.sach.id) }} aria-hidden="true" />
           <span className="ten">{tenSach(v.sach)}</span>
           <span className="cau">
+            {v.tuDung ? T.tuDungXemLyDo : null}
+            {v.tuDung && (v.tamDung || v.canThiep) ? ' · ' : null}
             {v.tamDung ? CHU.daKyTamDung : null}
             {v.tamDung && v.canThiep ? ' · ' : null}
             {v.canThiep ? CHU.daKyCanThiep : null}
           </span>
-          {/* Lý do là chữ của chính người vận hành viết lúc ký mốc tạm dừng. Nó ở đây chứ
-              không trong `title` vì một việc tồn không nói lý do thì không hành động được —
-              phải vào tận nơi mới biết mình đã dặn gì. */}
-          {v.lyDo ? <span className="ly">{v.lyDo}</span> : null}
+          {/* Lý do là chữ của chính bạn viết lúc hẹn dừng. Nó hiện ra vì một việc không nói lý
+              do thì không hành động được — phải vào tận nơi mới biết mình đã dặn gì. */}
+          {v.lyDo ? <span className="ly">“{v.lyDo}”</span> : null}
           <span className="day" />
           <button
             type="button"
@@ -361,11 +333,35 @@ function DaiCanBan({
           </button>
         </div>
       ))}
-    </div>
+    </section>
   );
 }
 
-function Dong({
+/** Trạng thái một dòng của thẻ: chữ + màu chấm. Màu không bao giờ là kênh duy nhất. */
+function trangThai(b: Book): { chu: string; mau: 'gold' | 'teal' | 'muted' | 'red'; luc?: string } {
+  if (b.activity === 'running') {
+    return {
+      chu: b.phase === 'writing' ? T.dangVietChuong(b.completed_chapters + 1) : hoaDau(nhanPhase(b.phase)),
+      mau: 'gold',
+    };
+  }
+  if (b.phase === 'complete' || b.activity === 'complete') return { chu: T.hoanThanh, mau: 'teal' };
+  // Engine tự dừng vì lỗi: "Đang nghỉ" ở đây đọc ra là "bạn cho nó nghỉ".
+  if (b.stop && (b.stop.kind === 'stuck' || b.stop.kind === 'budget')) {
+    return { chu: T.tuDung, mau: 'red', luc: T.luc(b.stop.at) };
+  }
+  return {
+    chu: b.phase === 'init' ? hoaDau(nhanPhase(b.phase)) : T.tamNghi,
+    mau: 'muted',
+    luc: T.luc(b.updated_at),
+  };
+}
+
+function hoaDau(s: string): string {
+  return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+}
+
+function TheTruyen({
   b,
   viec,
   onMoTacPham,
@@ -376,162 +372,222 @@ function Dong({
   onMoTacPham: (id: string, khu: Khu, chuong?: number) => void;
   onXinXoa: (b: Book) => void;
 }) {
+  const tt = trangThai(b);
+  const mau = mauBia(b.id);
   const nhip = b.chapters_per_hour ? nangSuat(b.chapters_per_hour) : undefined;
   const gia = b.cost_per_chapter ? donGia(b.cost_per_chapter) : undefined;
-  const sua = ngayGio(b.updated_at);
+  const tu = soTu(b.total_words);
+  const phanTram = b.total_chapters
+    ? Math.min(100, Math.round((b.completed_chapters / b.total_chapters) * 100))
+    : undefined;
 
   return (
-    // `data-ma` để bài kiểm tra đúng dòng của một cuốn: `nth-child` sẽ trôi ngay lần thứ tự
-    // bảng đổi, và lúc đó bài kiểm đo nhầm dòng mà vẫn xanh.
-    <tr data-ma={b.id} className={b.engine_open ? 'engmo' : undefined}>
-      <td className="ten">
-        {/* Mã hiện LUÔN, kể cả khi cuốn đã có tên — hai cuốn ở hai thư mục khác nhau có thể
-            trùng tên, và `id` (tên thư mục, cũng là khóa `?tp=` trong URL) là thứ duy nhất
-            phân biệt được chúng. Đo được trên xưởng thật: cả BA cuốn đều tên "Trấn Yêu Ký". */}
-        {b.name ? (
-          <>
-            <span className="nb">{b.name}</span>
-            <span className="ma">{b.id}</span>
-          </>
-        ) : (
-          <em>{b.id}</em>
-        )}
-        {b.engine_open ? (
-          <span className="engnhan" title={GIAI_THICH.xuongEngineDangMo}>
-            {CHU.engineDangMo}
-          </span>
-        ) : null}
-      </td>
+    // `data-ma` để bài kiểm tra đúng thẻ của một cuốn: `nth-child` sẽ trôi ngay lần thứ tự đổi.
+    <li
+      data-ma={b.id}
+      className={`theTruyen the${b.engine_open ? ' engmo' : ''}${b.activity === 'running' ? ' dangViet' : ''}`}
+      style={{ ['--mau-bia' as string]: mau.sang }}
+    >
+      <div className="bia" style={{ background: nenBia(b.id) }} aria-hidden="true">
+        <span className={`biaTen${b.name ? '' : ' chuaTen'}`}>{b.name || T.chuaCoTen}</span>
+      </div>
 
-      {/* `data-nhan` là NHÃN CỘT đi theo từng ô, và nó chỉ hiện ra dưới 860px — chỗ bảng đổi
-          sang thẻ xếp dọc và `thead` biến mất. Không có nó thì một thẻ là một chồng số không
-          tên ("$7,91 · $0,172" chẳng nói gì). Chữ vẫn lấy từ `CHU` như mọi nhãn khác; CSS chỉ
-          đọc lại nó bằng `attr()`, không tự bịa chuỗi nào. */}
-      <td className="phase" data-nhan={CHU.colGiaiDoan}>
-        {nhanPhase(b.phase)}
-      </td>
-
-      <td className="tiendo" data-nhan={CHU.colTienDo}>
-        <span className="sl">{tienDo(b.completed_chapters, b.total_chapters)}</span>
-        {/* Thanh chỉ vẽ khi BIẾT tổng. `total_chapters === 0` là "chưa biết tổng", không phải
-            "tổng bằng không": một thanh rỗng ở đó nói cuốn chưa đi được đoạn nào, một thanh
-            đầy nói đã xong — cả hai đều là khẳng định mà dữ liệu không đưa ra. */}
-        {b.total_chapters ? (
-          <span className="thanh" aria-hidden="true">
-            <span
-              className="day"
-              style={{
-                width: `${Math.min(100, Math.round((b.completed_chapters / b.total_chapters) * 100))}%`,
-              }}
-            />
-          </span>
-        ) : null}
-      </td>
-
-      <td className="num tu" data-nhan={CHU.colSoTu}>
-        {soTu(b.total_words) ?? <Trong />}
-      </td>
-
-      <td className="num tien" data-nhan={CHU.colChiPhi}>
-        {/* Hai con số, hai nghĩa: tổng đã tiêu cho cuốn này, và giá thành mỗi chương đã
-            nghiệm thu. Cái đầu luôn đo được (kể cả bằng 0), cái sau cần ít nhất một chương. */}
-        <span className="tong">{tongTien(b.cost_usd)}</span>
-        <span className="donGia">{gia ?? <Trong viSao={GIAI_THICH.xuongChuaDoDuocGiaThanh} />}</span>
-      </td>
-
-      <td className="num nhip" data-nhan={CHU.colNhip}>
-        {nhip ? (
-          <>
-            {nhip} <em>{CHU.chuongMoiGio}</em>
-          </>
-        ) : (
-          <Trong viSao={GIAI_THICH.xuongChuaDoDuocNhip} />
-        )}
-      </td>
-
-      {/* Cột "Cần bạn": dấu amber + chữ, không chỉ dấu. Màu không bao giờ là kênh thông tin
-          duy nhất — luật của PRODUCT.md, và ở đây nó còn quan trọng hơn thường lệ vì hai
-          loại việc (mốc tạm dừng / ý kiến can thiệp) cần phân biệt được với nhau. */}
-      <td className="canban" data-nhan={CHU.colCanBan}>
-        {viec ? (
-          <span className="dau" title={v_title(viec)}>
-            <span className="ky" aria-hidden="true">
-              ■
-            </span>
-            {viec.tamDung && viec.canThiep
-              ? `${CHU.daKyTamDungNgan} · ${CHU.daKyCanThiepNgan}`
-              : viec.tamDung
-                ? CHU.daKyTamDungNgan
-                : CHU.daKyCanThiepNgan}
-          </span>
-        ) : (
-          <span className="trong">{CHU.khongCo}</span>
-        )}
-      </td>
-
-      <td className="sua" data-nhan={CHU.colSuaLanCuoi}>
-        {sua ?? <Trong viSao={GIAI_THICH.xuongChuaBietSuaLucNao} />}
-      </td>
-
-      {/* Hành động: điều hướng, CỘNG một ngoại lệ — Xóa.
-          `Chi tiết` là nhãn của chính người dùng ("bấm vào chi tiết mới tới xưởng sản xuất"),
-          và nó thay cho `Mở` cũ vì "Mở" mơ hồ đúng chỗ đắt nhất: studio còn có `Mở máy`, một
-          nút KHỞI ĐỘNG ENGINE. `Đọc` và `Xuất bản` chỉ có ở cuốn đã hoàn thành vì trước đó
-          chúng dẫn tới hai bề mặt nói "chưa có gì".
-
-          # Vì sao Xóa được phép phá luật "chỉ điều hướng"
-
-          Luật cũ tồn tại để chặn ĐIỀU KHIỂN ENGINE lọt vào bảng này: `▶ Chạy` là hành động
-          cấp-một-tác-phẩm và nó tiêu tiền, nên nó thuộc màn sản xuất chứ không thuộc một bề
-          mặt liệt kê cả xưởng.
-
-          Xóa không cùng loại. Nó là hành động cấp-QUẢN-LÝ theo đúng định nghĩa, và bảng này
-          là chỗ DUY NHẤT nhìn thấy cuốn cần bỏ — bắt người dùng vào xưởng sản xuất của một
-          cuốn để xóa chính nó là bắt họ mở cái sắp vứt. Trước bản này không có đường xóa nào
-          trong studio, và cái giá đã đo được: ba cuốn 0 chương do tạo hỏng nằm lại trên bảng,
-          gỡ được chỉ bằng cách mở terminal chạy `rm -rf` — đúng việc studio tồn tại để khỏi
-          phải làm. */}
-      <td className="lam">
+      <div className="theThan">
+        {/* Tên là nút MỞ, và nó căng phủ cả thẻ (xem `.tenNut::after` trong CSS): bấm chỗ nào
+            trên thẻ cũng vào Tiến độ, nhưng trình đọc màn hình chỉ nghe MỘT nút có tên.
+            Mã hiện LUÔN, kể cả khi đã có tên — hai cuốn ở hai thư mục có thể trùng tên, và `id`
+            là thứ duy nhất phân biệt được chúng. Đo trên tủ thật: cả BA cuốn tên "Trấn Yêu Ký". */}
         <button
           type="button"
-          className="nutChiTiet"
-          title={GIAI_THICH.quanLyKhongCoNutChay}
+          className="tenNut"
+          title={DH.moTruyen(tenSach(b))}
           onClick={() => onMoTacPham(b.id, 'dong-san-xuat')}
         >
-          {CHU.chiTiet}
+          <span className="ten">{b.name || b.id}</span>
+          {b.name ? <span className="ma">{b.id}</span> : null}
         </button>
-        {b.phase === 'complete' ? (
-          <>
-            {/* Chương 1 đi CÙNG lời gọi. Tách ra thành "chọn chương" rồi "đổi khu" là mất
-                `?ch=` khỏi URL — đã đo được, và hư hại bị che vì bề mặt đọc tự chọn chương 1
-                khi vào mà chưa có. */}
-            <button type="button" className="nutPhu" onClick={() => onMoTacPham(b.id, 'ban-thao', 1)}>
-              {CHU.docTacPham}
-            </button>
-            <button type="button" className="nutPhu" onClick={() => onMoTacPham(b.id, 'nhap-xuat')}>
-              {CHU.xuatBan}
-            </button>
-          </>
+
+        <p className="theTT">
+          <span className={`cham ${tt.mau}`} aria-hidden="true" />
+          <span>{tt.chu}</span>
+          {tt.luc ? (
+            <span className="luc" title={ngayGio(b.updated_at)}>
+              · {tt.luc}
+            </span>
+          ) : null}
+        </p>
+
+        {viec || b.engine_open ? (
+          <p className="theVien">
+            {viec ? (
+              <span className="vien amber" title={viec.lyDo ? `${viec.lyDo} — ${GIAI_THICH.canBanTuDia}` : GIAI_THICH.canBanTuDia}>
+                {viec.tuDung
+                  ? T.tuDungXemLyDo
+                  : viec.tamDung && viec.canThiep
+                    ? `${CHU.daKyTamDungNgan} · ${CHU.daKyCanThiepNgan}`
+                    : viec.tamDung
+                      ? CHU.daKyTamDungNgan
+                      : CHU.daKyCanThiepNgan}
+              </span>
+            ) : null}
+            {b.engine_open ? (
+              <span className="vien engnhan" title={GIAI_THICH.xuongEngineDangMo}>
+                {CHU.engineDangMo}
+              </span>
+            ) : null}
+          </p>
         ) : null}
 
-        {/* Xóa đứng CUỐI, sau mọi nút điều hướng: tay người ta đi theo thói quen vị trí,
-            nên một hành động phá hủy không được nằm xen giữa các hành động vô hại. */}
-        <button
-          type="button"
-          className="nutXoa"
-          onClick={() => onXinXoa(b)}
-          title={GIAI_THICH.xoaKhongHoanTac}
-        >
-          {CHU.xoaTacPham}
-        </button>
-      </td>
-    </tr>
+        <div className="tiendo">
+          <span className="sl">
+            <b>{so(b.completed_chapters)}</b>{' '}
+            {b.total_chapters ? T.chuongTren(so(b.total_chapters)!) : T.chuong}
+          </span>
+          {phanTram !== undefined ? <span className="pt">{phanTram}%</span> : <span className="pt">{T.chuaBietTong}</span>}
+          {/* Thanh chỉ vẽ khi BIẾT tổng. `total_chapters === 0` là "chưa biết tổng": một thanh
+              rỗng nói cuốn chưa đi được đoạn nào, một thanh đầy nói đã xong — cả hai đều là
+              khẳng định mà dữ liệu không đưa ra. */}
+          {phanTram !== undefined ? (
+            <span className="thanh" aria-hidden="true">
+              <span className="day" style={{ width: `${phanTram}%` }} />
+            </span>
+          ) : null}
+        </div>
+
+        <p className="theSo">
+          <span className="tong">{tongTien(b.cost_usd)}</span>
+          {gia ? (
+            <span className="donGia">
+              {gia}
+              {T.moiChuong}
+            </span>
+          ) : null}
+          {nhip ? (
+            <span className="nhip">
+              {nhip} {CHU.chuongMoiGio}
+            </span>
+          ) : null}
+          {tu ? (
+            <span className="tu">
+              {tu} {CHU.donViTu}
+            </span>
+          ) : null}
+        </p>
+      </div>
+
+      <MenuThe b={b} onMoTacPham={onMoTacPham} onXinXoa={onXinXoa} />
+    </li>
   );
 }
 
-/** Chú giải của ô "Cần bạn": lý do đã ký, hoặc câu nói rõ đây là sự thật trên đĩa. */
-function v_title(v: ViecCanBan): string {
-  return v.lyDo ? `${v.lyDo} — ${GIAI_THICH.canBanTuDia}` : GIAI_THICH.canBanTuDia;
+/**
+ * Menu "…" của một thẻ: Đọc, Xuất bản, rồi Xóa.
+ *
+ * Đọc chỉ có khi đã có chương, Xuất bản chỉ khi đã hoàn thành — trước đó chúng dẫn tới hai bề
+ * mặt nói "chưa có gì". Xóa đứng CUỐI, sau một vạch ngăn: tay người ta đi theo thói quen vị
+ * trí, nên một hành động không hoàn tác được không được nằm xen giữa các hành động vô hại.
+ */
+function MenuThe({
+  b,
+  onMoTacPham,
+  onXinXoa,
+}: {
+  b: Book;
+  onMoTacPham: (id: string, khu: Khu, chuong?: number) => void;
+  onXinXoa: (b: Book) => void;
+}) {
+  const [mo, datMo] = useState(false);
+  const goc = useRef<HTMLDivElement>(null);
+  const nut = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!mo) return;
+    goc.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+    const ngoai = (e: PointerEvent) => {
+      if (!goc.current?.contains(e.target as Node)) datMo(false);
+    };
+    document.addEventListener('pointerdown', ngoai);
+    return () => document.removeEventListener('pointerdown', ngoai);
+  }, [mo]);
+
+  const dong = () => {
+    datMo(false);
+    nut.current?.focus();
+  };
+  const lam = (f: () => void) => () => {
+    datMo(false);
+    f();
+  };
+
+  const coDoc = b.completed_chapters > 0 || b.phase === 'complete';
+  const coXuat = b.phase === 'complete';
+
+  return (
+    <div
+      className={`theMenu${mo ? ' mo' : ''}`}
+      ref={goc}
+      onKeyDown={(e) => {
+        if (!mo) return;
+        if (e.key === 'Escape') {
+          e.stopPropagation();
+          dong();
+          return;
+        }
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+          e.preventDefault();
+          const muc = [...(goc.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])];
+          const i = muc.indexOf(document.activeElement as HTMLElement);
+          const toi = e.key === 'ArrowDown' ? (i + 1) % muc.length : (i - 1 + muc.length) % muc.length;
+          muc[toi]?.focus();
+        }
+      }}
+    >
+      <button
+        type="button"
+        ref={nut}
+        className="theMenuNut"
+        aria-haspopup="menu"
+        aria-expanded={mo}
+        aria-label={T.thaoTacKhac(tenSach(b))}
+        title={T.thaoTacKhac(tenSach(b))}
+        onClick={() => datMo((m) => !m)}
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <circle cx="5.5" cy="12" r="1.6" />
+          <circle cx="12" cy="12" r="1.6" />
+          <circle cx="18.5" cy="12" r="1.6" />
+        </svg>
+      </button>
+      {mo ? (
+        <div className="theMenuHop" role="menu" aria-label={T.thaoTacKhac(tenSach(b))}>
+          {coDoc ? (
+            <button type="button" role="menuitem" onClick={lam(() => onMoTacPham(b.id, 'ban-thao', 1))}>
+              {/* Chương 1 đi CÙNG lời gọi. Tách ra thành "chọn chương" rồi "đổi khu" là mất
+                  `?ch=` khỏi URL — đã đo được. */}
+              <BieuTuong ten="doc" co={14} />
+              {T.docTruyen}
+            </button>
+          ) : null}
+          {coXuat ? (
+            <button type="button" role="menuitem" onClick={lam(() => onMoTacPham(b.id, 'nhap-xuat'))}>
+              <BieuTuong ten="xuatBan" co={14} />
+              {T.xuatBan}
+            </button>
+          ) : null}
+          {coDoc || coXuat ? <span className="vach" role="separator" /> : null}
+          <button
+            type="button"
+            role="menuitem"
+            className="nutXoa"
+            title={GIAI_THICH.xoaKhongHoanTac}
+            onClick={lam(() => onXinXoa(b))}
+          >
+            {T.xoaTruyen}
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 function tenSach(b: Book): string {
@@ -539,32 +595,13 @@ function tenSach(b: Book): string {
 }
 
 /**
- * Ô không có số.
+ * Một ô số cạnh lời chào, nhấp MỘT lần khi con số của nó đổi.
  *
- * `viSao` bắt buộc phải nói ra được ở những ô mà `0` và "chưa đo được" khác nghĩa: một dấu
- * `—` trần để người vận hành tự đoán đó là chưa chạy hay studio hỏng. Ô số từ không cần vì
- * "chưa viết chữ nào" đọc thẳng ra được từ cột tiến độ ngay cạnh.
- */
-function Trong({ viSao }: { viSao?: string }) {
-  return (
-    <span className="trong" title={viSao}>
-      {CHU.khongCo}
-    </span>
-  );
-}
-
-/**
- * Một ô của dải tổng, nhấp MỘT lần khi con số của nó đổi.
- *
- * Đây là câu trả lời cho tiêu chí thành công ở PRODUCT.md — "mở studio sau 6 giờ đi vắng và
- * trong vòng 5 giây biết dây chuyền khỏe hay bệnh". Trước bản này, một chương chốt và một đô
- * tiêu thêm đều là cú thay giá trị tức thời: không nhìn đúng ô đó thì không biết nó vừa đổi.
- *
- * Nhấp theo `so` (giá trị THẬT) chứ không theo `chu` (chuỗi đã định dạng): `tongTien` làm tròn
- * hai chữ số, nên hai giá trị khác nhau có thể cho cùng một chuỗi và cú nhấp sẽ mất đúng những
- * lần đổi nhỏ — mà tiền thì đổi từng xu.
- *
- * `key` là thứ làm animation chạy lại; xem lib/dauDoi.ts.
+ * Câu trả lời cho tiêu chí ở PRODUCT.md — "mở studio sau 6 giờ đi vắng và trong vòng 5 giây
+ * biết dây chuyền khỏe hay bệnh". Nhấp theo `so` (giá trị THẬT) chứ không theo `chu` (chuỗi đã
+ * định dạng): `tongTien` làm tròn hai chữ số, nên hai giá trị khác nhau có thể cho cùng một
+ * chuỗi và cú nhấp sẽ mất đúng những lần đổi nhỏ. `key` làm animation chạy lại; xem
+ * lib/dauDoi.ts.
  */
 function OTong({
   so: giaTri,
@@ -575,22 +612,19 @@ function OTong({
   viSaoPhu,
 }: {
   so: number;
-  /**
-   * Chuỗi đã định dạng. `undefined` là ca THẬT: `so()` trả undefined cho giá trị vắng hoặc
-   * không hữu hạn — giữ đúng kiểu đó thay vì ép, vì bề mặt phải vẽ được ca không có số.
-   */
+  /** `undefined` là ca THẬT: `so()` trả undefined cho giá trị vắng hoặc không hữu hạn. */
   chu: string | undefined;
   nhan: string;
   /** `chot` = tiến độ (teal) · `tien` = tiền (gold) · `tu` = số từ, không tô. */
   loai: 'chot' | 'tien' | 'tu';
-  /** Mẫu số của con số, khi nó không phủ hết xưởng. */
+  /** Mẫu số của con số, khi nó không phủ hết tủ. */
   phu?: string;
   viSaoPhu?: string;
 }) {
   const dau = useDauDoi(giaTri);
   return (
     <span key={dau} className={`o${dau > 0 ? ` vuaDoi-${loai}` : ''}`}>
-      {chu} <em>{nhan}</em>
+      <b>{chu ?? CHU.khongCo}</b> <em>{nhan}</em>
       {phu ? (
         <span className="mauSo" title={viSaoPhu}>
           {phu}

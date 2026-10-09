@@ -14,6 +14,7 @@ import (
 	"github.com/huuhoa143/ainovel-studio/internal/host/exp"
 	"github.com/huuhoa143/ainovel-studio/internal/host/imp"
 	"github.com/huuhoa143/ainovel-studio/internal/host/sim"
+	"github.com/huuhoa143/ainovel-studio/internal/store"
 )
 
 // Ba luồng cần tệp: nhập truyện ngoài, mô phỏng văn phong, xuất bản.
@@ -114,27 +115,46 @@ type dongNhatKy struct {
 	Loi     bool   `json:"error,omitempty"`
 }
 
-// handleNhap — POST /api/books/{book}/import (multipart: file)
+// handleNhap — POST /api/books/{book}/import (multipart)
+//
+// Có `file` = nhập mới. KHÔNG có `file` = chạy tiếp lượt nhập đang dở (nút «Tiếp tục nhập»):
+// lượt nhập dừng ở chỗ chờ người — xác nhận cách chia chương, hoặc chọn truyện gốc đã kết hay
+// còn tiếp — và một lượt tải lên mới bị từ chối vì thư mục nhập đã có. Không có đường chạy tiếp
+// thì cuốn sách kẹt: engine chặn viết khi còn một lượt nhập dở.
+//
+// Trường tùy chọn: `accept=true` chấp nhận cách chia chương đang chờ (đã xem trong nhật ký),
+// `story=open|closed`, `guide`, `auto_confirm`, `continue`.
 func (s *server) handleNhap(w http.ResponseWriter, r *http.Request) {
 	p, err := s.may.dangMo(r.PathValue("book"))
 	if err != nil {
 		writeErr(w, maLoi(err), err)
 		return
 	}
-	thuMuc, duong, err := nhanTep(r, "file")
-	if err != nil {
-		writeErr(w, http.StatusBadRequest, err)
+	if err := r.ParseMultipartForm(gioiHanTaiLen); err != nil {
+		writeErr(w, http.StatusBadRequest, fmt.Errorf("đọc tệp tải lên: %w", err))
 		return
 	}
-	defer os.RemoveAll(thuMuc)
-	if len(duong) != 1 {
-		writeErr(w, http.StatusBadRequest,
-			fmt.Errorf("nhập truyện nhận đúng MỘT tệp, được %d", len(duong)))
-		return
+	nguon := ""
+	if len(r.MultipartForm.File["file"]) > 0 {
+		thuMuc, duong, err := nhanTep(r, "file")
+		if err != nil {
+			writeErr(w, http.StatusBadRequest, err)
+			return
+		}
+		defer os.RemoveAll(thuMuc)
+		if len(duong) != 1 {
+			writeErr(w, http.StatusBadRequest,
+				fmt.Errorf("nhập truyện nhận đúng MỘT tệp, được %d", len(duong)))
+			return
+		}
+		nguon = duong[0]
 	}
 
 	opts := imp.Options{
-		SourcePath: duong[0],
+		SourcePath: nguon, // rỗng = chạy tiếp lượt nhập đang dở
+		// Người dùng đã xem cách chia trong nhật ký rồi bấm chấp nhận — khác `auto_confirm` (uỷ
+		// quyền trước khi thấy gì).
+		AcceptSegmentation: r.FormValue("accept") == "true",
 		// AutoConfirm theo lựa chọn tường minh của người dùng. KHÔNG mặc định true: `--yes`
 		// là uỷ quyền mù (chấp nhận cách chia chương mà chưa xem), và bật ngầm nó sẽ khiến
 		// một cuốn bị chia sai mà không ai kịp thấy.
@@ -156,6 +176,20 @@ func (s *server) handleNhap(w http.ResponseWriter, r *http.Request) {
 	}
 	nk, coLoi := vetImp(ch)
 	writeJSON(w, map[string]any{"log": nk, "failed": coLoi})
+}
+
+// handleBoNhapDo — POST /api/books/{book}/import/discard (nút «Bỏ lượt nhập dở»)
+//
+// Bỏ lượt nhập dở hoặc đã hỏng, để cuốn sách hết bị chặn viết. Bất biến: không có gì để bỏ
+// vẫn 200 với `discarded: false`. Đang có bước nhập (hay viết) chạy thì 409 — xóa thư mục dưới
+// chân một bước đang ghi vào nó là hỏng cả hai.
+func (s *server) handleBoNhapDo(w http.ResponseWriter, r *http.Request) {
+	daBo, err := s.may.boNhapDo(r.PathValue("book"))
+	if err != nil {
+		writeErr(w, maLoi(err), err)
+		return
+	}
+	writeJSON(w, map[string]any{"discarded": daBo})
 }
 
 // handleMoPhong — POST /api/books/{book}/simulate (multipart: file, nhiều tệp)
@@ -218,19 +252,37 @@ func (s *server) handleNhapHoSoMoPhong(w http.ResponseWriter, r *http.Request) {
 // `exp.Run` ghi ra một tệp trên máy CHỦ. Trả đường dẫn cho trình duyệt là trả một chuỗi vô
 // dụng khi studio chạy trên VPS — đúng bối cảnh mà `PRODUCT.md` ghi. Nên xuất vào thư mục
 // tạm rồi đẩy nội dung về theo phản hồi, và xóa tệp tạm sau đó.
+// # Vì sao KHÔNG cần engine
+//
+// Xuất bản là phép ĐỌC: `exp.Run` chỉ cần `*store.Store` (xem Host.Export — nó không làm
+// gì ngoài chuyển tiếp store), và tệp ra nằm trong thư mục tạm của hệ thống, không đụng
+// vào thư mục truyện. Nên nó đi cùng đường với `/studio`, `/workshop`, `/chapters/{n}`:
+// mở store đọc thẳng.
+//
+// Bản trước đòi `dangMo` và hỏng ở đúng ca thường gặp nhất: truyện ĐÃ XONG, mở lại studio
+// hôm sau, engine chưa mở. Thẻ "Truyện đã hoàn thành" mời bấm "Xuất bản", trang Xuất bản
+// vẽ nút bật sáng — bấm vào nhận "tác phẩm này chưa mở engine", mà truyện đã xong thì
+// thanh dưới KHÔNG còn nút mở phiên nào để làm theo. Một ngõ cụt y hệt luồng "Viết thêm".
 func (s *server) handleXuatBan(w http.ResponseWriter, r *http.Request) {
-	p, err := s.may.dangMo(r.PathValue("book"))
+	id := r.PathValue("book")
+	st, err := s.openBook(id)
 	if err != nil {
-		writeErr(w, maLoi(err), err)
+		writeErr(w, http.StatusNotFound, err)
 		return
 	}
 
-	dinhDang := exp.Format(strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("format"))))
+	// ToLower, KHÔNG ToUpper: hằng của gói exp là chữ thường ("txt" / "epub",
+	// exp/types.go). Bản trước viết hoa tham số rồi so với hằng chữ thường, nên
+	// KHÔNG ca nào khớp và mọi lần xuất đều rơi về nhánh dự phòng TXT — kể cả khi
+	// người dùng chọn EPUB. Hỏng im lặng: mã 200, tệp tải về bình thường, chỉ là
+	// sai định dạng và sai cả phần đuôi tên tệp.
+	dinhDang := exp.Format(strings.ToLower(strings.TrimSpace(r.URL.Query().Get("format"))))
 	if dinhDang != exp.FormatTXT && dinhDang != exp.FormatEPUB {
 		dinhDang = exp.FormatTXT
 	}
 	tu, _ := strconv.Atoi(r.URL.Query().Get("from"))
 	den, _ := strconv.Atoi(r.URL.Query().Get("to"))
+	tu, den = kepKhoangChuong(st, tu, den)
 
 	thuMuc, err := os.MkdirTemp("", "ainovel-xuat-*")
 	if err != nil {
@@ -245,7 +297,7 @@ func (s *server) handleXuatBan(w http.ResponseWriter, r *http.Request) {
 	}
 	raTep := filepath.Join(thuMuc, "xuat."+duoi)
 
-	kq, err := p.eng.Export(r.Context(), exp.Options{
+	kq, err := exp.Run(r.Context(), exp.Deps{Store: st}, exp.Options{
 		Format: dinhDang, OutPath: raTep, From: tu, To: den,
 		// Overwrite: thư mục là tạm và tên do ta đặt, nên không có tệp nào của người dùng
 		// để ghi đè. Đặt true để không hỏng vì một lần chạy trước sót lại.
@@ -262,12 +314,12 @@ func (s *server) handleXuatBan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ten := tenTepXuat(p.id, duoi)
+	tenTruyen := ""
+	if pr, err := st.Progress.Load(); err == nil && pr != nil {
+		tenTruyen = pr.NovelName
+	}
 	w.Header().Set("Content-Type", loaiTep(duoi))
-	// `filename*` dạng RFC 5987 để tên tiếng Việt có dấu không bị hỏng. Header HTTP là
-	// latin-1, nên một tên như "Ba đêm đèn tắt.txt" đặt thẳng vào `filename=` sẽ ra rác.
-	w.Header().Set("Content-Disposition",
-		fmt.Sprintf("attachment; filename=%q; filename*=UTF-8''%s", ten, urlHoa(ten)))
+	w.Header().Set("Content-Disposition", dauTepXuat(id, tenTruyen, duoi))
 	// Số chương bị bỏ qua đi theo header: chúng KHÔNG phải lỗi (chương chưa viết xong thì
 	// exp.Run bỏ qua có chủ ý), nhưng người dùng cần biết bản tải về thiếu gì.
 	if len(kq.Skipped) > 0 {
@@ -279,7 +331,73 @@ func (s *server) handleXuatBan(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func tenTepXuat(id, duoi string) string { return id + "." + duoi }
+// kepKhoangChuong kéo khoảng chương về phạm vi truyện THẬT CÓ. 0 nghĩa là "từ đầu" /
+// "tới hết", đúng quy ước của exp.Options.
+//
+// `exp.Run` duyệt đúng khoảng được giao và xếp mọi chương chưa xong vào Result.Skipped —
+// hợp lý khi khoảng nằm trong truyện, nhưng không ai lọc khoảng trước đó. Đo được: gõ
+// "đến chương 99" trên truyện 4 chương trả về mã 200 kèm header liệt kê 5…99, và giao
+// diện in "bỏ qua 96 chương chưa xong (4, 5, 6, 7…)" — 96 chương chưa từng được lên kế
+// hoạch, nói như thể chúng tồn tại mà viết dở.
+//
+// Đọc được tiến độ thì kẹp; không đọc được thì giữ nguyên tham số (thà xuất thừa còn hơn
+// từ chối một yêu cầu hợp lệ vì một tệp không đọc nổi).
+func kepKhoangChuong(st *store.Store, tu, den int) (int, int) {
+	if tu < 0 {
+		tu = 0
+	}
+	if den < 0 {
+		den = 0
+	}
+	p, err := st.Progress.Load()
+	if err != nil || p == nil || p.TotalChapters <= 0 {
+		return tu, den
+	}
+	if tu > p.TotalChapters {
+		tu = p.TotalChapters
+	}
+	if den > p.TotalChapters {
+		den = 0 // "tới hết"
+	}
+	return tu, den
+}
+
+// dauTepXuat dựng header Content-Disposition cho tệp xuất.
+//
+// Người dùng tải về một CUỐN TRUYỆN, nên tên tệp là tên truyện ("Tiếng Vọng Thời Gian Phố
+// Cổ.txt"), không phải tên thư mục ("dong-ho-qua-lac.txt"). Tên thật đi ở `filename*` dạng
+// RFC 5987 vì header HTTP là latin-1 — chữ có dấu đặt thẳng vào `filename=` sẽ ra rác. Còn
+// `filename=` giữ tên thư mục (ASCII chắc chắn) cho trình duyệt không hiểu `filename*`.
+func dauTepXuat(id, tenTruyen, duoi string) string {
+	ascii := id + "." + duoi
+	ten := tenTepAnToan(tenTruyen)
+	if ten == "" {
+		ten = id
+	}
+	return fmt.Sprintf("attachment; filename=%q; filename*=UTF-8''%s", ascii, urlHoa(ten+"."+duoi))
+}
+
+// tenTepAnToan bỏ những ký tự hệ điều hành không cho đặt trong tên tệp (/ \ : * ? " < > |
+// và ký tự điều khiển), gộp khoảng trắng, và cắt ở 120 rune để không vượt giới hạn tên tệp.
+func tenTepAnToan(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		switch {
+		// Ký tự điều khiển (tab, xuống dòng) thành dấu cách chứ không bỏ hẳn: bỏ hẳn thì
+		// "Tên<tab>có" dính thành "Têncó".
+		case r < 0x20 || r == 0x7f, strings.ContainsRune(`/\:*?"<>|`, r):
+			b.WriteRune(' ')
+		default:
+			b.WriteRune(r)
+		}
+	}
+	ten := strings.Join(strings.Fields(b.String()), " ")
+	ten = strings.Trim(ten, ". ")
+	if r := []rune(ten); len(r) > 120 {
+		ten = strings.TrimSpace(string(r[:120]))
+	}
+	return ten
+}
 
 func loaiTep(duoi string) string {
 	if duoi == "epub" {

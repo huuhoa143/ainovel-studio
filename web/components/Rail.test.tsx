@@ -2,8 +2,9 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { expect, test, vi } from 'vitest';
 
 import type { Khu } from '@/lib/khu';
+import { TEN_KHU } from '@/lib/khu';
 import { manCuaKhu } from '@/lib/man';
-import { CHU } from '@/lib/nhan';
+import { CHU, DH } from '@/lib/nhan';
 
 import { Rail } from './Rail';
 import { snap } from './mau.test-helper';
@@ -37,7 +38,6 @@ function ve(khu: Khu = 'dong-san-xuat', dauChot = 0) {
       khu={khu}
       man={manCuaKhu(khu)}
       onChonKhu={chon}
-      onChonMan={doiMan}
       canBan={false}
       tenCuonNgan="Trấn Yêu Ký"
       dauChot={dauChot}
@@ -95,40 +95,33 @@ test('đồng thanh THẮNG nhấp-số-đổi: một phần tử không mang ha
  * không đổi — vẫn là "có đường tới đó không, và người dùng có thấy đường ấy không".
  */
 
-test('cả BA màn luôn hiện, kể cả khi đang đứng trong xưởng sản xuất', () => {
-  // Đây là bài quan trọng nhất của tệp. Câu người dùng đã hỏi nguyên văn là "các màn khác
-  // đâu rồi ta", và nguyên nhân là điều hướng cấp một bị giấu sau một cú bấm mở nhóm. Ba
-  // hàng màn KHÔNG được nằm sau bất cứ lớp thu gọn nào.
-  ve('dong-san-xuat');
-  for (const ten of [CHU.manQuanLy, CHU.manCaiDatChung, CHU.manXuongSanXuat]) {
-    expect(screen.getByRole('button', { name: new RegExp(ten) })).toBeTruthy();
+test('mọi đích luôn hiện cùng lúc, đứng ở đâu cũng vậy', () => {
+  // Bản trước có tầng "màn" chồng trên tầng "khu": phải chọn màn rồi mới thấy khu của nó.
+  // Người dùng hỏi "các màn khác đâu rồi ta". Giờ rail là một cây phẳng, nên từ bất cứ khu
+  // nào cũng thấy tủ truyện, các mục của truyện đang mở và cài đặt.
+  for (const khu of ['dong-san-xuat', 'xuong', 'cau-hinh'] as const) {
+    const r = ve(khu);
+    const nhan = [...r.container.querySelectorAll('.mucdi .nhan')].map((e) => e.textContent);
+    expect(nhan).toContain(DH.tuTruyen);
+    expect(nhan).toContain(DH.vietTruyenMoi);
+    expect(nhan).toContain(DH.docTruyen);
+    expect(nhan).toContain(DH.tienDo);
+    expect(nhan).toContain(DH.modelKhoa);
+    r.unmount();
   }
 });
 
-test('bấm một màn thì đi tới khu ĐẦU của màn đó, không phải một khu tuỳ ý', () => {
-  const { doiMan } = ve('dong-san-xuat');
-  fireEvent.click(screen.getByRole('button', { name: new RegExp(CHU.manQuanLy) }));
-  expect(doiMan).toHaveBeenCalledWith('quan-ly');
+test('tên truyện đang mở đứng đầu nhóm của nó', () => {
+  const { container } = ve('dong-san-xuat');
+  expect(container.querySelector('.railSachTen')?.textContent).toBe('Trấn Yêu Ký');
 });
 
-test('rail chỉ vẽ khu của MÀN đang mở — không trộn hai cấp vào một cột', () => {
-  // Cả điểm của tầng màn: đứng trong xưởng sản xuất thì không thấy khu của màn Quản lý, và
-  // ngược lại. Trộn lại là quay về đúng cái rail mười tám mục đã bị gọi là "quá ngợp".
-  const sx = ve('dong-san-xuat');
-  const nhanSX = [...sx.container.querySelectorAll('.mucdi .nhan')].map((e) => e.textContent);
-  expect(nhanSX).toContain(CHU.banThao);
-  expect(nhanSX).not.toContain(CHU.xuong);
-  expect(nhanSX).not.toContain(CHU.cauHinh);
-  sx.unmount();
-
-  const ql = ve('xuong');
-  const nhanQL = [...ql.container.querySelectorAll('.mucdi .nhan')].map((e) => e.textContent);
-  expect(nhanQL).toContain(CHU.xuong);
-  expect(nhanQL).toContain(CHU.taoTacPham);
-  expect(nhanQL).not.toContain(CHU.banThao);
-  // Xưởng đứng ĐẦU, trên Tác phẩm mới: thứ tự này là thứ tự câu hỏi — "tôi đang có gì" đi
-  // trước "thêm một cái nữa".
-  expect(nhanQL.indexOf(CHU.xuong)).toBeLessThan(nhanQL.indexOf(CHU.taoTacPham));
+test('tủ truyện đứng đầu rail, cài đặt ghim cuối', () => {
+  // Thứ tự là thứ tự câu hỏi: "tôi đang có gì" trước, cấu hình dùng một lần thì xuống đáy.
+  const { container } = ve('dong-san-xuat');
+  const nhan = [...container.querySelectorAll('.mucdi .nhan')].map((e) => e.textContent);
+  expect(nhan[0]).toBe(DH.tuTruyen);
+  expect(nhan.at(-1)).toBe(DH.chiPhiTong);
 });
 
 test('mục Xưởng của màn Quản lý đi tới khu `xuong`', () => {
@@ -146,4 +139,132 @@ test('đang ở khu Xưởng thì mục đó sáng lên — người dùng biế
   const { container } = ve('xuong');
   const dangMo = container.querySelector('[aria-current="page"] .nhan');
   expect(dangMo?.textContent).toBe(CHU.xuong);
+});
+
+test('số ở "Nhận xét biên tập" là số chương CÓ nhận xét, không phải số hàng của bảng chương', () => {
+  render(
+    <Rail
+      snapshot={snap({
+        chapters: [
+          { chapter: 1, stage: 'pending' },
+          { chapter: 2, stage: 'done', reviewed: true },
+          { chapter: 3, stage: 'done' },
+        ],
+      })}
+      hoSo={undefined}
+      khu="dong-san-xuat"
+      man={manCuaKhu('dong-san-xuat')}
+      onChonKhu={() => {}}
+      canBan={false}
+      tenCuonNgan="Trấn Yêu Ký"
+      dauChot={0}
+    />,
+  );
+  const nut = screen.getByRole('button', { name: new RegExp(`^${DH.nhanXet}`) });
+  expect(nut.textContent).toContain('1');
+  expect(nut.textContent).not.toContain('3');
+});
+
+/* ── neo cuộn của mục "Nhật ký quyết định" ───────────────────────────── */
+
+test('mục neo cuộn tới đúng id SAU khi khu đích render, không ở nhịp bấm', () => {
+  // `neoCho` + effect đã có sẵn trong Rail kèm chú thích giải thích vì sao phải cuộn trong
+  // effect — nhưng KHÔNG chỗ nào gán vào `neoCho`, nên đường duy nhất đang chạy là cái
+  // `requestAnimationFrame` mà chính chú thích ấy gọi là "ĐO ĐƯỢC không chạy".
+  //
+  // Bài này canh sợi dây đó bằng chính hiện tượng đã đo: ở nhịp BẤM, khu đích chưa mount
+  // nên neo chưa có trong DOM; nó chỉ xuất hiện sau khi `khu` đổi.
+  const goi: string[] = [];
+  Element.prototype.scrollIntoView = function (this: Element) {
+    if (this.id) goi.push(this.id);
+  };
+
+  const { rerender } = render(
+    <Rail
+      snapshot={snap({})}
+      hoSo={undefined}
+      khu="ban-thao"
+      man={manCuaKhu('ban-thao')}
+      onChonKhu={vi.fn()}
+      canBan={false}
+      tenCuonNgan="Trấn Yêu Ký"
+      dauChot={0}
+    />,
+  );
+
+  const vh = screen.getByRole('button', { name: new RegExp(DH.vanHanh) });
+  if (vh.getAttribute('aria-expanded') === 'false') fireEvent.click(vh);
+  fireEvent.click(screen.getByRole('button', { name: new RegExp(DH.nhatKy) }));
+  expect(goi, 'chưa đổi khu thì neo chưa có trong DOM — không được cuộn ở nhịp bấm').not.toContain(
+    'nhat-ky-phan-quyet',
+  );
+
+  // Khu đích đã mount: neo giờ mới tồn tại.
+  const neo = document.createElement('div');
+  neo.id = 'nhat-ky-phan-quyet';
+  document.body.append(neo);
+  rerender(
+    <Rail
+      snapshot={snap({})}
+      hoSo={undefined}
+      khu="dong-san-xuat"
+      man={manCuaKhu('dong-san-xuat')}
+      onChonKhu={vi.fn()}
+      canBan={false}
+      tenCuonNgan="Trấn Yêu Ký"
+      dauChot={0}
+    />,
+  );
+  expect(goi).toContain('nhat-ky-phan-quyet');
+});
+
+/* ── ngăn kéo ở màn hình hẹp ─────────────────────────────────────────────
+ *
+ * Luật của ngăn nằm trong một `@media (max-width: 860px)` nên jsdom không bố cục được nó.
+ * Bài kiểm vì thế canh HÀNH VI, không canh hình: trạng thái mở/đóng, ba đường ra, và việc
+ * tiêu điểm quay về nút. Đó cũng đúng là phần mà CSS không giữ hộ được.
+ */
+
+test('thanh gọn gọi tên bề mặt đang mở và mở được ngăn', () => {
+  const { container } = ve('phuc-but');
+  const nut = container.querySelector<HTMLButtonElement>('.railThanhNut')!;
+
+  expect(nut.textContent).toContain(TEN_KHU['phuc-but']);
+  expect(nut.getAttribute('aria-expanded')).toBe('false');
+  expect(container.querySelector('.railMan')).toBeNull();
+
+  fireEvent.click(nut);
+  expect(nut.getAttribute('aria-expanded')).toBe('true');
+  expect(container.querySelector('.railMan')).not.toBeNull();
+  // Nút trỏ đúng vào ngăn, nếu không thì trình đọc màn hình không biết nó mở ra cái gì.
+  expect(nut.getAttribute('aria-controls')).toBe(
+    container.querySelector('nav.rail')!.getAttribute('id'),
+  );
+});
+
+test('đi tới một đích thì ngăn tự đóng — mọi nút điều hướng, không chỉ vài nút', () => {
+  // Rail có hơn hai mươi nút điều hướng. Một nút quên đóng ngăn là một nút để lại tấm che
+  // phủ lên chính bề mặt nó vừa mở, nên phép bọc phải nằm ở MỘT chỗ.
+  const { container, chon } = ve();
+  const nut = container.querySelector<HTMLButtonElement>('.railThanhNut')!;
+  fireEvent.click(nut);
+
+  fireEvent.click(screen.getByRole('button', { name: new RegExp(`^${DH.phucBut}`) }));
+  expect(chon).toHaveBeenCalledWith('phuc-but');
+  expect(nut.getAttribute('aria-expanded')).toBe('false');
+  expect(container.querySelector('.railMan')).toBeNull();
+});
+
+test('Esc đóng ngăn VÀ trả tiêu điểm về nút mở; bấm tấm che cũng đóng', () => {
+  const { container } = ve();
+  const nut = container.querySelector<HTMLButtonElement>('.railThanhNut')!;
+
+  fireEvent.click(nut);
+  fireEvent.keyDown(document, { key: 'Escape' });
+  expect(nut.getAttribute('aria-expanded')).toBe('false');
+  expect(document.activeElement).toBe(nut);
+
+  fireEvent.click(nut);
+  fireEvent.click(container.querySelector('.railMan')!);
+  expect(nut.getAttribute('aria-expanded')).toBe('false');
 });

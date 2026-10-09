@@ -2,7 +2,7 @@
 
 import { useCallback, useRef, useState } from 'react';
 
-import { LoiApi, lietKeModel } from './api';
+import { LoiApi, lietKeModel, type KetQuaCongCu } from './api';
 
 /**
  * Danh sách model hỏi thẳng nhà cung cấp, dùng chung cho cả một màn.
@@ -35,11 +35,16 @@ export function useModelNapVe() {
   // Cửa sổ ngữ cảnh nhà cung cấp tự khai, nhớ theo cùng khóa với danh sách model.
   const [cuaTheoNcc, datCuaTheoNcc] = useState<Record<string, Record<string, number>>>({});
   const [dangNap, datDangNap] = useState<Record<string, true>>({});
+  // Lúc lượt hỏi gần nhất VỀ (xuôi hay hỏng) — để màn hình nói "kiểm lúc 23:41" thay vì một
+  // dấu ✓ không biết từ bao giờ.
+  const [lucTheoNcc, datLucTheoNcc] = useState<Record<string, number>>({});
+  // Kết quả lượt thử gọi công cụ — chỉ có sau nút Kiểm tra (`nap(…, { congCu: true })`).
+  const [congCuTheoNcc, datCongCuTheoNcc] = useState<Record<string, KetQuaCongCu>>({});
   // Cờ đang-bay đọc bằng ref, KHÔNG bằng state: hai cú bấm liên tiếp trên cùng một nút xảy ra
   // trước khi React vẽ lại, nên đọc state ở đây sẽ thấy giá trị cũ và bắn hai lượt gọi.
   const dangBay = useRef<Set<string>>(new Set());
 
-  const nap = useCallback((provider: string) => {
+  const nap = useCallback((provider: string, tuyChon: { congCu?: boolean } = {}) => {
     if (!provider || dangBay.current.has(provider)) return;
     dangBay.current.add(provider);
     datDangNap((cu) => ({ ...cu, [provider]: true }));
@@ -49,10 +54,11 @@ export function useModelNapVe() {
       delete con[provider];
       return con;
     });
-    lietKeModel(provider)
+    lietKeModel(provider, { congCu: tuyChon.congCu })
       .then((r) => {
         datTheoNcc((cu) => ({ ...cu, [provider]: r.models }));
         if (r.windows) datCuaTheoNcc((cu) => ({ ...cu, [provider]: r.windows! }));
+        if (r.tools) datCongCuTheoNcc((cu) => ({ ...cu, [provider]: r.tools! }));
       })
       .catch((e: unknown) => {
         datLoiTheoNcc((cu) => ({
@@ -68,6 +74,7 @@ export function useModelNapVe() {
       })
       .finally(() => {
         dangBay.current.delete(provider);
+        datLucTheoNcc((cu) => ({ ...cu, [provider]: Date.now() }));
         datDangNap((cu) => {
           if (cu[provider] === undefined) return cu;
           const con = { ...cu };
@@ -77,8 +84,32 @@ export function useModelNapVe() {
       });
   }, []);
 
+  /**
+   * Quên mọi thứ đã biết về một nhà cung cấp — gọi sau khi SỬA nó.
+   *
+   * Danh sách nhớ theo TÊN, nên đổi địa chỉ gốc hay khóa mà không quên thì màn hình tiếp tục
+   * khoe danh sách của gateway cũ, cảnh báo "model không có thật" so với dữ liệu không còn ai
+   * bảo chứng, và nút tải lại bị ẩn vì "đã hỏi rồi".
+   */
+  const xoa = useCallback((provider: string) => {
+    const bo = <T,>(cu: Record<string, T>) => {
+      if (cu[provider] === undefined) return cu;
+      const con = { ...cu };
+      delete con[provider];
+      return con;
+    };
+    datTheoNcc(bo);
+    datLoiTheoNcc(bo);
+    datCuaTheoNcc(bo);
+    datLucTheoNcc(bo);
+    datCongCuTheoNcc(bo);
+  }, []);
+
   return {
     nap,
+    xoa,
+    /** Lúc lượt hỏi gần nhất về, `undefined` khi chưa hỏi. */
+    lucCua: useCallback((provider: string) => lucTheoNcc[provider], [lucTheoNcc]),
     /**
      * Nhà cung cấp NÀY có đang được hỏi không.
      *
@@ -103,6 +134,8 @@ export function useModelNapVe() {
       (provider: string, model: string) => cuaTheoNcc[provider]?.[model] ?? 0,
       [cuaTheoNcc],
     ),
+    /** Kết quả thử gọi công cụ gần nhất, `undefined` khi chưa bấm Kiểm tra. */
+    congCuCua: useCallback((provider: string) => congCuTheoNcc[provider], [congCuTheoNcc]),
     /** Lỗi của lượt hỏi gần nhất cho một nhà cung cấp, `null` khi lượt đó xuôi. */
     loiCua: useCallback((provider: string) => loiTheoNcc[provider] ?? null, [loiTheoNcc]),
   };

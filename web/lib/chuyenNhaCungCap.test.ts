@@ -1,6 +1,15 @@
 import { expect, test } from 'vitest';
 
-import { coVaiLacCho, duKienChuyen, hieuLucCua, thanChuyenCaDay } from './chuyenNhaCungCap';
+import {
+  coVaiLacCho,
+  duKienChuyen,
+  hieuLucCua,
+  khaiThemNeuThieu,
+  thanChiDoiMacDinh,
+  thanChuyenCaDay,
+  thanXoaNhaCungCap,
+  vaiGuiLai,
+} from './chuyenNhaCungCap';
 import type { CauHinhDoc } from './types';
 
 /**
@@ -177,4 +186,70 @@ test('vai ngoài role_names không bị lượt chuyển xoá mất', () => {
   });
   // Và vai NẰM TRONG danh sách vẫn phải bị đè bằng giá trị mới, không phải giữ nguyên bản cũ.
   expect(than.roles.writer!.provider).toBe('moi');
+});
+
+/* ── giữ nguyên ý định của vai khác (B5) ──────────────────────────────── */
+
+const DAY_DU: CauHinhDoc = {
+  ...DU,
+  roles: {
+    writer: { provider: '9Router', model: 'cx/gpt-5.5', reasoning_effort: 'high', fallbacks: [{ provider: 'moi', model: 'claude-opus-5' }] },
+    editor: { provider: '', model: '', reasoning_effort: 'low' },
+  },
+};
+
+test('vaiGuiLai: đổi một vai, mọi vai khác đi qua nguyên vẹn — kể cả fallbacks và độ suy luận', () => {
+  const ra = vaiGuiLai(DAY_DU, 'architect', { provider: 'moi', model: 'claude-opus-5' });
+  expect(ra.writer).toEqual(DAY_DU.roles!.writer);
+  expect(ra.editor).toEqual(DAY_DU.roles!.editor);
+  expect(ra.architect).toEqual({ provider: 'moi', model: 'claude-opus-5' });
+});
+
+test('vaiGuiLai: đổi model của vai có độ suy luận riêng thì GIỮ độ suy luận đó', () => {
+  const ra = vaiGuiLai(DAY_DU, 'writer', { provider: 'moi', model: 'claude-opus-5' });
+  expect(ra.writer).toMatchObject({ provider: 'moi', model: 'claude-opus-5', reasoning_effort: 'high' });
+});
+
+test('vaiGuiLai: gỡ đặt riêng model nhưng còn độ suy luận thì để lại mục chỉ-độ-suy-luận', () => {
+  const ra = vaiGuiLai(DAY_DU, 'writer', undefined);
+  expect(ra.writer).toEqual({ provider: '', model: '', reasoning_effort: 'high' });
+  const ra2 = vaiGuiLai({ ...DU, roles: { writer: { provider: '9Router', model: 'cx/gpt-5.5' } } }, 'writer', undefined);
+  expect(ra2).toEqual({});
+});
+
+test('hieuLucCua: mục chỉ mang độ suy luận vẫn THỪA HƯỞNG model mặc định', () => {
+  expect(hieuLucCua(DAY_DU, 'editor')).toEqual({ provider: '9Router', model: 'cx/gpt-5.5' });
+});
+
+/* ── không tạo cặp rỗng / không tồn tại (B3) ──────────────────────────── */
+
+test('"Chỉ đổi mặc định" lấy model ở dòng Mặc định của bảng — kể cả khi vừa sửa tay', () => {
+  const dong = duKienChuyen(DU, 'moi', 'claude-opus-5').map((d) =>
+    d.vai === 'default' ? { ...d, denModel: 'cx/gpt-5.4-mini' } : d,
+  );
+  expect(thanChiDoiMacDinh(dong, 'moi')).toEqual({ provider: 'moi', model: 'cx/gpt-5.4-mini' });
+});
+
+test('khaiThemNeuThieu: chỉ khai tên CHƯA có, giữ nguyên mục cũ, kèm cửa sổ nếu biết', () => {
+  const du: CauHinhDoc = { ...DU, providers: [{ name: 'p', api_key_set: true, models: [{ name: 'a', context_window: 10, json_schema: true }] }] };
+  expect(khaiThemNeuThieu(du, 'p', 'a')).toBeUndefined();
+  expect(khaiThemNeuThieu(du, 'p', ['b', 'a', 'b'], (m) => (m === 'b' ? 99 : 0))).toEqual({
+    name: 'p',
+    models: [{ name: 'a', context_window: 10, json_schema: true }, { name: 'b', context_window: 99 }],
+  });
+  // Nhà cung cấp không khai model nào: server không có cơ sở chặn, đừng bịa danh sách.
+  expect(khaiThemNeuThieu({ ...du, providers: [{ name: 'p', api_key_set: true }] }, 'p', 'x')).toBeUndefined();
+});
+
+/* ── xóa nhà cung cấp gỡ sạch tham chiếu (B9) ─────────────────────────── */
+
+test('thanXoaNhaCungCap: gỡ vai trỏ vào nó, lọc fallback trỏ vào nó, giữ độ suy luận', () => {
+  const than = thanXoaNhaCungCap(DAY_DU, '9Router');
+  expect(than.remove_provider).toBe('9Router');
+  expect(than.roles).toEqual({
+    writer: { provider: '', model: '', reasoning_effort: 'high' },
+    editor: { provider: '', model: '', reasoning_effort: 'low' },
+  });
+  const than2 = thanXoaNhaCungCap(DAY_DU, 'moi');
+  expect(than2.roles!.writer!.fallbacks).toEqual([]);
 });

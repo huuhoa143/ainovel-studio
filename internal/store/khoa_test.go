@@ -1,6 +1,7 @@
 package store
 
 import (
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -44,13 +45,16 @@ func TestKhoaChanHaiProcessGhi(t *testing.T) {
 		if !isKhoaErr(err) {
 			t.Errorf("lỗi không bọc ErrDangBiKhoa nên tầng trên không phân loại được: %v", err)
 		}
-		// Thông báo phải NÓI ĐƯỢC phải làm gì. Một lỗi "đang bị khóa" không kèm đường dẫn
-		// là đường cùng cho người dùng: họ không biết xóa cái gì.
-		if !strings.Contains(err.Error(), tenTepKhoa) {
-			t.Errorf("thông báo không nêu tệp khóa nên người dùng không biết xóa gì: %v", err)
+		// Thông báo phải NÓI ĐƯỢC phải làm gì, bằng chữ người dùng app desktop hiểu: đóng
+		// chương trình kia, không thấy thì khởi động lại máy. PID và tệp vẫn ở cuối để chẩn đoán.
+		for _, can := range []string{"Đóng cửa sổ AINovel Studio", "khởi động lại máy", "process 1", tenTepKhoa} {
+			if !strings.Contains(err.Error(), can) {
+				t.Errorf("thông báo thiếu %q: %v", can, err)
+			}
 		}
-		if !strings.Contains(err.Error(), "process 1") {
-			t.Errorf("thông báo không nêu PID đang giữ: %v", err)
+		// Không còn khuyên xóa tay: tới được đây là người giữ còn sống thật.
+		if strings.Contains(err.Error(), "xóa") {
+			t.Errorf("thông báo vẫn khuyên xóa tệp khóa — mời hai bên cùng ghi: %v", err)
 		}
 	}
 
@@ -124,5 +128,88 @@ func ghiKhoaTho(t *testing.T, dirSach, noiDung string) {
 	t.Helper()
 	if err := os.WriteFile(TepKhoaCua(dirSach), []byte(noiDung), 0o644); err != nil {
 		t.Fatalf("ghi khóa thô: %v", err)
+	}
+}
+
+// TestKhoaPIDTaiDung canh ca PID được cấp lại cho một process KHÁC.
+//
+// Sau sập / mất điện rồi khởi động lại, hệ điều hành cấp lại PID nhỏ từ đầu (Windows rất hay),
+// nên PID trong tệp khóa cũ thường trỏ vào một chương trình không liên quan đang sống. Chỉ thử
+// "PID sống" thì studio từ chối mở truyện mãi mãi. Mốc khởi động trong tệp khóa phân biệt được.
+//
+// Dùng PID của process CHA (trình chạy `go test`): chắc chắn sống, không phải chính mình (khóa
+// của chính mình bị bỏ qua), và có trên mọi hệ điều hành — PID 1 thì Windows không có.
+func TestKhoaPIDTaiDung(t *testing.T) {
+	cha := os.Getppid()
+	that, ok := mocKhoiDong(cha)
+	if !ok {
+		t.Skip("hệ điều hành này không đọc được mốc khởi động — luật cũ (chỉ PID) áp dụng")
+	}
+	if lai, _ := mocKhoiDong(cha); lai != that {
+		t.Fatalf("mốc khởi động không ổn định giữa hai lần đọc: %q rồi %q", that, lai)
+	}
+
+	ca := []struct {
+		ten     string
+		noiDung string
+		dangGiu bool
+	}{
+		{"đúng process đã lấy khóa", fmt.Sprintf("%d\n2026-07-31T00:00:00Z\n%s%s\n", cha, tienToKhoiDong, that), true},
+		{"PID bị cấp lại cho process khác", fmt.Sprintf("%d\n2026-07-31T00:00:00Z\n%s1\n", cha, tienToKhoiDong), false},
+		// Tệp đời cũ không có mốc: giữ luật cũ, PID sống = đang giữ.
+		{"tệp khóa đời cũ", fmt.Sprintf("%d\n2026-07-31T00:00:00Z\n", cha), true},
+	}
+	for _, c := range ca {
+		t.Run(c.ten, func(t *testing.T) {
+			dir := t.TempDir()
+			if _, err := layKhoa(dir); err != nil {
+				t.Fatal(err)
+			}
+			ghiKhoaTho(t, dir, c.noiDung)
+
+			// Hai người đọc, MỘT luật: snapshot hỏi "có ai đang viết không" và layKhoa phải
+			// trả lời giống nhau, không thì giao diện báo "đang viết" cho một truyện mở được.
+			if got := DangCoNguoiGiu(dir); got != c.dangGiu {
+				t.Errorf("DangCoNguoiGiu = %v, muốn %v", got, c.dangGiu)
+			}
+			k, err := layKhoa(dir)
+			if c.dangGiu {
+				if !isKhoaErr(err) {
+					t.Errorf("người giữ còn sống thật mà vẫn lấy được khóa (err=%v)", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("không tiếp quản được khóa của PID đã bị cấp lại: %v", err)
+			}
+			_ = k.tra()
+		})
+	}
+}
+
+// TestKhoaGhiMocKhoiDong: khóa mới phải mang mốc của CHÍNH process lấy nó, nếu hệ điều hành
+// đọc được — thiếu nó thì sau một lần khởi động lại, ca PID tái dùng lại thành ngõ cụt.
+func TestKhoaGhiMocKhoiDong(t *testing.T) {
+	that, ok := mocKhoiDong(os.Getpid())
+	dir := t.TempDir()
+	k, err := layKhoa(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = k.tra() }()
+	tk := docKhoa(TepKhoaCua(dir))
+	if tk.pid != os.Getpid() {
+		t.Errorf("pid trong khóa = %d, muốn %d", tk.pid, os.Getpid())
+	}
+	if ok && tk.khoiDong != that {
+		t.Errorf("mốc khởi động trong khóa = %q, muốn %q", tk.khoiDong, that)
+	}
+	if !ok && tk.khoiDong != "" {
+		t.Errorf("hệ điều hành không đọc được mốc mà khóa vẫn ghi %q", tk.khoiDong)
+	}
+	// PID không tồn tại phải báo "không đọc được", không được trả một mốc rỗng-mà-ok: mốc giả
+	// sẽ khác mốc đã ghi và biến một khóa thật thành mồ côi.
+	if moc, ok := mocKhoiDong(999999999); ok {
+		t.Errorf("PID không tồn tại mà vẫn đọc được mốc khởi động %q", moc)
 	}
 }

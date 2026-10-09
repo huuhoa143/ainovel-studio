@@ -2,13 +2,12 @@
   "name": "ainovel-studio-web",
   "version": "0.1.0",
   "private": true,
-  "description": "Bề mặt vận hành của engine ainovel — xuất tĩnh, để `ainovel-cli serve --web` phục vụ trực tiếp.",
+  "description": "Giao diện của AINovel Studio — xuất tĩnh, để sidecar Go của app phục vụ trực tiếp.",
   "scripts": {
     "dev": "next dev -p 8421",
     "dev:mock": "NEXT_PUBLIC_MOCK=1 next dev -p 8421",
     "build": "next build",
     "build:mock": "NEXT_PUBLIC_MOCK=1 next build",
-    "start": "next start -p 8421",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"

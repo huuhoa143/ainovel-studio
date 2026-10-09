@@ -8,10 +8,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/voocel/agentcore"
 	"github.com/huuhoa143/ainovel-studio/internal/domain"
 	"github.com/huuhoa143/ainovel-studio/internal/i18n"
 	storepkg "github.com/huuhoa143/ainovel-studio/internal/store"
+	"github.com/voocel/agentcore"
 	"sync/atomic"
 )
 
@@ -22,11 +22,25 @@ import (
 // the rendered string fallback used when the chain has been flattened
 // (e.g. inside sub-agent JSON results).
 func errorKind(err error, msg string) string {
-	if err != nil && errors.Is(err, agentcore.ErrProviderStreamIdle) {
-		return "stream_idle"
+	if kind := agentcore.ErrorKind(err); kind != "" && kind != "unknown" {
+		return kind
 	}
-	if msg != "" && agentcore.IsStreamIdleMessage(msg) {
-		return "stream_idle"
+	if msg == "" {
+		return ""
+	}
+	if kind := agentcore.ErrorKind(errors.New(msg)); kind != "unknown" {
+		return kind
+	}
+	lower := strings.ToLower(msg)
+	switch {
+	case strings.Contains(lower, "tool argument validation failed"):
+		return "tool_validation"
+	case strings.Contains(lower, "too many concurrent requests"):
+		return "overloaded"
+	// providerError 会把 litellm 的结构化类型附在文本末尾。
+	// HTTP/2 INTERNAL_ERROR 本身没有可分类关键词，保留这个显式 network 标记即可。
+	case strings.Contains(lower, "[network,"):
+		return "network"
 	}
 	return ""
 }
@@ -62,7 +76,9 @@ type observer struct {
 	// "用户手动暂停"事件重复）。真实异常（非 cancel）仍照常上报。
 	aborting atomic.Bool
 
-	streamThinking      bool
+	streamThinking bool
+	// streamLoiNoi: lượt stream hiện tại là lời model tự nói (đã phát tiêu đề) — xem emitLoiNoi.
+	streamLoiNoi        bool
 	lastThinkingByAgent map[string]string          // agent → 最近的累积 thinking 文本（用于提取增量 delta）
 	dispatchStarts      map[string]*activeCall     // dispatched agent → 进行中的 DISPATCH 调用
 	toolStarts          map[string]*activeCall     // agent → 进行中的 TOOL 调用
@@ -83,9 +99,12 @@ type agentExtractor struct {
 }
 
 type agentState struct {
-	name    string
-	state   string
-	tool    string
+	name  string
+	state string
+	tool  string
+	// chapter là tham số `chapter` của lượt gọi công cụ đang chạy (read_chapter, edit_chapter,
+	// draft_chapter…); 0 khi công cụ không nói tới chương nào.
+	chapter int
 	summary string
 	turn    int
 	context AgentContextSnapshot
@@ -122,7 +141,7 @@ func (o *observer) dispatchStart(agent, task string) {
 	summary := dispatchSummary(agent, task)
 	o.updateAgent(agent, func(a *agentState) {
 		a.state = "working"
-		a.tool = ""
+		a.tool, a.chapter = "", 0
 		a.summary = fmt.Sprintf("engine → %s", summary)
 	})
 	id := nextEventID()
@@ -142,7 +161,7 @@ func (o *observer) dispatchStart(agent, task string) {
 func (o *observer) dispatchFinish(agent string, failed bool) {
 	o.updateAgent(agent, func(a *agentState) {
 		a.state = "idle"
-		a.tool = ""
+		a.tool, a.chapter = "", 0
 	})
 	delete(o.lastThinkingByAgent, agent)
 	if call, ok := o.toolStarts[agent]; ok {
@@ -168,7 +187,7 @@ func (o *observer) finalize() {
 	defer o.agentMu.Unlock()
 	for _, a := range o.agents {
 		a.state = "idle"
-		a.tool = ""
+		a.tool, a.chapter = "", 0
 	}
 }
 
@@ -242,6 +261,7 @@ func (o *observer) agentSnapshots() []AgentSnapshot {
 			State:     a.state,
 			Summary:   a.summary,
 			Tool:      a.tool,
+			Chapter:   a.chapter,
 			Turn:      a.turn,
 			Context:   a.context,
 			UpdatedAt: a.updated,

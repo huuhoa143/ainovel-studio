@@ -17,8 +17,7 @@
   "capabilities": {
     "per_chapter_duration": true,
     "per_chapter_cost": false,
-    "layered_outline": true,
-    "steer": false
+    "layered_outline": true
   },
   "timeline": {
     "volumes": [

@@ -132,7 +132,7 @@ test('tiền đề rỗng nói ra là rỗng, không vẽ lưới trống', asyn
   // điều đang cần kiểm.
   await waitFor(() => expect(document.querySelector('.khuhoso .sect')).not.toBeNull());
   const khoi = document.querySelector('.khuhoso .sect')!;
-  expect(khoi.querySelector('h2')?.textContent).toBe('Tiền đề');
+  expect(khoi.querySelector('h2')?.textContent).toBe('Ý tưởng gốc');
   expect(khoi.querySelector('.trongSect')?.textContent).toMatch(/chưa/i);
   expect(khoi.querySelector('.kvtiende')).toBeNull();
   expect(khoi.querySelector('.tiende')).toBeNull();

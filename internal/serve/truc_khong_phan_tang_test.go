@@ -84,7 +84,7 @@ func TestTrucSachKhongPhanTangTraNull(t *testing.T) {
 func TestSongKhiChuaMoMayTra200(t *testing.T) {
 	goc := t.TempDir()
 	newBook(t, goc, "sach", nil)
-	srv := &server{root: goc, choGhi: true, may: newBoMay(goc)}
+	srv := &server{root: goc, may: boMayThu(t, goc)}
 
 	rec := httptest.NewRecorder()
 	srv.routes().ServeHTTP(rec, httptest.NewRequest("GET", "/api/books/sach/live", nil))

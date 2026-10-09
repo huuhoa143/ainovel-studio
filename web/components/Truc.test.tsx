@@ -32,6 +32,7 @@ function ve(cap: [number, MarkState][], vuaChot: ReadonlySet<number>) {
       chuongChon={undefined}
       onChonChuong={() => {}}
       vuaChot={vuaChot}
+      dangChay
     />,
   );
 }
@@ -106,7 +107,7 @@ test('lane dày: chương vừa chốt được TÁCH thành dải riêng, khôn
   expect(nhap).toHaveLength(1);
   // Dải MỘT chương, không phải dải 40 chương: `flexGrow` là trọng số độ rộng.
   expect((nhap[0] as HTMLElement).style.flexGrow).toBe('1');
-  expect(nhap[0]!.getAttribute('title')).toBe('chương 40 · đã nghiệm thu');
+  expect(nhap[0]!.getAttribute('title')).toBe('chương 40 · đã xong');
 });
 
 test('lane dày: tách KHÔNG làm đổi tổng trọng số — không có gì xê dịch', () => {

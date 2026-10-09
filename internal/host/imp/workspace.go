@@ -242,7 +242,7 @@ func createWorkspace(bookDir string, m Manifest, in Intent, normalized []byte) (
 	base := filepath.Join(bookDir, "meta")
 	final := filepath.Join(base, "import")
 	if fi, err := os.Stat(final); err == nil && fi.IsDir() {
-		return nil, fmt.Errorf(i18n.F("导入工作区已存在：%s（无参数 /import 可从中恢复）"), final)
+		return nil, fmt.Errorf(i18n.F("导入工作区已存在：%s（点「Tiếp tục nhập」可从中恢复）"), final)
 	}
 	if err := os.MkdirAll(base, 0o755); err != nil {
 		return nil, err

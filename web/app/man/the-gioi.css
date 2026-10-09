@@ -1,0 +1,1360 @@
+/* Màn: the-gioi — xem .impeccable/brief-v2.md
+   Nhóm "Thế giới truyện": Dàn ý · Nhân vật · Luật thế giới · Phục bút · Văn phong.
+   Mọi quy tắc có phạm vi `.tg` (lớp gốc do HoSoKhung gắn), nên không lan sang màn khác
+   dùng chung lớp cũ như `.sect`, `.kv`, `.nhanhdau`. */
+
+/* ── khung chung ───────────────────────────────────────────────────────── */
+.tg .head {
+  align-items: center;
+}
+.tg .headPhai {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.tg .tgThan {
+  display: grid;
+  gap: 16px;
+  padding: 20px 24px 48px;
+  max-width: 1240px;
+  min-width: 0;
+}
+.tg .tgThan .sect,
+.tg .tgThan .sect:last-child {
+  padding: 0;
+  border-bottom: 0;
+}
+/* Đang tải / lỗi / chưa chọn: một câu rõ ở vị trí nội dung, không phải dòng mờ sát mép. */
+.tg > .sect {
+  padding: 28px 24px;
+  border-bottom: 0;
+}
+.tg > .sect > h2 {
+  font: 600 14px/1.4 var(--ui);
+  color: var(--ink);
+  margin: 0 0 6px;
+}
+.tg .trongSect {
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.tg .loiDoc {
+  max-width: 74ch;
+}
+
+.tg .tgNhanPhu {
+  display: block;
+  font: 500 11.5px/1.4 var(--ui);
+  color: var(--ink-3);
+  margin: 0 0 4px;
+}
+.tg .tgPhuNho {
+  font: 400 12px/1.4 var(--ui);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-3);
+}
+.tg .tgChuThich {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.65;
+  color: var(--ink-3);
+  max-width: 80ch;
+}
+.tg .tgAn {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.tg .tgNutNho {
+  min-height: 28px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
+/* Viên hạng nhân vật: trung tính, vì hạng không phải trạng thái dữ liệu. Chủ chốt đậm
+   hơn một bậc để vẫn đọc ra thứ bậc khi đứng cạnh nhau. */
+.tg .vien.h-core {
+  background: color-mix(in oklab, var(--ink) 13%, transparent);
+  color: var(--ink);
+}
+
+/* Vòng chữ cái đầu. Nền là màu riêng của nhân vật, lấy từ bảng màu bìa (`lib/bia.ts`).
+   Bảng đó KHÔNG đổi theo giao diện sáng/tối — bìa là nội dung, không phải khung — nên chữ
+   trắng trên nó là cặp cố định, cùng cách bìa truyện ở Tủ truyện đặt chữ. */
+.tg .tgVong {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  font: 600 12px/1 var(--ui);
+  letter-spacing: 0.02em;
+  color: #fff;
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, currentColor 14%, transparent);
+}
+.tg .tgVong.lon {
+  width: 44px;
+  height: 44px;
+  font-size: 15px;
+}
+
+/* Bộ lọc dạng ô chọn liền: cùng hình với `.dkChon` của thanh điều khiển. */
+.tg .tgLoc {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 9px;
+  background: var(--raised);
+  justify-self: start;
+}
+.tg .tgLocNut {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  color: var(--ink-2);
+  font: 500 12.5px/1 var(--ui);
+  cursor: pointer;
+  transition: background 0.14s var(--ease), color 0.14s var(--ease);
+}
+.tg .tgLocNut:hover {
+  color: var(--ink);
+}
+.tg .tgLocNut[aria-pressed="true"] {
+  background: var(--panel);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+}
+.tg .tgLocDem {
+  font: 500 11.5px/1 var(--ui);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-3);
+}
+.tg .tgLocNut .ky {
+  font-size: 10px;
+  color: var(--ink-3);
+}
+.tg .tgLocNut[data-tt="planted"] .ky {
+  color: var(--amber);
+}
+.tg .tgLocNut[data-tt="resolved"] .ky {
+  color: var(--teal);
+}
+
+/* Ô tìm. */
+.tg .tgTimO {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.tg .tgTimO input {
+  width: 280px;
+  max-width: 100%;
+  min-height: 30px;
+  padding: 0 11px;
+  font-size: 12.5px;
+}
+.tg .tgTimO input::placeholder {
+  color: var(--ink-3);
+}
+
+.tg .tgHienThem {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 6px 0 0;
+}
+.tg .tgHienThemCon {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-3);
+}
+
+/* Khối gập dạng thẻ (Ý tưởng gốc, Mọi quan hệ). Mũi tên vẽ bằng viền, xoay khi mở. */
+.tg .hopGap {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow);
+}
+.tg .hopGap > summary {
+  display: grid;
+  grid-template-columns: 12px auto minmax(0, 1fr);
+  align-items: center;
+  column-gap: 10px;
+  padding: 14px 16px;
+  border-radius: var(--r-lg);
+}
+.tg .hopGap > summary::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border: 0;
+  border-right: 1.6px solid var(--ink-3);
+  border-bottom: 1.6px solid var(--ink-3);
+  transform: translateX(-1px) rotate(-45deg);
+  transition: transform 0.16s var(--ease);
+}
+.tg .hopGap[open] > summary::before {
+  transform: translateY(-2px) rotate(45deg);
+}
+.tg .hopGap > summary > h2 {
+  font: 600 13.5px/1.4 var(--ui);
+  color: var(--ink);
+}
+.tg .hopGap > summary:hover > h2 {
+  color: var(--ink);
+}
+.tg .hopGap > summary:hover::before {
+  border-color: var(--ink);
+}
+.tg .hopPhu {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.tg .hopTomTat {
+  grid-column: 2 / -1;
+  margin-top: 6px;
+  min-width: 0;
+}
+.tg .hopGap[open] .hopTomTat {
+  display: none;
+}
+.tg .hopThan {
+  margin: 0;
+  padding: 2px 16px 18px 38px;
+}
+
+/* ══ Dàn ý ═════════════════════════════════════════════════════════════ */
+
+.tgDanY .tgXemTruoc {
+  margin: 0;
+  max-width: 92ch;
+  font-size: 12.5px;
+  line-height: 1.65;
+  color: var(--ink-2);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.tgDanY .tgXemTruocNhan {
+  color: var(--ink);
+  font-weight: 500;
+  margin-right: 6px;
+}
+/* Tên truyện trong bản đặc tả: serif, vì đó là tên tác phẩm. */
+.tgDanY .tiendeTen {
+  margin: 0 0 14px;
+  font: 500 18px/1.35 var(--serif);
+  color: var(--ink);
+}
+.tgDanY .tiende {
+  color: var(--ink-2);
+}
+.tgDanY .kvtiende {
+  grid-template-columns: 200px minmax(0, 1fr);
+  gap: 0;
+  font-size: 13px;
+}
+.tgDanY .kvtiende dt,
+.tgDanY .kvtiende dd {
+  padding: 11px 0;
+  border-top: 1px solid var(--line-2);
+}
+.tgDanY .kvtiende dt:first-of-type,
+.tgDanY .kvtiende dt:first-of-type + dd {
+  border-top: 0;
+  padding-top: 2px;
+}
+.tgDanY .kvtiende dt {
+  font-weight: 500;
+  color: var(--ink);
+  padding-right: 16px;
+}
+.tgDanY .kvtiende dd {
+  color: var(--ink-2);
+  line-height: 1.7;
+}
+
+/* Thẻ cây. */
+.tgDanY .tgCay {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.tgDanY .tgCayDau {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line-2);
+}
+.tgDanY .tgCayDau h2 {
+  font: 600 13.5px/1.4 var(--ui);
+  color: var(--ink);
+  margin: 0;
+}
+.tgDanY .tgCayDau .nutPhu {
+  margin-left: auto;
+}
+.tgDanY .tgCay > .trongSect {
+  padding: 16px;
+}
+.tgDanY .tgCay > .tgChuThich {
+  padding: 12px 16px;
+  border-top: 1px solid var(--line-2);
+}
+
+.tgDanY .cayDanY {
+  display: block;
+  max-width: none;
+}
+/* `minmax(0, 1fr)` chứ KHÔNG để cột tự co giãn theo nội dung.
+   Lưới một cột mà không khai cột thì cột ấy là `auto`, và `auto` lấy theo
+   max-content của mục rộng nhất — cộng với `min-width: auto` mặc định của một
+   `li`, không gì ép nó hẹp lại được. ĐO ĐƯỢC trên truyện thật: mở chi tiết một
+   chương làm danh sách rộng 2023px trong một ô 1206px, tức tràn 800px ra ngoài
+   phải màn hình, và `overflow-x: hidden` của thẻ bọc cắt luôn phần tràn —
+   người dùng mất hẳn nửa bảng tóm tắt mà không có thanh cuộn nào báo. */
+.tgDanY .cayCung,
+.tgDanY .cayChuong {
+  margin: 0;
+  padding: 0;
+  border-left: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1px;
+}
+
+/* Dòng chung của ba cấp. */
+.tgDanY .nhanhdau {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 10px;
+  min-width: 0;
+}
+.tgDanY .nhanhdau .ma {
+  font: 500 12px/1.4 var(--ui);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-3);
+  flex: none;
+}
+.tgDanY .nhanhdau .ten {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tgDanY .nhanhdau .dem {
+  font: 400 12px/1.4 var(--ui);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+.tgDanY .tgPhai {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: none;
+}
+.tgDanY .tgPham {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+.tgDanY .tgNhanPhu {
+  display: inline;
+  margin: 0 8px 0 0;
+  color: var(--ink-2);
+}
+.tgDanY .phu {
+  margin: 0 0 8px;
+  font-size: 12.5px;
+  line-height: 1.65;
+  color: var(--ink-3);
+  max-width: 88ch;
+}
+.tgDanY .chuamoNoi {
+  margin: 0;
+  font-size: 12px;
+  padding: 6px 10px;
+}
+
+/* Mũi tên của mọi summary trong cây. */
+.tgDanY .capGap > summary.nhanhdau {
+  margin: 0;
+  list-style: none;
+  cursor: pointer;
+}
+.tgDanY .capGap > summary.nhanhdau::before {
+  content: "";
+  flex: none;
+  align-self: center;
+  width: 6px;
+  height: 6px;
+  margin: 0 3px 0 1px;
+  border: 0;
+  border-right: 1.6px solid var(--ink-3);
+  border-bottom: 1.6px solid var(--ink-3);
+  transform: rotate(-45deg);
+  transition: transform 0.16s var(--ease);
+}
+.tgDanY .capGap[open] > summary.nhanhdau::before {
+  transform: translateY(-2px) rotate(45deg);
+}
+
+/* Tập. */
+.tgDanY .ntap + .ntap {
+  border-top: 1px solid var(--line-2);
+}
+.tgDanY .ntap > .capGap > summary,
+.tgDanY .ntap > .nhanhdau {
+  min-height: 50px;
+  padding: 9px 16px;
+  border-radius: 0;
+}
+.tgDanY .ntap > .nhanhdau {
+  padding-left: 38px;
+}
+.tgDanY .ntap > .capGap > summary:hover {
+  background: var(--panel-2);
+}
+.tgDanY .ntap > .capGap > summary > .ma,
+.tgDanY .ntap > .nhanhdau > .ma {
+  width: 46px;
+  color: var(--ink-2);
+}
+.tgDanY .ntap > .capGap > summary > .ten,
+.tgDanY .ntap > .nhanhdau > .ten {
+  font: 600 13.5px/1.4 var(--ui);
+  color: var(--ink);
+}
+.tgDanY .ntap[data-tt="pending"] > .nhanhdau > .ten,
+.tgDanY .ntap.chuamo > .nhanhdau > .ten {
+  color: var(--ink-2);
+}
+.tgDanY .tgTapThan {
+  padding: 0 16px 14px 94px;
+}
+.tgDanY .ntap > .capGap[open] {
+  background: color-mix(in oklab, var(--panel-2) 45%, transparent);
+}
+
+/* Hồi. */
+.tgDanY .ncung > .capGap > summary,
+.tgDanY .ncung > .nhanhdau {
+  min-height: 36px;
+  padding: 6px 10px;
+  border-radius: 8px;
+}
+.tgDanY .ncung > .nhanhdau {
+  padding-left: 30px;
+}
+.tgDanY .ncung > .capGap > summary:hover {
+  background: var(--raised);
+}
+.tgDanY .ncung .nhanhdau > .ma {
+  width: 42px;
+}
+.tgDanY .ncung > .capGap > summary > .ten,
+.tgDanY .ncung > .nhanhdau > .ten {
+  font: 500 13px/1.4 var(--ui);
+  color: var(--ink);
+}
+.tgDanY .ncung.chuamo > .nhanhdau > .ten {
+  color: var(--ink-2);
+}
+.tgDanY .ncung[data-tt="running"] > .capGap > summary > .ma {
+  color: var(--gold);
+}
+.tgDanY .tgCungThan {
+  padding: 4px 6px 12px 82px;
+}
+
+/* Chương: một dòng gọn, bấm mở chi tiết. Không mũi tên — cả dòng là vùng bấm.
+
+   Lề âm BÙ cho `padding-left` của thân Tập/Hồi (`.tgTapThan`/`.tgCungThan`, 82px):
+   chương nằm sâu hai cấp nhưng số chương phải thẳng hàng với mép nội dung, không
+   thụt vào theo cấp. Truyện KHÔNG phân tầng (`.tgPhang`) không có hai thân ấy nên
+   không có gì để bù — lề âm lúc đó kéo cột số chương ra NGOÀI mép trái của `main`,
+   và `overflow-x: hidden` của thẻ bọc cắt mất nó: đo được trên truyện thật, cả ba
+   chương mất số, chỉ còn chấm trạng thái. */
+.tgDanY .cayChuong {
+  margin-left: -52px;
+}
+.tgDanY .cayChuong.tgPhang {
+  margin-left: 0;
+}
+.tgDanY .cayChuong > li > .nhanhdau,
+.tgDanY .tgChuongGap > summary {
+  min-height: 32px;
+  padding: 5px 8px;
+  border-radius: 7px;
+  list-style: none;
+}
+.tgDanY .tgChuongGap > summary {
+  cursor: pointer;
+}
+.tgDanY .tgChuongGap > summary::-webkit-details-marker {
+  display: none;
+}
+.tgDanY .tgChuongGap > summary:hover,
+.tgDanY .tgChuongGap[open] > summary {
+  background: var(--raised);
+}
+.tgDanY .cayChuong .nhanhdau > .ma {
+  width: 36px;
+  text-align: right;
+}
+.tgDanY .cayChuong .nhanhdau > .ten {
+  flex: 0 1 auto;
+  max-width: 46%;
+  font: 400 13.5px/1.45 var(--serif);
+  color: var(--ink);
+}
+.tgDanY .cayChuong li[data-tt="pending"] .nhanhdau > .ten {
+  color: var(--ink-2);
+}
+.tgDanY .cayChuong li[data-tt="running"] .nhanhdau > .ten,
+.tgDanY .cayChuong li[data-tt="running"] .nhanhdau > .ma {
+  color: var(--gold);
+}
+.tgDanY .tgTrongTam {
+  flex: 1 1 0;
+  min-width: 0;
+  font-size: 12.5px;
+  color: var(--ink-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tgDanY .tgChuongGap[open] .tgTrongTam {
+  visibility: hidden;
+}
+.tgDanY .tgChuongThan {
+  padding: 6px 8px 12px 64px;
+}
+.tgDanY .tgChuongThan .kvcay {
+  grid-template-columns: 116px minmax(0, 1fr);
+  margin: 0;
+}
+.tgDanY .tgChuongThan .kvcay dd {
+  color: var(--ink-2);
+}
+.tgDanY .tgChuongThan .canhcay {
+  margin: 0;
+  padding-left: 18px;
+}
+.tgDanY .tgChuongThan .canhcay li {
+  color: var(--ink-2);
+}
+
+/* Chấm trạng thái chương — có chữ ẩn và `title` đi kèm, màu không là kênh duy nhất. */
+.tgDanY .tgDiem {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ink-3);
+  opacity: 0.5;
+}
+.tgDanY .tgDiem[data-tt="done"] {
+  background: var(--teal);
+  opacity: 1;
+}
+.tgDanY .tgDiem[data-tt="running"] {
+  background: var(--gold-fill);
+  opacity: 1;
+}
+.tgDanY .tgDiem[data-tt="rewrite"] {
+  background: var(--amber);
+  opacity: 1;
+}
+.tgDanY .tgDiem[data-tt="gate"] {
+  background: var(--violet);
+  opacity: 1;
+}
+.tgDanY .tgDiem[data-tt="pending"] {
+  background: none;
+  box-shadow: inset 0 0 0 1.4px var(--ink-3);
+  opacity: 0.8;
+}
+
+/* Tiến độ mảnh: chữ số + thanh 4px. */
+.tg .tgTienDo {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.tg .tgTienDoChu {
+  font: 500 12px/1 var(--ui);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
+  min-width: 72px;
+  text-align: right;
+  white-space: nowrap;
+}
+.tg .tgTienDoThanh {
+  width: 72px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--raised);
+  overflow: hidden;
+}
+.tg .tgTienDoThanh > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--ink-3);
+}
+.tg .tgTienDo[data-tt="done"] .tgTienDoThanh > span {
+  background: var(--teal);
+}
+.tg .tgTienDo[data-tt="running"] .tgTienDoThanh > span {
+  background: var(--gold-fill);
+}
+.tgDanY .ncung .tgTienDoThanh {
+  width: 48px;
+}
+.tgDanY .ncung .tgTienDoChu {
+  min-width: 52px;
+  color: var(--ink-3);
+}
+
+/* ══ Nhân vật ══════════════════════════════════════════════════════════ */
+
+.tgNhanVat .tgNvBo {
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+}
+.tgNhanVat .tgNvBo.coChon {
+  grid-template-columns: minmax(0, 1fr) minmax(340px, 420px);
+}
+.tgNhanVat .tgNvChinh {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+.tgNhanVat .tgNvLuoi {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 12px;
+}
+.tgNhanVat .tgNvLuoi > li {
+  display: flex;
+  min-width: 0;
+}
+.tgNhanVat .tgNvThe {
+  flex: 1;
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  min-width: 0;
+  padding: 14px;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  transition: border-color 0.14s var(--ease), background 0.14s var(--ease);
+}
+.tgNhanVat .tgNvThe:hover {
+  border-color: color-mix(in oklab, var(--ink) 22%, transparent);
+}
+.tgNhanVat .tgNvThe[aria-pressed="true"] {
+  border-color: color-mix(in oklab, var(--gold) 70%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--gold) 45%, transparent), var(--shadow);
+}
+.tgNhanVat .tgNvThe:focus-visible {
+  border-radius: var(--r-lg);
+}
+.tgNhanVat .nguoidau {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  column-gap: 10px;
+  row-gap: 1px;
+  align-items: center;
+  padding: 0;
+  min-width: 0;
+}
+.tgNhanVat .nguoidau::before {
+  content: none;
+}
+/* Ghim lên đỉnh: tên giờ xuống dòng được, và căn giữa thì vòng chữ tụt xuống theo
+   độ dài tên — mỗi thẻ trong lưới một độ cao khác nhau. */
+.tgNhanVat .nguoidau .tgVong {
+  grid-row: 1 / span 2;
+  align-self: start;
+}
+.tgNhanVat .tgNvTen {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+/* Tên XUỐNG DÒNG, không cắt. Tên là thứ để nhận ra nhân vật, và cắt nó là cắt
+   đúng phần phân biệt: đo được trên truyện thật, "Đại úy (khách q…" ở lưới bốn
+   cột — phần bị mất chính là phần nói đây là ai. */
+.tgNhanVat .tgNvTen {
+  align-items: flex-start;
+}
+.tgNhanVat .tgNvTen .ten {
+  font: 600 14px/1.35 var(--ui);
+  color: var(--ink);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.tgNhanVat .tgNvTen .vien {
+  flex: none;
+}
+/* Vai: tối đa HAI dòng. Một dòng cắt mất nửa câu ở mọi thẻ của lưới bốn cột
+   ("Người để lại đồng hồ; xuất hiện tr…"); hai dòng đủ cho vai thường gặp, và câu
+   đầy đủ vẫn nằm ở bảng chi tiết khi bấm thẻ. */
+.tgNhanVat .nguoidau .vai {
+  grid-column: 2;
+  font: 400 12.5px/1.45 var(--ui);
+  color: var(--ink-2);
+  min-width: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+.tgNhanVat .nguoidau .biDanh {
+  grid-column: 1 / -1;
+  margin-top: 8px;
+  font: 400 12px/1.45 var(--ui);
+  color: var(--ink-3);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tgNhanVat .tgNvMoTa {
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--ink-2);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Panel chi tiết. */
+.tgNhanVat .tgNvPanel {
+  position: sticky;
+  top: 16px;
+  max-height: calc(100vh - 150px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow);
+  min-width: 0;
+}
+.tgNhanVat .tgPanelDau {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line-2);
+}
+.tgNhanVat .tgPanelTen {
+  flex: 1;
+  min-width: 0;
+}
+.tgNhanVat .tgPanelTen h2 {
+  margin: 0;
+  font: 600 16px/1.3 var(--ui);
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+.tgNhanVat .tgPanelTen h2:focus {
+  outline: none;
+}
+.tgNhanVat .tgPanelTen p {
+  margin: 4px 0 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+}
+.tgNhanVat .tgPanelTen .vai {
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+.tgNhanVat .tgPanelThan {
+  display: grid;
+  gap: 20px;
+  padding: 16px 16px 20px;
+}
+.tgNhanVat .tgBiDanh {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+.tgNhanVat .tavan {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--ink);
+  max-width: 72ch;
+  text-wrap: pretty;
+}
+.tgNhanVat .tgKhoi h3 {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 0 8px;
+  font: 600 12.5px/1.4 var(--ui);
+  color: var(--ink);
+}
+.tgNhanVat .tgChips,
+.tgVanPhong .vpthe {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.tgNhanVat .tgChips li,
+.tgVanPhong .vpthe li {
+  padding: 3px 10px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--raised);
+  font: 400 12px/1.5 var(--ui);
+  color: var(--ink-2);
+}
+.tgNhanVat .tgAnhChup {
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--panel-2);
+}
+.tgNhanVat .kvnguoi {
+  grid-template-columns: 88px minmax(0, 1fr);
+  gap: 8px 12px;
+  margin: 0;
+}
+.tgNhanVat .kvnguoi dd {
+  color: var(--ink);
+}
+
+/* Quan hệ. */
+.tgNhanVat .tgQH {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+}
+.tgNhanVat .tgQH > li {
+  padding: 9px 0;
+  border-top: 1px solid var(--line-2);
+}
+.tgNhanVat .tgQH > li:first-child {
+  border-top: 0;
+  padding-top: 2px;
+}
+.tgNhanVat .tgQHDau {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+}
+.tgNhanVat .tgQHDau .ten {
+  font: 500 13px/1.4 var(--ui);
+  color: var(--ink);
+}
+.tgNhanVat .tgQHNoi {
+  color: var(--ink-3);
+}
+.tgNhanVat .tgQHDau .tgPhuNho {
+  margin-left: auto;
+}
+.tgNhanVat .tgQH p {
+  margin: 3px 0 0;
+  font-size: 12.5px;
+  line-height: 1.65;
+  color: var(--ink-2);
+  max-width: 80ch;
+}
+.tgNhanVat .tgQHAll {
+  display: grid;
+  gap: 12px;
+}
+.tgNhanVat .tgQHAll .tgQH {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr));
+  column-gap: 28px;
+}
+.tgNhanVat .tgQHAll .tgQH > li:nth-child(-n + 2) {
+  border-top: 0;
+}
+
+@media (max-width: 1100px) {
+  .tgNhanVat .tgNvBo.coChon {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .tgNhanVat .tgNvPanel {
+    order: -1;
+    position: static;
+    max-height: none;
+  }
+}
+
+/* ══ Luật thế giới ═════════════════════════════════════════════════════ */
+
+.tgLuat .tgLuatLuoi {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
+  gap: 12px;
+}
+.tgLuat .tgLuatThe {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  padding: 16px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow);
+  min-width: 0;
+}
+.tgLuat .tgLuatThe > h2 {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0;
+  font: 600 13.5px/1.4 var(--ui);
+  color: var(--ink);
+}
+.tgLuat .dsLuat {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 14px;
+  max-width: none;
+}
+.tgLuat .dsLuat li,
+.tgLuat .dsLuat li:first-child,
+.tgLuat .dsLuat li:last-child {
+  padding: 0;
+  border: 0;
+}
+.tgLuat .dsLuat li + li {
+  padding-top: 14px;
+  border-top: 1px solid var(--line-2);
+}
+.tgLuat .dsLuat .luat {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--ink);
+  max-width: 72ch;
+  text-wrap: pretty;
+}
+.tgLuat .dsLuat .ranh {
+  display: block;
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--panel-2);
+  max-width: none;
+}
+.tgLuat .dsLuat .ranh .tgNhanPhu {
+  color: var(--amber);
+}
+.tgLuat .dsLuat .ranh p {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.65;
+  color: var(--ink-2);
+  text-wrap: pretty;
+}
+
+/* ══ Phục bút ══════════════════════════════════════════════════════════ */
+
+.tgPhucBut .tgThan {
+  gap: 12px;
+}
+.tgPhucBut .tgPbCongCu {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: -20px -24px 0;
+  padding: 14px 24px 10px;
+  background: var(--bg);
+}
+.tgPhucBut .tgDemHien {
+  margin: 0;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-3);
+}
+.tgPhucBut .tgPbDs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: block;
+  max-width: none;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.tgPhucBut .tgPbDs > li,
+.tgPhucBut .tgPbDs > li:first-child,
+.tgPhucBut .tgPbDs > li:last-child {
+  display: grid;
+  grid-template-columns: 136px minmax(0, 1fr) auto;
+  grid-template-areas:
+    "tt mota moc"
+    ". ma ma";
+  align-items: baseline;
+  column-gap: 16px;
+  row-gap: 3px;
+  padding: 12px 16px;
+  border: 0;
+  border-top: 1px solid var(--line-2);
+}
+.tgPhucBut .tgPbDs > li:first-child {
+  border-top: 0;
+}
+.tgPhucBut .tgPbDs > li:hover {
+  background: color-mix(in oklab, var(--panel-2) 60%, transparent);
+}
+.tgPhucBut .tgPbDs .vien {
+  grid-area: tt;
+  justify-self: start;
+}
+.tgPhucBut .tgPbDs .vien .ky {
+  font-size: 9px;
+}
+.tgPhucBut .tgPbDs .tavan {
+  grid-area: mota;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--ink);
+  max-width: 88ch;
+  text-wrap: pretty;
+}
+.tgPhucBut .tgPbDs > li[data-tt="resolved"] .tavan {
+  color: var(--ink-2);
+}
+.tgPhucBut .tgPbDs .moc {
+  grid-area: moc;
+  font: 500 12px/1.65 var(--ui);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
+  white-space: nowrap;
+  text-align: right;
+}
+.tgPhucBut .tgPbDs .ma {
+  grid-area: ma;
+  font: 400 11px/1.5 var(--mono);
+  color: var(--ink-3);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tgPhucBut .tgPbRong {
+  padding: 28px 16px;
+  text-align: center;
+  max-width: none;
+}
+
+/* ══ Văn phong ═════════════════════════════════════════════════════════ */
+
+.tgVanPhong .tgVpGioiThieu {
+  color: var(--ink-2);
+}
+.tgVanPhong .tgThan > .sect.tgVpThe {
+  padding: 18px 20px 20px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow);
+}
+.tgVanPhong .tgVpThe > h2 {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 4px;
+  font: 600 14px/1.4 var(--ui);
+  color: var(--ink);
+}
+.tgVanPhong .tgVpThe > h2 > .phu {
+  margin-left: auto;
+  font: 400 12px/1.4 var(--ui);
+  color: var(--ink-3);
+}
+.tgVanPhong .tgVpThe > .steerhint {
+  margin: 0 0 14px;
+  color: var(--ink-3);
+}
+.tgVanPhong .vpnhom {
+  padding-top: 16px;
+  margin-top: 16px;
+  border-top: 1px solid var(--line-2);
+}
+.tgVanPhong .vpnhom > h3 {
+  font: 600 12.5px/1.4 var(--ui);
+  color: var(--ink);
+}
+.tgVanPhong .vpnhom > .steerhint {
+  color: var(--ink-3);
+}
+.tgVanPhong .kvvp {
+  grid-template-columns: 116px minmax(0, 1fr);
+}
+.tgVanPhong .vpthe.vpky li {
+  font: 400 12.5px/1.5 var(--mono);
+}
+.tgVanPhong .vpthe.vpngo li {
+  background: none;
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--ink-3);
+}
+
+/* Từ hay lặp: chip mang luôn hạn mức của nó, để cặp từ → số không bị tách. */
+.tgVanPhong .vpmoi {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-width: none;
+}
+.tgVanPhong .vpmoi li,
+.tgVanPhong .vpmoi li:last-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 4px 2px 10px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--raised);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.tgVanPhong .vpmoi .tu {
+  color: var(--ink);
+}
+.tgVanPhong .vpmoi .han {
+  margin: 0;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--panel);
+  font: 500 11px/1.7 var(--ui);
+  font-variant-numeric: tabular-nums;
+  color: var(--amber);
+}
+
+.tgVanPhong .vpvan {
+  max-width: 80ch;
+}
+.tgVanPhong .vpvan .tgNhanPhu {
+  margin-bottom: 4px;
+}
+.tgVanPhong .vpvan p {
+  margin: 0 0 0.5em;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--ink-2);
+}
+.tgVanPhong .vpvan p:last-child {
+  margin-bottom: 0;
+}
+
+.tgVanPhong .vpcuaso {
+  color: var(--ink-3);
+}
+.tgVanPhong .vpluat {
+  max-width: 88ch;
+}
+
+/* Giọng nhân vật: ô nền nhạt trong thẻ (không lồng thẻ trong thẻ). */
+.tgVanPhong .vpgiong {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
+  gap: 10px;
+  max-width: none;
+}
+.tgVanPhong .vpgiong > li {
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--panel-2);
+  min-width: 0;
+}
+.tgVanPhong .vpgiong > li > h4 {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0 0 8px;
+  font: 600 13px/1.3 var(--ui);
+}
+.tgVanPhong .vpgiong .tgVong {
+  width: 26px;
+  height: 26px;
+  font-size: 10.5px;
+}
+.tgVanPhong .vpgiong > li > ul {
+  padding-left: 16px;
+  gap: 5px;
+}
+.tgVanPhong .vpgiong > li > ul li {
+  color: var(--ink-2);
+}
+.tgVanPhong .vpgiong > li > ul li::marker {
+  color: var(--ink-3);
+}
+
+.tgVanPhong .vpcam {
+  max-width: 88ch;
+}
+.tgVanPhong .vpcam li {
+  color: var(--ink);
+}
+.tgVanPhong .vpcam li .ky {
+  color: var(--amber);
+}
+
+/* ── chuyển động ───────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .tg .hopGap > summary::before,
+  .tgDanY .capGap > summary.nhanhdau::before,
+  .tg .tgLocNut,
+  .tgNhanVat .tgNvThe {
+    transition-duration: 0.01ms;
+  }
+}
+
+/* ── hẹp ───────────────────────────────────────────────────────────────── */
+@media (max-width: 860px) {
+  .tg .tgThan {
+    padding: 14px 14px 40px;
+  }
+  .tg .hopThan {
+    padding: 0 14px 16px;
+  }
+  .tgDanY .kvtiende {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .tgDanY .kvtiende dd {
+    padding-top: 0;
+    border-top: 0;
+  }
+  .tgDanY .kvtiende dt {
+    padding-bottom: 4px;
+  }
+  .tgDanY .nhanhdau {
+    flex-wrap: wrap;
+    row-gap: 4px;
+  }
+  .tgDanY .ntap .tgPhai,
+  .tgDanY .ncung .tgPhai {
+    flex-basis: 100%;
+    margin-left: 0;
+    padding-left: 24px;
+    flex-wrap: wrap;
+  }
+  .tgDanY .ntap .nhanhdau .ten,
+  .tgDanY .ncung .nhanhdau .ten {
+    flex: 1 1 0;
+    white-space: normal;
+  }
+  .tgDanY .tgTapThan,
+  .tgDanY .tgCungThan {
+    padding-left: 16px;
+  }
+  .tgDanY .cayChuong {
+    margin-left: 0;
+  }
+  .tgDanY .tgTrongTam {
+    display: none;
+  }
+  .tgDanY .cayChuong .nhanhdau > .ten {
+    max-width: none;
+    flex: 1 1 0;
+  }
+  .tgDanY .tgChuongThan {
+    padding-left: 8px;
+  }
+  .tgDanY .tgChuongThan .kvcay {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+  .tgDanY .tgChuongThan .kvcay dd {
+    margin-bottom: 8px;
+  }
+  .tgPhucBut .tgPbCongCu {
+    margin: -14px -14px 0;
+    padding: 10px 14px;
+  }
+  .tg .tgTimO,
+  .tg .tgTimO input {
+    width: 100%;
+  }
+  .tgPhucBut .tgPbDs > li,
+  .tgPhucBut .tgPbDs > li:first-child,
+  .tgPhucBut .tgPbDs > li:last-child {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "tt moc"
+      "mota mota"
+      "ma ma";
+    row-gap: 6px;
+  }
+  .tgNhanVat .tgNvLuoi {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .tgVanPhong .tgThan > .sect.tgVpThe {
+    padding: 16px;
+  }
+  .tgVanPhong .tgVpThe > h2 > .phu {
+    margin-left: 0;
+    flex-basis: 100%;
+  }
+}

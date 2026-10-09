@@ -39,9 +39,8 @@ var tenMayCucBo = map[string]bool{
 
 // laDiaChiCucBo cho biết địa chỉ lắng nghe có phải loopback.
 //
-// Khác với `warnIfPublic` (chỉ CẢNH BÁO rồi vẫn chạy): hàm này dùng để TỪ CHỐI bật nhóm
-// route ghi. Cảnh báo là đủ khi hậu quả là rò văn bản; không đủ khi hậu quả là người lạ
-// khởi động được engine và đọc được khóa vừa đặt.
+// `chay` dùng nó để TỪ CHỐI khởi động trên địa chỉ không phải loopback: hậu quả của sai ở
+// đây là người lạ khởi động được engine và đọc được khóa vừa đặt.
 //
 // Hướng sai của hàm này KHÔNG đối xứng: nhận sai một địa chỉ công khai thành cục bộ là
 // phơi khóa API ra internet; từ chối sai một địa chỉ cục bộ chỉ làm mất tiện. Nên mọi ca
