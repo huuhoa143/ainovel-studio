@@ -46,11 +46,20 @@ vì Tập ⊃ Cung ⊃ Chương).
 
 ## Deploy
 
+Trang chạy trên **Cloudflare Pages**, project `ainovel-studio` (tài khoản Cloudflare của
+huuhoa14399), tên miền `ainovel.lingoreup.com` (CNAME → `ainovel-studio.pages.dev`, proxied).
+Không còn phụ thuộc VPS.
+
 ```bash
-# trên máy dev, từ gốc repo:
-tar -C landing -cf - . | ssh lingoreup 'tar -x -C /var/www/ainovel.lingoreup.com'
-ssh lingoreup 'chown -R www-data:www-data /var/www/ainovel.lingoreup.com'
+# từ gốc repo — chép ra thư mục riêng để README.md và rác macOS không lên mạng,
+# rồi deploy TỪ CHÍNH thư mục đó (wrangler đọc thư mục làm việc nếu tự đổi hướng).
+rm -rf /tmp/landing-pub && mkdir /tmp/landing-pub
+COPYFILE_DISABLE=1 rsync -a --exclude README.md --exclude '.DS_Store' --exclude '._*' landing/ /tmp/landing-pub/
+cd /tmp/landing-pub && npx wrangler pages deploy . --project-name ainovel-studio --branch main
 ```
 
-vhost: `/etc/nginx/sites-enabled/ainovel.lingoreup.com.conf` trên server. TLS dùng wildcard
-`*.lingoreup.com` sẵn có, **không** cần certbot cho subdomain này.
+`404.html` là bắt buộc: thiếu nó, Pages coi trang là SPA và trả `index.html` kèm 200 cho mọi
+đường dẫn sai.
+
+Bản cũ trên VPS (`/var/www/ainovel.lingoreup.com` + vhost nginx trên server `lingoreup`) vẫn còn
+nhưng không còn bản ghi DNS nào trỏ tới.
